@@ -1,0 +1,7 @@
+# Lines the model-agnostic gate may skip. path:line and a reason, one per line.
+# A slug belongs here only when it is illustrative prose, never a model prescription.
+skills/reflect/references/synthesizer.md:28	example of a code-change description, not a model choice
+docs/guide/05-build-and-clean.md:51	accurate provenance, /deslop ships in cursor-team-kit and the line gives a plain-words fallback
+docs/guide/05-build-and-clean.md:71	names the division of labor between /deslop, /unslop and /no-comments, prose only
+skills/reflect/SKILL.md:37	verified wire fact, task schema has no readonly field, stated with the fallback
+skills/why/SKILL.md:122	verified wire fact, nothing on the task wire strips MCP, stated with the fallback

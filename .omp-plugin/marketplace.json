@@ -1,0 +1,25 @@
+{
+  "name": "pstack-omp",
+  "owner": { "name": "Alex Negrescu" },
+  "metadata": {
+    "description": "pstack, poteto's engineering methodology for Cursor, ported to oh-my-pi. Model and provider agnostic.",
+    "version": "0.14.8"
+  },
+  "plugins": [
+    {
+      "name": "pstack",
+      "description": "45 skills, 23 playbooks, 21 principles, the poteto-mode pin, and two agents. Upstream cursor/plugins pstack at .",
+      "version": "0.14.8",
+      "category": "development",
+      "license": "MIT",
+      "source": "./plugins/pstack"
+    },
+    {
+      "name": "fan-out",
+      "description": "Run many subagents in parallel on one machine. Concurrency ceiling, isolation, aggregation, and the model-reliability floor, all measured.",
+      "category": "development",
+      "license": "MIT",
+      "source": "./plugins/fan-out"
+    }
+  ]
+}

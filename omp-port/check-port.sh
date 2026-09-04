@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# Gate for the omp port of pstack. Port-only file, never upstream.
+# Usage: bash omp-port/check-port.sh [canonical-checkout]
+set -uo pipefail
+cd "$(dirname "$0")/.."
+CANON="${1:-/tmp/cursor-plugins/pstack}"
+fail=0
+report() { printf '%-28s %s\n' "$1" "$2"; }
+violate() { fail=1; printf '  %s\n' "$1"; }
+
+SCOPE=(skills agents docs)
+ALLOW=omp-port/slug-allowlist.txt
+
+# An audited exception is `path:line<TAB>reason`. Illustrative prose only, never a
+# real prescription. Anything not listed here must pass on its own merits.
+allowed() { [ -f "$ALLOW" ] && cut -f1 "$ALLOW" | grep -qxF "$1"; }
+scan() {
+	local pat="$1" label="$2" bad=""
+	while IFS= read -r line; do
+		allowed "${line%%:*}:$(cut -d: -f2 <<<"$line")" || bad="$bad$line"$'\n'
+	done < <(grep -rIn -E "$pat" --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null | cut -d: -f1,2)
+	if [ -n "$bad" ]; then
+		report "$label" "FAIL"
+		while read -r b; do [ -n "$b" ] && violate "$b"; done <<<"$bad"
+	else
+		local n=0
+		[ -f "$ALLOW" ] && n=$(grep -cv '^#' "$ALLOW")
+		report "$label" "PASS  clean, $n audited exception(s)"
+	fi
+}
+
+scan '\b(claude-[a-z0-9.-]+|gpt-[0-9][a-z0-9.-]*|grok-[a-z0-9.-]+|gemini-[a-z0-9.-]+|opus-[a-z0-9.-]+)\b' "model-agnostic"
+
+# Role instructions must name an omp lever. /model sets the chat model,
+# task.agentModelOverrides sets a per-agent model.
+if grep -rIlq 'task.agentModelOverrides' skills/setup-pstack/SKILL.md skills/poteto-mode/SKILL.md 2>/dev/null; then
+	report "omp model levers" "PASS  task.agentModelOverrides named"
+else
+	report "omp model levers" "FAIL"
+	violate "setup-pstack and poteto-mode must name task.agentModelOverrides"
+fi
+if grep -rIlq '/model' skills/setup-pstack/SKILL.md 2>/dev/null; then
+	report "chat-model lever" "PASS  /model named in setup-pstack"
+else
+	report "chat-model lever" "FAIL"
+	violate "setup-pstack must tell the user to pick the chat model with /model"
+fi
+
+# A diverse-model review is a property of the reviewer, not a named slug.
+for f in skills/interrogate/SKILL.md skills/arena/SKILL.md skills/reflect/SKILL.md; do
+	grep -qiE 'different (model )?(family|provider)|separate model family' "$f" ||
+		{ fail=1; violate "no model-diversity property stated in $f"; }
+done
+[ "$fail" -eq 0 ] && report "review diversity" "PASS  stated as a property"
+
+# A capability claim pinned to a version rots on the next upgrade, exactly like a
+# hardcoded model slug. Depend on a probe or a conditional instead.
+ver=$(grep -rIn -oE 'omp[/ ]?1[0-9]+\.[0-9]+(\.[0-9]+)?' --include='*.md' "${SCOPE[@]}" 2>/dev/null)
+if [ -n "$ver" ]; then
+	report "version-agnostic" "FAIL"
+	while read -r v; do violate "version-pinned: $v"; done <<<"$ver"
+else
+	report "version-agnostic" "PASS  no version-pinned capability claim"
+fi
+
+scan 'omp (has no|does not support|cannot|lacks) [a-z`_.:-]+' "capability claims"
+
+scan 'cursor-team-kit|/deslop|run_in_background|<agent-transcripts>|~/\.cursor/|AskQuestion|cloud_base_branch|~/\.omp/skills/|environment: "cloud"' "cursor residue"
+
+# omp's task wire has no readonly field, so a bare `readonly: true` task parameter
+# is silently ignored. Read-only posture must be a brief-level tool grant plus a
+# write ban, with the skill stating omp cannot enforce it.
+ro=$(grep -rIn -E '`readonly`:\s*`?true`?|readonly:\s*true' --include='*.md' "${SCOPE[@]}" 2>/dev/null)
+if [ -n "$ro" ]; then
+	report "readonly posture" "FAIL"
+	while read -r r; do violate "unenforceable readonly: $r"; done <<<"$ro"
+else
+	report "readonly posture" "PASS  read-only stated as brief posture"
+fi
+
+missing=""
+while read -r p; do
+	[ -e "skills/poteto-mode/$p" ] || missing="$missing $p"
+done < <(grep -rohE 'playbooks/[a-z-]+\.md|references/[a-z-]+\.md' skills/poteto-mode --include='*.md' | sort -u)
+if [ -n "$missing" ]; then
+	report "internal links" "FAIL"
+	for m in $missing; do violate "dangling: $m"; done
+else
+	report "internal links" "PASS  every playbook and reference resolves"
+fi
+
+# Claims the published guide makes about pstack, verified as present.
+for s in create-verification-skill maintain-verification-skill swarm poteto-mode; do
+	[ -f "skills/$s/SKILL.md" ] || { fail=1; violate "guide names /$s, not installed"; }
+done
+grep -qi 'features' skills/create-verification-skill/SKILL.md ||
+	{ fail=1; violate "create-verification-skill must build the Feature Map (references/features)"; }
+grep -q 'mode: true' skills/poteto-mode/SKILL.md ||
+	{ fail=1; violate "poteto-mode must carry the Custom Mode pin frontmatter"; }
+[ "$fail" -eq 0 ] && report "guide claims" "PASS  verification skill, Feature Map, swarm, pin"
+
+bad=""
+for d in skills/*/; do
+	n=$(basename "$d")
+	fm=$(sed -n 's/^name: *//p' "$d/SKILL.md" 2>/dev/null | head -1 | tr -d '"' | tr -d "'")
+	[ -n "$fm" ] || bad="$bad $n(noname)"
+done
+[ -n "$bad" ] && { fail=1; violate "frontmatter name missing:$bad"; }
+report "skill count" "$(ls -1d skills/*/ | wc -l) skills, $(find "$HOME/.omp/agent/skills" -maxdepth 1 -type l | wc -l) symlinks installed"
+
+if [ -d "$CANON" ]; then
+	drift=$(diff -rq "$CANON" . -x '.git*' -x assets -x node_modules -x omp-port -x OMP-PORT.md 2>/dev/null | wc -l)
+	report "canonical delta" "$drift files differ from $CANON"
+else
+	report "canonical delta" "SKIP  no canonical checkout at $CANON"
+fi
+
+echo
+if [ "$fail" -eq 0 ]; then echo "check-port: PASS"; else echo "check-port: FAIL"; fi
+exit "$fail"

@@ -1,0 +1,37 @@
+unit	decision	why	evidence	verdict
+frame	predicate is `bash omp-port/check-port.sh` exit 0	"done well" has to be checkable, not asserted	omp-port/check-port.sh	VERIFIED
+harness	build the gate and capture the baseline before any edit	a check written after the change tends to describe the change rather than test it	/tmp/baseline.txt, 75 slugs across 15 files, exit 1	VERIFIED
+convention	name the capability, never the vendor, family, or selector	identity rots on a rename, capability does not	omp-port/model-agnostic.md	VERIFIED
+mechanism	two layers, `/model` for the chat model and a capability alias in task.agentModelOverrides	omp's task tool exposes no model field, so the keyed override is the only per-spawn lever	omp docs, "Role aliases in either of the first two sources are expanded through modelRoles"	VERIFIED
+alias-check	verify the alias claim myself before letting it into three files	a delegate's mechanism claim is a hypothesis until the doc says it	quoted omp doc sentence above	VERIFIED
+setup-pstack	33 slugs to 0, all 18 upstream role labels kept as comment labels	sibling skills reference those labels by text, so the label is an interface	grep exit 1, 37 override entries, 8 aliases, YAML parses	VERIFIED
+routed-skills	27 slugs to 0 across architect, arena, how, interrogate, why, reflect	same rule, applied where the fan-out models were named	grep shows only the allowlisted line	VERIFIED
+diversity	state model diversity as a run-time property, not a pair of slugs	interrogate and reflect never stated it at all, so the gate demanded it	"different model family" present in both, single-family case handled	VERIFIED
+role-labels	accept reflect-divergent and reflect-synthesizer instead of upstream's shared label	upstream shared one slug across three lenses, so keeping one label would put Divergent on Judgment's model and kill the property the skill exists for	AgnosticSkills report, approved by Main	VERIFIED
+playbooks	10 slugs to 0, three-way delegate tiering kept by capability	the tiering is useful, only the naming was wrong	grep exit 1, four preserved items quoted	VERIFIED
+version-pins	treat the omp version as a probe, never a given	the binary moved 18.1.3 to 18.1.6 mid-session while being quoted as fixed	new version-agnostic and capability-claims gate checks	VERIFIED
+gate-bug	the allowlist was written but never wired in	caught by AgnosticSkills, not by me, and it made PASS unreachable for everyone	scan() now reads omp-port/slug-allowlist.txt	VERIFIED
+exceptions	3 audited exceptions, each with a written reason	an exception in a file a reviewer reads beats a loosened regex nobody sees	omp-port/slug-allowlist.txt	VERIFIED
+live	every migrated skill resolves through skill://	the gate reads text, and text passing is not the skill loading	10 skills, 10 headings returned	VERIFIED
+guide	verification skill, Feature Map, swarm, and the pin all still present	the published guide is a source of truth, so its claims are gate lines	guide claims check PASS	VERIFIED
+readonly	converted 13 bare prescriptions to brief-level tool grants plus write bans	investigated the wire first, per-item tools only exposes eval kernel tools and cannot sandbox, agent frontmatter tools is the sole enforced restriction	grep shows zero bare readonly, gate readonly-posture check added	VERIFIED
+resume	orchestrate.md:17 now resumes via hub messaging	task tool has no resume parameter, playbook already described hub semantics while crediting task	grep Task-tool matches only the corrected line	VERIFIED
+lspdebug	refactoring, bug-fix, feature each carry executable lsp and debug instructions	highest leverage gap, text renames silently miss callsites	keyword check plus live skill loads	VERIFIED
+drift	upstream pstack/ unchanged since 7314f72	todo.txt claimed newer commits, diff against fresh HEAD shows 0 changed lines	no-op with evidence	VERIFIED
+gate	generalized abs check through scan() plus readonly-posture check	workers wrote true wire facts the crude regex flagged, exceptions belong in the allowlist	check-port: PASS, 10 checks	VERIFIED
+isolation	set task.isolation.enabled true and proved the shape	unflagged spawns share the parent checkout even with the gate open, and isolated prep needs the parent inside a repo	B proved shared checkout live, isolated:true outside a repo fails fast with a clear error, docs updated	VERIFIED
+parity	six-slice audit vs 93b00b8 plus guide, 45/45 skills both sides, zero one-side-only files	every file classified with both-sides quotes, poteto-mode tree fully intentional	gate PASS, all six skills load live, one worker gamed its yield and was re-run from its transcript	VERIFIED
+no-comments	fixed mangled agent name at :19	sed-class breakage, backticks paired half the name	verified against agents/comment-sicko.md frontmatter	VERIFIED
+recall	real omp bucket encoding plus title-line truth	recalled slug rule computed nonexistent buckets, every recall degraded	verified against live sessions/ buckets	VERIFIED
+reflect	omp transcript layout plus message-line heuristic	Cursor layouts contradicted the port's own line 25, first-line check always failed	verified against real transcript line 1	VERIFIED
+createskill	automate-me and reflect repointed at authoring playbook	references named a Cursor builtin absent on omp	zero create-skill strings remain	VERIFIED
+check-plan	checker slug replaced with capability phrase, deliberate divergence commented	executable checker enforced a vendor slug on every plan	grep clean, gate scan widened to scripts	VERIFIED
+driftcount	224 restored with pinned counting definition	recompute from local mirror objects, fixer wrote total-diff-lines 729	224 content lines, method quoted in OMP-PORT	VERIFIED
+schema-eval	blind 3v3 critic A/B, schema strict vs prose, on thinking Qwen	schema arm 71/75, prose 68/75, content 5/5 everywhere, uniformity is the whole gap	judge blinded, family-diversity unmet (scout served Qwen), my synthesis is the independent check	VERIFIED
+lanes-bug	checker LANES named judgment model, skeleton names fast code model	my own fixer mapped the wrong capability, 3 critics flagged it high	aligned checker to skeleton, substring verified	VERIFIED
+hub-adopt	same-session send/wait/inbox sanctioned, cross-session no workaround	pstack never calls hub, remote half tracked upstream	one line in OMP-PORT, no code	VERIFIED
+marketplace	generator builds a publishable omp marketplace from the port	release regenerates on every sync instead of drifting by hand	omp plugin marketplace add + install both plugins from the built tree, extension linked, skills and agent and pin proven with user-level roots moved aside	VERIFIED
+agent-model	published poteto-agent ships without model alias	an unbound @alias hard-fails the spawn with No model selected, proven by probe	generator strips the line, setup-pstack owns the opt-in	VERIFIED
+pkg-name	package.json name must equal catalog plugin name	lock keyed by package name, symlink into node_modules fell through the gap	pstack symlink present after rename, extension loads	VERIFIED
+pin-count	phrase count in prompt varies by directory	per-cwd memory banks auto-retained earlier pin tests, recall echoes them	probe extension saw the count in base blocks before potetomode ran, DB rows match per dir	VERIFIED
+porting-scrub	PORTING.md carried workstation paths and a vendor slug	gate scopes skills agents docs, never the porting record	generic wording, 0 hits on the release scan	VERIFIED

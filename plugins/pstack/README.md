@@ -10,6 +10,26 @@ leaves, the `poteto-mode` pin, and the `poteto-agent` and `Comment Sicko` agents
 /marketplace install pstack@pstack-omp
 ```
 
+That loads the 45 skills and the `potetomode` extension. It does not load the two agents.
+On omp 18.1.13 a marketplace plugin's `agents/` directory is scanned only through the
+`claude-plugins` discovery provider, and enabling that provider also loads every Claude Code
+plugin cached under `~/.claude/plugins`. Link the agents into omp's native root instead:
+
+```
+mkdir -p ~/.omp/agent/agents
+ln -s ../../plugins/node_modules/pstack/agents/poteto-agent.md  ~/.omp/agent/agents/poteto-agent.md
+ln -s ../../plugins/node_modules/pstack/agents/comment-sicko.md ~/.omp/agent/agents/comment-sicko.md
+```
+
+`node_modules/pstack` is the symlink the marketplace install maintains, so `/marketplace upgrade`
+moves the agents with it. Check with a fresh session:
+
+```
+omp -p --no-session --thinking off "Do not call any tool. List every agent name in the task tool's Available Agents section."
+```
+
+`poteto-agent` and `Comment Sicko` must appear beside `task`, `scout`, `reviewer`.
+
 Then `/poteto-mode on`, or `alt+shift+t`, or `omp -p --poteto '...'` for headless runs.
 
 ## What differs from upstream

@@ -72,6 +72,41 @@ symlinks into omp's own discovery roots, and `omp plugin link` is unusable here 
 
 ## Install (verified live)
 
+Two shapes. The marketplace is the one the README documents. The symlink tree is the original
+port and still works.
+
+### Marketplace
+
+```
+/marketplace add negoro26/pstack-omp
+/marketplace install pstack@pstack-omp
+```
+
+That caches the plugin at `~/.omp/plugins/cache/plugins/pstack-omp___pstack___<version>` and links
+it at `~/.omp/plugins/node_modules/pstack`. Verified on omp 18.1.13, 2026-09-07. The 45 skills
+load, `fan-out` and `setup-pstack` enter the `<skills>` block and the rest hide, and the
+`potetomode` extension loads from `package.json` `omp.extensions`, so `--poteto` injects the
+reminder in `-p` mode.
+
+The agents do not load. omp scans a marketplace plugin's `agents/` directory only through the
+`claude-plugins` discovery provider, which is off by default (`enabledProviders: []`). Turning it
+on put `poteto-agent` and `Comment Sicko` on the roster and also loaded every Claude Code plugin
+cached under `~/.claude/plugins`, about thirty skill descriptions per turn on the machine that
+measured it. The install therefore adds two symlinks into omp's native user root:
+
+```
+~/.omp/agent/agents/poteto-agent.md  -> ../../plugins/node_modules/pstack/agents/poteto-agent.md
+~/.omp/agent/agents/comment-sicko.md -> ../../plugins/node_modules/pstack/agents/comment-sicko.md
+```
+
+Relative through `node_modules/pstack`, so `/marketplace upgrade` retargets them. Verified after
+linking: both names on the `task` roster in a fresh `omp -p --no-session` session, and
+`task agent="poteto-agent"` spawned and returned its one-word reply. If a later omp scans
+marketplace `agents/` natively, the two links become duplicates of the same name and first-wins
+dedup keeps the native-root copy, so they are harmless to leave and safe to delete.
+
+### Symlink tree
+
 ```
 ~/.omp/agent/skills/<name>    -> ~/.omp/pstack/skills/<name>     # 45 symlinks
 ~/.omp/agent/agents/<name>.md -> ~/.omp/pstack/agents/<name>.md  #  2 symlinks
@@ -191,10 +226,12 @@ thinking id for judgment work.
   installed and authenticated, so single-PR flows work. Canonical `7314f72` reduces the exposure by
   landing through GitHub by default, but the stacking commands still name `gt`.
 - **`isolated: true` is opt-in per spawn, and the gate is open.** `task.isolation.enabled` is `true` in `~/.omp/agent/config.yml`, so the field reaches the task tool instead of being stripped. Two facts verified live. Absent the flag a worker shares the parent checkout, so each swarm brief must request it. And the parent must run from inside a git checkout, since isolated preparation builds a worktree from it. Outside a repo the spawn fails fast with a clear error rather than silently sharing. omp's task tool also rejects `environment`, `cloud_base_branch`, and a per-spawn `model`. Per-spawn model choice is only `task.agentModelOverrides`, keyed by agent name.
-- **The frontmatter keys have no plugin path.** `mode`, `reminder`, `icon`, `color`, and
-  `disable-model-invocation` all fall outside omp's closed Agent Plugin frontmatter schema, so the
-  symlink install above is the only viable path. Nothing needs fixing in the skills. The install shape
-  is the fix.
+- **The agents have no marketplace path.** The skills and the extension install through the
+  marketplace; `disable-model-invocation: true` maps to `hide` and the extra frontmatter keys
+  (`mode`, `reminder`, `icon`, `color`) are ignored without error. The `agents/` directory is the
+  one surface the marketplace install does not reach without the `claude-plugins` provider, hence
+  the two agent symlinks in the Install section. Nothing needs fixing in the agent files. The install
+  shape is the fix.
 - **The extension is the pin mechanism until a probe says otherwise.** Never read this off a version
   number, because the binary updates often. Probe it:
 

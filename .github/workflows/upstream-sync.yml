@@ -1,0 +1,78 @@
+name: upstream-sync
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Upstream cursor/plugins sha to sync to, defaults to the main head
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: plan
+        env:
+          SHA_INPUT: ${{ inputs.sha }}
+        run: |
+          bash omp-port/sync-upstream.sh check > "$RUNNER_TEMP/commits.txt"
+          if [ ! -s "$RUNNER_TEMP/commits.txt" ]; then
+            echo "no upstream pstack change since the pin"
+            exit 0
+          fi
+          target="$SHA_INPUT"
+          [ -n "$target" ] || target=$(gh api repos/cursor/plugins/commits/main --jq .sha)
+          printf '%s' "$target" | grep -qxE '[0-9a-f]{40}' || {
+            echo "target must be a full 40-hex sha" >&2
+            exit 1
+          }
+          short=${target:0:7}
+          if git ls-remote --exit-code origin "refs/heads/sync/upstream-$short" >/dev/null 2>&1; then
+            echo "sync/upstream-$short already exists on origin"
+            exit 0
+          fi
+          printf 'target=%s\nshort=%s\ngo=yes\n' "$target" "$short" >> "$GITHUB_OUTPUT"
+
+      - if: steps.plan.outputs.go == 'yes'
+        env:
+          TARGET: ${{ steps.plan.outputs.target }}
+          SHORT: ${{ steps.plan.outputs.short }}
+        run: |
+          AT=$(printf '\100')
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]${AT}users.noreply.github.com"
+          git switch -c "sync/upstream-$SHORT"
+          code=0
+          bash omp-port/sync-upstream.sh "$TARGET" > "$RUNNER_TEMP/sync.log" 2>&1 || code=$?
+          if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then
+            cat "$RUNNER_TEMP/sync.log"
+            exit 1
+          fi
+          version=$(jq -r .version plugins/pstack/package.json)
+          gate=0
+          bash omp-port/check-port.sh > "$RUNNER_TEMP/gate.txt" 2>&1 || gate=$?
+          git add -A
+          git commit -q -m "sync: merge upstream pstack $SHORT ($version)"
+          git push -q origin HEAD
+          {
+            printf 'Upstream commits since the previous pin.\n\n```\n'; cat "$RUNNER_TEMP/commits.txt"
+            printf '```\n\nSync output, exit %s.\n\n```\n' "$code"; cat "$RUNNER_TEMP/sync.log"
+            printf '```\n\nGate output, exit %s.\n\n```\n' "$gate"; cat "$RUNNER_TEMP/gate.txt"
+            printf '```\n'
+          } > "$RUNNER_TEMP/body.md"
+          draft=""
+          if [ "$code" -eq 2 ] || [ "$gate" -ne 0 ]; then draft="--draft"; fi
+          gh pr create --base main --head "sync/upstream-$SHORT" \
+            --title "sync: upstream pstack $SHORT ($version)" --body-file "$RUNNER_TEMP/body.md" $draft

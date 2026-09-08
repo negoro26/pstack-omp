@@ -2,5 +2,9 @@
   "name": "pstack",
   "version": "0.14.8",
   "license": "MIT",
-  "omp": { "extensions": ["./extensions/potetomode/index.js"] }
+  "omp": {
+    "extensions": [
+      "./extensions/potetomode/index.js"
+    ]
+  }
 }

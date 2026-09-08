@@ -12,16 +12,12 @@ Explore the codebase to answer "how does X work?" questions. Produce architectur
 
 If the scope is ambiguous, state your interpretation and explore. The user can redirect.
 
-<<<<<<< HEAD
-Every `model` line below names a role, not a per-call argument. Pin the role by agent name in `task.agentModelOverrides`, and give each role its own agent name when the roles need different models. The **setup-pstack** skill owns that configuration; a role with no entry runs on the parent chat model. Read-only in this skill is posture, not a sandbox. omp's task wire has no `readonly` field, and the per-item `tools` field only exposes eval-defined kernel tools to a spawn, so the wire cannot enforce a tool grant. Each brief names the tools the worker may use and forbids writes. The one per-spawn restriction omp enforces is `tools` in an agent's frontmatter, which binds to an agent definition, not a task call.
-
-## Explain Mode
-=======
 - **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. One explainer explores and explains in a single pass. Go to Step 2b.
 - **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): spawn parallel explorers first, then hand off to the explainer. Go to Step 2a.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
 
 When in doubt, take the simple path.
+
+Every `model` line below names a role, not a per-call argument. Pin the role by agent name in `task.agentModelOverrides`, and give each role its own agent name when the roles need different models. The **setup-pstack** skill owns that configuration. A role with no entry runs on the parent chat model. Read-only in this skill is posture, not a sandbox. omp's task wire has no `readonly` field, and the per-item `tools` field only exposes eval-defined kernel tools to a spawn, so the wire cannot enforce a tool grant. Each brief names the tools the worker may use and forbids writes. The one per-spawn restriction omp enforces is `tools` in an agent's frontmatter, which binds to an agent definition, not a task call.
 
 ## Step 2a. Explore (complex questions only)
 
@@ -59,52 +55,4 @@ Present the explainer's output to the user. Light edits for clarity or context f
 
 ## Output Format
 
-<<<<<<< HEAD
-Follow this structure, adapted to the question. Not every section is needed for every question.
-
-**Overview.** 1-2 paragraphs. What it is, what it does, why it exists. Enough to decide whether to keep reading.
-
-**Key Concepts.** The important types, services, or abstractions. Brief definition of each. Not exhaustive, just the ones needed to understand the rest.
-
-**How It Works.** The core of the explanation. Walk through the flow: what triggers it, what happens step by step, where data goes, the decision points. Prose, not pseudocode. Reference specific files and functions so the reader can go look, but don't dump code blocks unless a snippet is genuinely necessary.
-
-**Where Things Live.** A brief map of the relevant files/directories. Not every file, just the ones needed to start working in this area.
-
-**Gotchas.** Non-obvious or surprising things that would trip someone up. Historical context that explains why something looks weird. Known sharp edges.
-
-## Critique Mode
-
-Triggered when the user asks for architectural issues, problems, or improvements, not just understanding.
-
-### Step 1. Explain First
-
-Run the full explain flow above (Steps 1-4). You must understand the architecture before critiquing it.
-
-### Step 2. Spawn Critics
-
-After the explanation is complete, spawn one architectural critic per entry in your configured how-critics list, all in a single message. With no configured list, run four critics spread across the model families `omp models` reports, starting with your strongest judgment model. Critics on different model families is the whole point; blind spots are what one model cannot see in its own work.
-
-For each critic:
-- `agent`: `task` (omp’s general-purpose bundled agent)
-- `model`: one entry from the configured how-critics list, pinned by that critic's agent name. Treat the configured entry as a floor. The lead should escalate a critic to a stronger reasoning tier when the architecture warrants deeper analysis.
-- read-only: the brief grants the critic only Glob, Grep, and Read, and forbids writes
-
-Read `references/critic-prompt.md` for the prompt template. Each critic gets:
-1. The explanation from Step 1 (so they don't re-explore)
-2. The relevant file paths (so they can read the actual code)
-3. The architectural critique rubric from `references/critique-rubric.md`
-
-### Step 3. Lead Judgment
-
-Same framework as the interrogate skill. You're a pragmatic lead, not an aggregator.
-
-Categorize findings:
-- **Act on.** Architectural problems worth fixing now
-- **Consider.** Real concerns, but the cost/benefit is unclear
-- **Noted.** Valid observations, low priority
-- **Dismissed.** Wrong, missing context, or style preference
-
-Present the explanation first (from Step 1), then the critique verdict below it. The explanation should stand on its own; someone who just wants to understand the system shouldn't wade through critique.
-=======
 The explanation uses the sections defined in `references/explainer-prompt.md`, dropping any that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3

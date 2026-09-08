@@ -53,11 +53,7 @@ Commit it only when the work is ambitious enough that a reviewer needs the trail
 
 ## Audit the log against the transcript
 
-<<<<<<< HEAD
-At the end of the run, before handing back, check the log told the truth. Read this run's transcript under the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl` (subagents: `<session>/<AgentName>.jsonl`) (the system prompt names the path). Don't glob across sibling `~/.omp/agent/sessions/<other-cwd>/` buckets; that reads unrelated private chats. Walk the log against what actually happened:
-=======
-At the end of the run, before handing back, check the log told the truth. Read this run's transcript under the active workspace's `agent-transcripts/` directory (the system prompt names the path). Don't glob across `~/.cursor/projects/*/`. That reads unrelated private chats. Walk the log against what actually happened:
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
+At the end of the run, before handing back, check the log told the truth. Read this run's transcript under the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl` (subagents: `<session>/<AgentName>.jsonl`) (the system prompt names the path). Don't glob across sibling `~/.omp/agent/sessions/<other-cwd>/` buckets. That reads unrelated private chats. Walk the log against what actually happened:
 
 - Every row maps to a real action. Cut invented or aspirational entries.
 - Each row's evidence resolves and shows what the row claims.

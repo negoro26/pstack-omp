@@ -33,11 +33,7 @@ Write one clear paragraph. If you're unsure about the intent, ask the user befor
 
 ## Step 3, Spawn Reviewers
 
-<<<<<<< HEAD
-Launch all reviewers in a single message using the Task tool. Use your configured `interrogate reviewers` list when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count; otherwise use the table defaults.
-=======
-Launch all reviewers in a single message using the Task tool. Use the `interrogate reviewers` list from `~/.cursor/rules/pstack-models.mdc` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
+Launch all reviewers in a single message using the Task tool. Use your configured `interrogate reviewers` list when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.
 
 | Subagent | Default capability |
 |----------|--------------------|
@@ -55,11 +51,7 @@ For each reviewer:
 - `model`: the configured `interrogate reviewers` entry, or the table capability with no configured line, pinned by that reviewer's agent name in `task.agentModelOverrides`
 - read-only: the brief grants the reviewer only Glob, Grep, and Read, and forbids writes. omp's task wire has no `readonly` field and the per-item `tools` field only exposes eval-defined kernel tools, so the grant is posture, not a sandbox
 
-<<<<<<< HEAD
-A reviewer with no override entry runs on the parent chat model, which is correct for Reviewer A and is the case where the family spread collapses. Give each reviewer that needs its own family its own thin agent file plus its own override entry. If an override entry names a model this machine cannot resolve, pick the closest equivalent from `omp models` (prefer the highest-reasoning tier of the same family), spawn with that, and open a separate PR to fix the entry. Do not block the review on it. The values `inherit-parent` and `auto` are not broken; they mean the reviewer runs on the parent chat model, so leave that reviewer out of the override map. The **setup-pstack** skill owns the configuration.
-=======
-If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the Task tool's error message, pick the closest equivalent (prefer the highest-reasoning tier of the same family), spawn with the valid slug, and open a separate PR to update the configured value or default table. Do not block the review on the slug issue. If the configured value is `inherit-parent` or `auto`, omit `model` instead. Never treat those aliases as broken slugs or enter this fallback for them.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
+A reviewer with no override entry runs on the parent chat model, which is correct for Reviewer A and is the case where the family spread collapses. Give each reviewer that needs its own family its own thin agent file plus its own override entry. If an override entry names a model this machine cannot resolve, pick the closest equivalent from `omp models` (prefer the highest-reasoning tier of the same family), spawn with that, and open a separate PR to fix the entry. Do not block the review on it. The values `inherit-parent` and `auto` are not broken. They mean the reviewer runs on the parent chat model, so leave that reviewer out of the override map. The **setup-pstack** skill owns the configuration.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent

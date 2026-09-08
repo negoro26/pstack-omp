@@ -8,11 +8,7 @@ disable-model-invocation: true
 
 A guided flow for turning the user's working conventions into a skill agents will follow. The output is one `-mode` skill tailored to them (e.g. `jay-mode`, `priya-mode`).
 
-<<<<<<< HEAD
-This skill orchestrates three others: an inline mining pass (see step 1), the `authoring-a-skill` playbook (authoring), and the **unslop** skill (prose discipline). It sequences them; it doesn't replace them.
-=======
-This skill orchestrates three others: an inline mining pass (see step 1), Cursor's built-in `create-skill` (authoring), and the **unslop** skill (prose discipline). It sequences them. It doesn't replace them.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
+This skill orchestrates three others: an inline mining pass (see step 1), the `authoring-a-skill` playbook (authoring), and the **unslop** skill (prose discipline). It sequences them. It doesn't replace them.
 
 ## Flow
 
@@ -45,11 +41,7 @@ Cross-check across slices before elevating a signal. Patterns seen in 2+ slices 
 
 ### 2. Ask the user directly
 
-<<<<<<< HEAD
-Mining misses intent that hasn't come up yet. Use the `ask` tool (structured multi-choice) rather than asking the user to type from scratch. Lower cognitive load, higher hit rate.
-=======
-Mining misses intent that hasn't come up yet. Use the `AskQuestion` tool (structured multi-choice) rather than asking the user to type from scratch.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
+Mining misses intent that hasn't come up yet. Use the `ask` tool (structured multi-choice) rather than asking the user to type from scratch.
 
 Shape: one or two questions with 4-6 options each, `allowMultiple: true` for category questions. Start broad ("Which areas matter most?"), then follow up on selected areas with specific options. After the structured rounds, one free-form chat question catches anything the options missed.
 
@@ -74,27 +66,15 @@ The **poteto-mode** skill shows the shape. Read it for granularity. Don't copy i
 
 Use the `authoring-a-skill` playbook (`skills/poteto-mode/playbooks/authoring-a-skill.md`) to author the skill. Placement:
 
-<<<<<<< HEAD
-- Path: preserve an existing mode skill's category. For a new mode, use `.omp/skills/<handle>/<handle>-mode/SKILL.md` when the repo has an established personal category for that handle; otherwise default to `.omp/skills/<handle>-mode/SKILL.md` in the project (or `~/.omp/agent/skills/<handle>-mode/` if the user prefers a personal skill).
+- Path: preserve an existing mode skill's category. For a new mode, use `.omp/skills/<handle>/<handle>-mode/SKILL.md` when the repo has an established personal category for that handle. Otherwise default to `.omp/skills/<handle>-mode/SKILL.md` in the project (or `~/.omp/agent/skills/<handle>-mode/` if the user prefers a personal skill).
 - Handle: the user's first name or chosen identifier.
 - Frontmatter `description`: trigger on their name + `/<handle>-mode` + "work in their style", not on generic keywords like "write code" or "review PR".
-- Frontmatter formatting: follow the `authoring-a-skill` playbook's YAML rules. Keep `description` as one YAML scalar; quote it or use `description: >-` with indented continuation lines when punctuation or wrapping requires it.
-- Frontmatter `disable-model-invocation: true` by default. Mode skills are heavy and opinionated; they should only apply when the user explicitly invokes them (by name or slash command), not auto-trigger on description matching. Opt out only if the user explicitly wants their mode to apply on every turn.
-
-### 5. Iterate on prose
-
-Apply the **unslop** skill and the `authoring-a-skill` playbook's writing guidelines to every line. Both apply to any agent-read prose, not just skills.
-=======
-- Path: preserve an existing mode skill's category. For a new mode, use `.cursor/skills/<handle>/<handle>-mode/SKILL.md` when the repo has an established personal category for that handle. Otherwise default to `.cursor/skills/<handle>-mode/SKILL.md` in the project (or `~/.cursor/skills/<handle>-mode/` if the user prefers a personal skill).
-- Handle: the user's first name or chosen identifier.
-- Frontmatter `description`: trigger on their name + `/<handle>-mode` + "work in their style", not on generic keywords like "write code" or "review PR".
-- Frontmatter formatting: follow `create-skill`'s YAML rules. Keep `description` as one YAML scalar. Quote it or use `description: >-` with indented continuation lines when punctuation or wrapping requires it.
+- Frontmatter formatting: follow the `authoring-a-skill` playbook's YAML rules. Keep `description` as one YAML scalar. Quote it or use `description: >-` with indented continuation lines when punctuation or wrapping requires it.
 - Frontmatter `disable-model-invocation: true` by default. Opt out only if the user explicitly wants their mode to apply on every turn.
 
 ### 5. Iterate on prose
 
-Apply the **unslop** skill and `create-skill`'s writing guidelines to every line.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
+Apply the **unslop** skill and the `authoring-a-skill` playbook's writing guidelines to every line.
 
 Show the draft to the user and take feedback. Expect multiple iterations. Cut ruthlessly. A mode skill is not a manual.
 
@@ -119,17 +99,6 @@ Run a description-optimization loop only if the skill's trigger accuracy turns o
 
 ## When not to use
 
-<<<<<<< HEAD
 - User wants a task-specific skill (not working conventions): the `authoring-a-skill` playbook alone, no mining required.
-- User wants to capture one narrow workflow (e.g. "how I write commit messages"): that's a regular skill, not a mode skill.
-
-## Reference files
-
-- The **poteto-mode** skill: example of the output shape.
-- The **unslop** skill: prose discipline for every line.
-- The `authoring-a-skill` playbook: skill authoring process and writing guidelines.
-=======
-- User wants a task-specific skill (not working conventions): `create-skill` alone, no mining required.
 - User wants to capture one narrow workflow (e.g. "how I write commit messages"). That's a regular skill, not a mode skill.
 
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3

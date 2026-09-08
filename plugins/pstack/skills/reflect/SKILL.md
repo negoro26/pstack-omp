@@ -16,11 +16,7 @@ Invoke when the user says "reflect" or "/reflect". Skip when the conversation is
 
 ### 1. Locate the active transcript
 
-<<<<<<< HEAD
-The parent finds its own transcript file before fanning out. The system prompt names the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl` (subagents: `<session>/<AgentName>.jsonl`); use that path. Do not glob across sibling `~/.omp/agent/sessions/<other-cwd>/` buckets. That crosses workspace boundaries and reads private chats from unrelated projects.
-=======
-The parent finds its own transcript file before fanning out. The system prompt names the active workspace's `agent-transcripts/` directory. Use that path. Do not glob across `~/.cursor/projects/*/`. That crosses workspace boundaries and reads private chats from unrelated projects.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
+The parent finds its own transcript file before fanning out. The system prompt names the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl` (subagents: `<session>/<AgentName>.jsonl`). Use that path. Do not glob across sibling `~/.omp/agent/sessions/<other-cwd>/` buckets. That crosses workspace boundaries and reads private chats from unrelated projects.
 
 ```bash
 ls -t ~/.omp/agent/sessions/<encoded-cwd>/*.jsonl ~/.omp/agent/sessions/<encoded-cwd>/*/*.jsonl ~/.omp/agent/sessions/<encoded-cwd>/*/subagents/*.jsonl 2>/dev/null | head -10
@@ -32,11 +28,7 @@ The first line of a real transcript is a `type:title` object, not a message. For
 
 ### 2. Spawn three reviewers in parallel
 
-<<<<<<< HEAD
-One message, three `Task` calls, `agent`: `task` (omp's general-purpose bundled agent), each lens pinned by its own agent name, full tools per spawn. Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript), and the task wire has no `readonly` field to strip it. The prompt forbids file writes, which omp cannot enforce. The parent applies edits.
-=======
-One message, three `Task` calls, `subagent_type: generalPurpose`, explicit `model:` on each, agent mode (`readonly: false`). Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript). Readonly strips MCPs.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
+One message, three `Task` calls, `agent`: `task` (omp's general-purpose bundled agent), each lens pinned by its own agent name, full tools per spawn. Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript), and the task wire has no `readonly` field to strip it. The prompt forbids file writes, which omp cannot enforce.
 
 | Lens | Model | Prompt template |
 |---|---|---|
@@ -50,11 +42,7 @@ Pass each template verbatim, substituting the transcript path or digest where ma
 
 ### 3. Synthesize
 
-<<<<<<< HEAD
 One `Task` call, `agent`: `task` (omp's general-purpose bundled agent), using your configured reflect-synthesizer model, defaulting to your strongest judgment model, full tools per spawn. The synthesizer's quality check includes spot-verifying citations, which can require MCP access, and the task wire has no `readonly` field to strip it. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
-=======
-One `Task` call, `subagent_type: generalPurpose`, using your configured reflect-judgment model (default `claude-fable-5-1-thinking-max`), agent mode (`readonly: false`). The synthesizer's quality check includes spot-verifying citations, which can require MCP access. Readonly strips MCPs. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
 
 ### 4. Structural enforcement check
 

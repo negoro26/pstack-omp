@@ -78,15 +78,9 @@ Aim for a complete **coverage map**, not a minimal one. Document the null, don't
 Launch all matching investigators in a single message so they run concurrently. Don't ask one agent to cover multiple MCPs.
 
 Subagent config (each):
-<<<<<<< HEAD
 - `agent`: `task` (omp’s general-purpose bundled agent)
 - `model`: your configured why-investigators model, pinned by agent name (defaults to your fast code model)
-- Full tools per spawn. omp's task wire has no `readonly` field and no Ask mode, so nothing strips the investigators' MCP access, which would disable MCP-backed investigators entirely. Keep every investigator on the same `task` agent. Investigators still shouldn't write anything. That's a posture, not a sandbox, and omp cannot enforce it.
-=======
-- `subagent_type`: `generalPurpose`
-- `model`: your configured why-investigators model (default `grok-4.6-fast-xhigh`)
-- `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. Investigators still shouldn't write anything.
->>>>>>> 73a65b3a94b88bfde798ed3a9261234d7d41c7f3
+- Full tools per spawn. omp's task wire has no `readonly` field and no Ask mode, so nothing strips the investigators' MCP access, which would disable MCP-backed investigators entirely. Investigators still shouldn't write anything. That's a posture, not a sandbox, and omp cannot enforce it.
 
 Each investigator gets:
 1. The base prompt from `references/investigator-prompt.md`

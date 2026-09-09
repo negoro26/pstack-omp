@@ -14,7 +14,8 @@
 #       Merges upstream into plugins/pstack. <target-sha> must be a full 40-hex sha. Default is the
 #       current upstream main head.
 #
-# Exit 0 clean, 2 conflict markers left in the tree, 1 failure.
+# Exit 0 clean, 2 conflict markers left in the tree, 1 failure. Markers are zdiff3, so a conflicted
+# hunk shows base, ours, and theirs, and the resolver can see what upstream actually changed.
 # Override the canonical checkout location with CANON=/path.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -102,7 +103,7 @@ cmd_sync() {
 	target_tree=$(tree_of "$target")
 
 	local mt
-	mt=$(git merge-tree --write-tree --merge-base="$base_tree" HEAD "$target_tree") || st=$?
+	mt=$(git -c merge.conflictStyle=zdiff3 merge-tree --write-tree --merge-base="$base_tree" HEAD "$target_tree") || st=$?
 	[ "$st" -le 1 ] || die "git merge-tree failed"
 	merged=$(printf '%s\n' "$mt" | head -1)
 	git restore --source="$merged" --staged --worktree -- plugins/pstack
@@ -110,7 +111,7 @@ cmd_sync() {
 		git cat-file -e "$merged:$f" 2>/dev/null || git rm -qf --ignore-unmatch -- "$f"
 	done
 
-	conflicts=$(grep -rIl -E '^(<{7} |={7}$|>{7} )' plugins/pstack/skills plugins/pstack/agents || true)
+	conflicts=$(grep -rIl -E '^(<{7} |\|{7}|={7}$|>{7} )' plugins/pstack/skills plugins/pstack/agents || true)
 
 	local version n p k
 	version=$(git -C "$CANON" show "$target:pstack/.cursor-plugin/plugin.json" | jq -r .version)

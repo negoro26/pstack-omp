@@ -2,53 +2,49 @@
 
 ## Upstream truth and the pinned baseline
 
-The true upstream is **`cursor/plugins`, subdirectory `pstack`** (MIT). The pinned baseline for this
-port is commit **`7314f72`** (`fix(pstack): shrink logo under 512KiB (#309)`, authored and committed
-`2026-09-03T04:37:11Z`, plugin version `0.14.8`). The sync brief called that commit 2026-09-02;
-`gh api repos/cursor/plugins/commits/7314f72 --jq '.commit.author.date'` returns
-`2026-09-03T04:37:11Z`, so the later date is the one recorded here.
+The true upstream is **`cursor/plugins`, subdirectory `pstack`** (MIT). This repository is the
+source of truth for the omp port. The old generator flow that built the port from a local `pstack`
+tree is retired, so the files here are the artifact.
 
-**`backnotprop/pstack` is a mirror and it is stale. Never use it as the parity baseline again.** This
-port was originally built from that mirror at `18e0e90` (2026-08-19), which was two weeks behind
-canonical. Diffing the mirror against `7314f72` shows 224 changed content lines, counted as
-`diff -ru <mirror> <canonical> | grep -cE '^[+-][^+-]'`, so header, hunk, context, and blank lines
-do not count, plus three structural changes, so every parity claim made against the mirror inherited
-the staleness. This checkout's git
-`origin` is still `https://github.com/backnotprop/pstack.git` with branches `main` and `omp-port`, so
-`git pull origin main` here pulls the mirror, not the truth. Fetch canonical from the monorepo
-instead.
+The baseline is one file, `omp-port/UPSTREAM`, holding the full 40-hex sha of the upstream commit
+the port is synced to. Nothing else records it. Every derived field is generated from that sha by
+`omp-port/sync-upstream.sh`, which writes the plugin version into `plugins/pstack/package.json` and
+`.omp-plugin/marketplace.json` and regenerates the `pstack` catalog description from the live skill,
+playbook, and principle counts.
 
-### Drift check (one command, run it verbatim)
+**`backnotprop/pstack` is a mirror and it is stale. Never use it as the parity baseline again.**
+This port was originally built from that mirror at `18e0e90` (2026-08-19), which was two weeks
+behind canonical. Diffing the mirror against the then-current canonical commit shows 224 changed
+content lines, counted as `diff -ru <mirror> <canonical> | grep -cE '^[+-][^+-]'`, so header, hunk,
+context, and blank lines do not count, plus three structural changes. Every parity claim made
+against the mirror inherited the staleness.
+
+### Drift check
 
 ```bash
-gh api repos/cursor/plugins/compare/7314f72...main --jq '.files[]? | select(.filename|startswith("pstack/")) | "\(.status)\t\(.filename)"'
+bash omp-port/sync-upstream.sh check
 ```
 
-Empty output means no drift since the pinned baseline. Any line is a canonical change to port
-forward, prefixed by its status (`modified`, `added`, `removed`, `renamed`).
-
-Run at this sync, output empty. Proof the command detects real drift, same command against the
-previous pstack commit `efa2a53`:
-
-```
-modified	pstack/.cursor-plugin/plugin.json
-modified	pstack/assets/logo.png
-```
+Empty output and exit 0 mean no drift since the pin. Each line is an upstream commit that touched
+`pstack/`, newest first, as short sha then date then subject. The resolved target head sha goes to
+stderr.
 
 ### How to re-sync
 
-1. Run the drift command above. Empty output means there is nothing to do.
-2. Clone canonical and keep the old baseline as the merge ancestor.
-   `git clone --depth 1 https://github.com/cursor/plugins /tmp/cursor-plugins`
-3. For each file the drift command listed, three-way it. Ancestor is the pinned baseline's content,
-   theirs is `/tmp/cursor-plugins/pstack/<path>`, ours is `~/.omp/pstack/<path>`. Take theirs as the
-   content baseline, then re-apply the substitution table below to any text that arrived or changed.
-4. Check the result with `diff -u /tmp/cursor-plugins/pstack/<path> ~/.omp/pstack/<path>`. Every
-   remaining line must be an intended omp substitution. Anything else is a porting mistake.
-5. Update the pinned commit, its date, and the drift command in this file. The command hardcodes the
-   baseline, so a stale pin silently reports drift that was already ported.
+1. Run `bash omp-port/sync-upstream.sh [<target-sha>]`, target defaulting to the upstream `main`
+   head. It merges upstream `pstack/skills` and `pstack/agents` into `plugins/pstack` against the
+   pinned sha as ancestor, then rewrites the pin and the version fields. Exit 2 means it left
+   conflict markers.
+2. Resolve every marker it lists. Take the upstream text as the content baseline, then re-apply the
+   substitution table below to anything that arrived or changed.
+3. Run `bash omp-port/check-port.sh`. It fails on a leftover marker and on a stale count.
+4. Commit. Squash merging a sync PR is safe because `omp-port/UPSTREAM`, not the branch history,
+   carries the base for the next sync.
 
-Never substitute the `backnotprop/pstack` mirror for step 2.
+The `upstream-sync` workflow runs the same script daily and opens that PR itself, as a draft when
+the merge conflicted or the gate failed. Pass a sha to sync to an older commit than the `main` head.
+
+Never substitute the `backnotprop/pstack` mirror for upstream.
 
 ## Structural changes in the `18e0e90` to `7314f72` sync
 
@@ -141,7 +137,7 @@ mirror and go stale again at each sync.
 | `.cursor/skills/`, `~/.cursor/skills/` | `.omp/skills/`, `~/.omp/agent/skills/` |
 | `subagent_type: X` | `` `agent`: X `` (the task tool's field) |
 | `generalPurpose` | `task` (omp's bundled general-purpose agent) |
-| `~/.cursor/rules/pstack-models.mdc` | `~/.omp/agent/models.yml` modelRoles, or `task.agentModelOverrides` |
+| `~/.cursor/rules/pstack-models.mdc` | `modelRoles` in `~/.omp/agent/config.yml`, or `task.agentModelOverrides` |
 | `/loop` (Cursor builtin) | omp ships its own `/loop` for in-session iteration. A `hub` supervised watcher or a systemd user timer covers an out-of-session wake. `hub` is an omp tool, never a Cursor feature |
 | Cursor cloud agents, `environment: "cloud"` | `isolated: true` subagents, which run on this machine |
 | `cloud_base_branch` | not accepted by omp's task tool. Use a `git worktree` on the wanted base |
@@ -199,7 +195,8 @@ React or Vite app with a dev server is the easiest first target.
 
 ## Switching the model `poteto-agent` runs on
 
-`agents/poteto-agent.md` declares `model: "@poteto"`. That alias expands through `modelRoles` in
+The published `agents/poteto-agent.md` ships with no `model:` line and inherits the chat model. To
+pin it, add `model: "@poteto"`. That alias expands through `modelRoles` in
 `~/.omp/agent/config.yml`, so one binding rebinds every `poteto-agent` spawn, including a 100-wide
 fan-out. Precedence is `task.agentModelOverrides[poteto-agent]`, then this frontmatter alias, then
 the parent's model.

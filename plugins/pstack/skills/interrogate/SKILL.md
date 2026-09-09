@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Interrogate
 
-Spawn one reviewer per configured model to adversarially review code changes. Each model gets the same prompt and rubric. The adversarial signal comes from model diversity, not assigned personas. Models differ in blind spots, priors, and reasoning patterns. Agreement across models is high-confidence signal; lone-model findings are worth reading but lower confidence.
+Spawn one reviewer per configured model to adversarially review code changes. Each model gets the same prompt and rubric. The adversarial signal comes from model diversity, not assigned personas.
 
 The deliverable is a synthesized verdict. Do NOT auto-apply changes.
 
@@ -22,18 +22,18 @@ Package the diff (or file contents) plus any surrounding context files the revie
 
 ## Step 2, State the Intent
 
-Before spawning reviewers, state the intent explicitly. What is this code trying to accomplish? Derive this from:
+Before spawning reviewers, state the intent explicitly. Derive this from:
 
 - The user's message
 - Commit messages
 - PR description if one exists
 - The code itself
 
-Write one clear paragraph. Reviewers challenge whether the work achieves the intent well, not whether the intent itself is correct. If you're unsure about the intent, ask the user before proceeding.
+Write one clear paragraph. If you're unsure about the intent, ask the user before proceeding.
 
 ## Step 3, Spawn Reviewers
 
-Launch all reviewers in a single message using the Task tool. Use your configured `interrogate reviewers` list when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count; otherwise use the table defaults.
+Launch all reviewers in a single message using the Task tool. Use your configured `interrogate reviewers` list when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.
 
 | Subagent | Default capability |
 |----------|--------------------|
@@ -51,7 +51,7 @@ For each reviewer:
 - `model`: the configured `interrogate reviewers` entry, or the table capability with no configured line, pinned by that reviewer's agent name in `task.agentModelOverrides`
 - read-only: the brief grants the reviewer only Glob, Grep, and Read, and forbids writes. omp's task wire has no `readonly` field and the per-item `tools` field only exposes eval-defined kernel tools, so the grant is posture, not a sandbox
 
-A reviewer with no override entry runs on the parent chat model, which is correct for Reviewer A and is the case where the family spread collapses. Give each reviewer that needs its own family its own thin agent file plus its own override entry. If an override entry names a model this machine cannot resolve, pick the closest equivalent from `omp models` (prefer the highest-reasoning tier of the same family), spawn with that, and open a separate PR to fix the entry. Do not block the review on it. The values `inherit-parent` and `auto` are not broken; they mean the reviewer runs on the parent chat model, so leave that reviewer out of the override map. The **setup-pstack** skill owns the configuration.
+A reviewer with no override entry runs on the parent chat model, which is correct for Reviewer A and is the case where the family spread collapses. Give each reviewer that needs its own family its own thin agent file plus its own override entry. If an override entry names a model this machine cannot resolve, pick the closest equivalent from `omp models` (prefer the highest-reasoning tier of the same family), spawn with that, and open a separate PR to fix the entry. Do not block the review on it. The values `inherit-parent` and `auto` are not broken. They mean the reviewer runs on the parent chat model, so leave that reviewer out of the override map. The **setup-pstack** skill owns the configuration.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent
@@ -60,8 +60,6 @@ Read `references/reviewer-prompt.md` and fill in the template with:
 4. The code-quality lens from `references/code-quality-review.md`
 
 The same filled template goes to all reviewers, so every model applies the code-quality lens.
-
-Each reviewer produces structured findings as described in the prompt template.
 
 ## Step 4, Synthesize
 
@@ -77,7 +75,7 @@ As results come back, build a unified picture:
 
 You are the lead reviewer, a pragmatic senior engineer, not a neutral aggregator.
 
-Read `references/lead-judgment.md` for the full framework. Reviewers only see a slice of the codebase. You have the full context (the goal, the constraints, the timeline, which tradeoffs were already considered). Use that context aggressively.
+Read `references/lead-judgment.md` for the full framework.
 
 Categorize every finding using these buckets:
 
@@ -111,7 +109,7 @@ Present the verdict in this structure:
 [Valid but low-priority. Brief list.]
 
 ### Dismissed
-[Rejected findings with brief rationale. This shows the user what was filtered out and why, so they can override your judgment if they disagree.]
+[Rejected findings with brief rationale.]
 
 ### Agreement Map
 [Where did models agree, where did they diverge, and what does the pattern of agreement/disagreement tell us?]

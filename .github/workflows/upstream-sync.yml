@@ -6,8 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: Upstream cursor/plugins sha to sync to, defaults to the main head
+        description: Upstream cursor/plugins sha to sync to, defaults to the newest commit that touched pstack/
         required: false
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -27,13 +31,20 @@ jobs:
         env:
           SHA_INPUT: ${{ inputs.sha }}
         run: |
+          export SYNC_TARGET_OUT="$RUNNER_TEMP/target.txt"
           bash omp-port/sync-upstream.sh check > "$RUNNER_TEMP/commits.txt"
           if [ ! -s "$RUNNER_TEMP/commits.txt" ]; then
             echo "no upstream pstack change since the pin"
             exit 0
           fi
+          open=$(gh pr list --state open --json headRefName --jq '[.[] | select(.headRefName | startswith("sync/upstream-"))] | length')
+          if [ "$open" -gt 0 ]; then
+            gh pr list --state open --json number,headRefName \
+              --jq '.[] | select(.headRefName | startswith("sync/upstream-")) | "open sync PR #\(.number) on \(.headRefName), resolve it first"'
+            exit 0
+          fi
           target="$SHA_INPUT"
-          [ -n "$target" ] || target=$(gh api repos/cursor/plugins/commits/main --jq .sha)
+          [ -n "$target" ] || target=$(cat "$RUNNER_TEMP/target.txt")
           printf '%s' "$target" | grep -qxE '[0-9a-f]{40}' || {
             echo "target must be a full 40-hex sha" >&2
             exit 1

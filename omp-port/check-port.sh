@@ -14,6 +14,12 @@ ALLOW=../../omp-port/slug-allowlist.txt
 # An audited exception is `path:line<TAB>reason`. Illustrative prose only, never a
 # real prescription. Anything not listed here must pass on its own merits.
 allowed() { [ -f "$ALLOW" ] && cut -f1 "$ALLOW" | grep -qxF "$1"; }
+# One source per gate pattern. scan() enforces them and the allowlist check below
+# proves every audited exception still trips one of them.
+PAT_SLUG='\b(claude-[a-z0-9.-]+|gpt-[0-9][a-z0-9.-]*|grok-[a-z0-9.-]+|gemini-[a-z0-9.-]+|opus-[a-z0-9.-]+)\b'
+PAT_CAPS='omp (has no|does not support|cannot|lacks) [a-z`_.:-]+'
+PAT_RESIDUE='cursor-team-kit|/deslop|run_in_background|<agent-transcripts>|~/\.cursor/|AskQuestion|cloud_base_branch|~/\.omp/skills/|environment: "cloud"'
+
 scan() {
 	local pat="$1" label="$2" bad=""
 	while IFS= read -r line; do
@@ -29,7 +35,7 @@ scan() {
 	fi
 }
 
-scan '\b(claude-[a-z0-9.-]+|gpt-[0-9][a-z0-9.-]*|grok-[a-z0-9.-]+|gemini-[a-z0-9.-]+|opus-[a-z0-9.-]+)\b' "model-agnostic"
+scan "$PAT_SLUG" "model-agnostic"
 
 # Role instructions must name an omp lever. /model sets the chat model,
 # task.agentModelOverrides sets a per-agent model.
@@ -63,9 +69,9 @@ else
 	report "version-agnostic" "PASS  no version-pinned capability claim"
 fi
 
-scan 'omp (has no|does not support|cannot|lacks) [a-z`_.:-]+' "capability claims"
+scan "$PAT_CAPS" "capability claims"
 
-scan 'cursor-team-kit|/deslop|run_in_background|<agent-transcripts>|~/\.cursor/|AskQuestion|cloud_base_branch|~/\.omp/skills/|environment: "cloud"' "cursor residue"
+scan "$PAT_RESIDUE" "cursor residue"
 
 # omp's task wire has no readonly field, so a bare `readonly: true` task parameter
 # is silently ignored. Read-only posture must be a brief-level tool grant plus a
@@ -89,6 +95,52 @@ else
 	report "internal links" "PASS  every playbook and reference resolves"
 fi
 
+# The router prose and the tree must name the same set. A name in the index with no
+# leaf misroutes the agent, a leaf the index never names is unreachable.
+parity() {
+	local label="$1" a="$2" b="$3" fmt_a="$4" fmt_b="$5" only_a only_b
+	only_a=$(comm -23 <(printf '%s\n' "$a") <(printf '%s\n' "$b"))
+	only_b=$(comm -13 <(printf '%s\n' "$a") <(printf '%s\n' "$b"))
+	if [ -n "$only_a$only_b" ]; then
+		report "$label" "FAIL"
+		while read -r x; do [ -n "$x" ] && violate "$(printf "$fmt_a" "$x")"; done <<<"$only_a"
+		while read -r x; do [ -n "$x" ] && violate "$(printf "$fmt_b" "$x")"; done <<<"$only_b"
+	else
+		report "$label" "PASS  $(printf '%s\n' "$a" | grep -c .) names, index and tree agree"
+	fi
+}
+
+ROUTER=skills/poteto-mode/SKILL.md
+parity "principle parity" \
+	"$(grep -ohE 'principle-[a-z-]+' "$ROUTER" | sort -u)" \
+	"$(for d in skills/principle-*/; do basename "$d"; done | sort -u)" \
+	'index names %s, no leaf' \
+	'leaf %s not in the Principles index'
+
+parity "playbook parity" \
+	"$(grep -ohE 'playbooks/[a-z-]+\.md' "$ROUTER" | sed 's|playbooks/||; s|\.md$||' | sort -u)" \
+	"$(for f in skills/poteto-mode/playbooks/*.md; do basename "$f" .md; done | sort -u)" \
+	'index names playbook %s, no file' \
+	'playbook %s not named in the Playbooks index'
+
+# An exception whose line no longer trips any gate pattern is a standing skip for a
+# violation that is gone, and it silently covers whatever that line says next.
+if [ -f "$ALLOW" ]; then
+	stale_allow=""
+	while IFS=$'\t' read -r entry _ || [ -n "$entry" ]; do
+		case "$entry" in '' | '#'*) continue ;; esac
+		line=$(sed -n "${entry##*:}p" "${entry%:*}" 2>/dev/null)
+		[ -n "$line" ] && printf '%s\n' "$line" | grep -qE "$PAT_SLUG|$PAT_CAPS|$PAT_RESIDUE" ||
+			stale_allow="$stale_allow $entry"
+	done <"$ALLOW"
+	if [ -n "$stale_allow" ]; then
+		report "allowlist" "FAIL"
+		for s in $stale_allow; do violate "stale allowlist entry $s"; done
+	else
+		report "allowlist" "PASS  $(grep -cv '^#' "$ALLOW") entries still match a gate pattern"
+	fi
+fi
+
 # Claims the published guide makes about pstack, verified as present.
 for s in create-verification-skill maintain-verification-skill swarm poteto-mode; do
 	[ -f "skills/$s/SKILL.md" ] || { fail=1; violate "guide names /$s, not installed"; }
@@ -106,7 +158,7 @@ for d in skills/*/; do
 	[ -n "$fm" ] || bad="$bad $n(noname)"
 done
 [ -n "$bad" ] && { fail=1; violate "frontmatter name missing:$bad"; }
-markers=$(grep -rIl -E '^(<{7} |={7}$|>{7} )' "${SCOPE[@]}" 2>/dev/null || true)
+markers=$(grep -rIl -E '^(<{7} |\|{7}|={7}$|>{7} )' "${SCOPE[@]}" 2>/dev/null || true)
 if [ -n "$markers" ]; then
 	report "conflict markers" "FAIL"
 	while read -r m; do [ -n "$m" ] && violate "unresolved merge: $m"; done <<<"$markers"

@@ -26,15 +26,19 @@ bash omp-port/sync-upstream.sh check
 ```
 
 Empty output and exit 0 mean no drift since the pin. Each line is an upstream commit that touched
-`pstack/`, newest first, as short sha then date then subject. The resolved target head sha goes to
-stderr.
+`pstack/`, newest first, as short sha then date then subject. The resolved target is the newest
+commit that touched `pstack/`, printed to stderr, and written to the file named by
+`SYNC_TARGET_OUT` when that variable is set. The workflow reads it from there instead of resolving
+the head a second time and getting a different answer.
 
 ### How to re-sync
 
-1. Run `bash omp-port/sync-upstream.sh [<target-sha>]`, target defaulting to the upstream `main`
-   head. It merges upstream `pstack/skills` and `pstack/agents` into `plugins/pstack` against the
-   pinned sha as ancestor, then rewrites the pin and the version fields. Exit 2 means it left
-   conflict markers.
+1. Run `bash omp-port/sync-upstream.sh [<target-sha>]`, target defaulting to the newest upstream
+   commit that touched `pstack/`. A target that never touched `pstack/` is refused, because the next
+   run has to find that sha again in the path-filtered history. It merges upstream `pstack/skills`
+   and `pstack/agents` into `plugins/pstack` against the pinned sha as ancestor, then writes the
+   version fields and the pin, pin last, and stages all three. Exit 2 means the merge conflicted,
+   either as `CONFLICT` lines from `merge-tree` or as markers left in the tree.
 2. Resolve every marker it lists. Take the upstream text as the content baseline, then re-apply the
    substitution table below to anything that arrived or changed.
 3. Run `bash omp-port/check-port.sh`. It fails on a leftover marker and on a stale count.
@@ -42,11 +46,20 @@ stderr.
    carries the base for the next sync.
 
 The `upstream-sync` workflow runs the same script daily and opens that PR itself, as a draft when
-the merge conflicted or the gate failed. Pass a sha to sync to an older commit than the `main` head.
+the merge conflicted or the gate failed. It skips the run while any open PR still carries a
+`sync/upstream-` head. Pass a sha to sync to an older commit, and it must be one that touched
+`pstack/`.
+
+The gate runs as its own workflow, `gate.yml`, on every pull request and on every push to `main`. A
+PR opened with `github.token` does not trigger `pull_request` workflows, so the sync PR carries the
+gate output in its body and the `push` to `main` run after the merge is the backstop.
 
 Never substitute the `backnotprop/pstack` mirror for upstream.
 
-## Structural changes in the `18e0e90` to `7314f72` sync
+## Structural changes carried from earlier syncs
+
+These landed in syncs before the current pin and are recorded because each one still constrains what
+the port carries, not as a census of the tree. `omp-port/UPSTREAM` is the only current record.
 
 - **Added** `skills/make-bot-ui/` (webhook-driven Grok Bot UI skill). Listed in the README skill
   table and installed as a skill here.
@@ -62,16 +75,20 @@ Never substitute the `backnotprop/pstack` mirror for upstream.
   a time "through GitHub by default or Origin when its CLI is available". That wording is ported into
   `docs/guide/06-verify-and-ship.md`, `docs/guide/07-overnight.md`, and the README playbook table.
 
-`.cursor-plugin/plugin.json` is kept for upstream fidelity only. omp never reads it. The install is
-symlinks into omp's own discovery roots, and `omp plugin link` is unusable here because it requires a
-`package.json`. Editing the manifest changes no runtime behavior on this machine.
+`.cursor-plugin/plugin.json` is kept for upstream fidelity only. omp never reads it. Editing the
+manifest changes no runtime behavior on this machine.
 
-## Install (verified live)
+## Install, the two live shapes
 
-Two shapes. The marketplace is the one the README documents. The symlink tree is the original
-port and still works.
+`omp plugin link <checkout>/plugins/pstack` is the maintainer shape. It registers the checkout as an
+omp extension root, so the skills load straight out of the working tree and a re-sync is live with no
+relink. That is how this machine runs the port, `~/.omp/plugins/node_modules/pstack` being a symlink
+to `plugins/pstack` in the checkout. The agents load from the same root. Verified 2026-09-09 on omp
+18.1.13 with no agent symlinks present, a fresh `omp -p --no-session` roster listed `poteto-agent`
+and `Comment Sicko` beside `task`. Re-run that probe (it is in `plugins/pstack/README.md`) after an
+omp upgrade rather than trusting this line.
 
-### Marketplace
+The marketplace install is the user shape.
 
 ```
 /marketplace add negoro26/pstack-omp
@@ -79,16 +96,17 @@ port and still works.
 ```
 
 That caches the plugin at `~/.omp/plugins/cache/plugins/pstack-omp___pstack___<version>` and links
-it at `~/.omp/plugins/node_modules/pstack`. Verified on omp 18.1.13, 2026-09-07. The 45 skills
-load, `fan-out` and `setup-pstack` enter the `<skills>` block and the rest hide, and the
+it at the same `~/.omp/plugins/node_modules/pstack` path. Verified on omp 18.1.13, 2026-09-07. The
+skills load, `fan-out` and `setup-pstack` enter the `<skills>` block and the rest hide, and the
 `potetomode` extension loads from `package.json` `omp.extensions`, so `--poteto` injects the
 reminder in `-p` mode.
 
-The agents do not load. omp scans a marketplace plugin's `agents/` directory only through the
-`claude-plugins` discovery provider, which is off by default (`enabledProviders: []`). Turning it
-on put `poteto-agent` and `Comment Sicko` on the roster and also loaded every Claude Code plugin
-cached under `~/.claude/plugins`, about thirty skill descriptions per turn on the machine that
-measured it. The install therefore adds two symlinks into omp's native user root:
+The agents do not load from a marketplace root. omp scans a marketplace plugin's `agents/` directory
+only through the `claude-plugins` discovery provider, which is off by default
+(`enabledProviders: []`). Turning it on put `poteto-agent` and `Comment Sicko` on the roster and
+also loaded every Claude Code plugin cached under `~/.claude/plugins`, about thirty skill
+descriptions per turn on the machine that measured it. The install therefore adds two symlinks into
+omp's native user root:
 
 ```
 ~/.omp/agent/agents/poteto-agent.md  -> ../../plugins/node_modules/pstack/agents/poteto-agent.md
@@ -101,22 +119,9 @@ linking: both names on the `task` roster in a fresh `omp -p --no-session` sessio
 marketplace `agents/` natively, the two links become duplicates of the same name and first-wins
 dedup keeps the native-root copy, so they are harmless to leave and safe to delete.
 
-### Symlink tree
-
-```
-~/.omp/agent/skills/<name>    -> ~/.omp/pstack/skills/<name>     # 45 symlinks
-~/.omp/agent/agents/<name>.md -> ~/.omp/pstack/agents/<name>.md  #  2 symlinks
-```
-
-Counted at this sync, 45 skill directories under `skills/` and 45 matching symlinks in
-`~/.omp/agent/skills/`, plus 2 agent symlinks. The count rose from 44 because canonical `7314f72`
-added `make-bot-ui`.
-
-Those are omp's own discovery roots, `<dir>/.omp/skills/` walking up ancestors, then user-level
-`~/.omp/agent/skills/`. There is no `~/.omp/skills/`. Verified earlier in the port,
-`skill://poteto-mode`, `skill://swarm` and `skill://create-verification-skill` resolve with no
-`--plugin-dir`, and `task agent="poteto-agent"` spawns. Symlinks mean a re-sync updates every skill
-in place.
+Both shapes resolve to the same tree under `~/.omp/plugins/node_modules/pstack/`, which is the
+install path the playbooks name. The retired `~/.omp/pstack` tree exists nowhere, and neither does
+`~/.omp/skills`.
 
 Context cost stays low. Most skills set `disable-model-invocation: true`, which omp maps to
 `hide: true`, so only a handful enter the prompt and the rest are read on demand.
@@ -220,8 +225,8 @@ thinking id for judgment work.
 
 - **Graphite is not installed.** `command -v gt` finds nothing on this machine, so every `gt` stack
   step in Shipping, Babysit, Autopilot-stack and Orchestrate is unexecutable as written. `gh` is
-  installed and authenticated, so single-PR flows work. Canonical `7314f72` reduces the exposure by
-  landing through GitHub by default, but the stacking commands still name `gt`.
+  installed and authenticated, so single-PR flows work. Canonical now lands through GitHub by
+  default, which reduces the exposure, but the stacking commands still name `gt`.
 - **`isolated: true` is opt-in per spawn, and the gate is open.** `task.isolation.enabled` is `true` in `~/.omp/agent/config.yml`, so the field reaches the task tool instead of being stripped. Two facts verified live. Absent the flag a worker shares the parent checkout, so each swarm brief must request it. And the parent must run from inside a git checkout, since isolated preparation builds a worktree from it. Outside a repo the spawn fails fast with a clear error rather than silently sharing. omp's task tool also rejects `environment`, `cloud_base_branch`, and a per-spawn `model`. Per-spawn model choice is only `task.agentModelOverrides`, keyed by agent name.
 - **The agents have no marketplace path.** The skills and the extension install through the
   marketplace; `disable-model-invocation: true` maps to `hide` and the extra frontmatter keys

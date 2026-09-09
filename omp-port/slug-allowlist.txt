@@ -1,5 +1,6 @@
-# Lines the model-agnostic gate may skip. path:line and a reason, one per line.
+# Lines a gate pattern may skip. path:line, then the pattern name, then a reason, tab separated.
+# The pattern name is slug, caps, or residue. An entry covers that one pattern on that one line.
 # A slug belongs here only when it is illustrative prose, never a model prescription.
-skills/reflect/references/synthesizer.md:28	example of a code-change description, not a model choice
-skills/reflect/SKILL.md:31	verified wire fact, task schema has no readonly field, stated with the fallback
-skills/why/SKILL.md:83	verified wire fact, nothing on the task wire strips MCP, stated with the fallback
+skills/reflect/references/synthesizer.md:28	slug	example of a code-change description, not a model choice
+skills/reflect/SKILL.md:31	caps	verified wire fact, task schema has no readonly field, stated with the fallback
+skills/why/SKILL.md:83	caps	verified wire fact, nothing on the task wire strips MCP, stated with the fallback

@@ -12,6 +12,9 @@ written from measurement rather than doctrine.
 /marketplace install fan-out@pstack-omp
 ```
 
+The marketplace install loads the skills and the `potetomode` extension. It does not load
+the two agents; see the agent step in `plugins/pstack/README.md`.
+
 `PORTING.md` is the full porting record. `omp-port/check-port.sh` is the gate the port
 passes before any release. Upstream is `cursor/plugins` at the commit named in the catalog.
 Licensed MIT, same as upstream, with Lauren Tan's copyright retained.

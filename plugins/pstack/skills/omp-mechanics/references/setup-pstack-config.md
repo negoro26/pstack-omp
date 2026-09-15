@@ -3,10 +3,22 @@
 Amends **setup-pstack** steps 2, 3, 5, and 6. The block in the skill's step 5 is the
 role-to-capability table. This file is the file format.
 
-Two keys in `~/.omp/agent/config.yml`. `task.agentModelOverrides` maps an agent name to a
-capability alias, and omp expands that alias through `modelRoles`. The alias namespace is the
-operator's, and nothing in pstack reads a specific alias name. What is fixed is the four
-capabilities and the role labels, which are the ones poteto-mode and the routed skills use.
+Two keys in `~/.omp/agent/config.yml` carry the choices. `task.agentModelOverrides` maps an agent
+name to a capability alias, and omp expands that alias through `modelRoles`. A `modelRoles` value
+may carry an effort suffix, written `<selector>:<effort>`, which is where the step 3 budget answer
+lands. The alias namespace is the operator's, and nothing in pstack reads a specific alias name.
+What is fixed is the four capabilities and the role labels, which are the ones poteto-mode and the
+routed skills use.
+
+A third key decides which model a slot ends up on after a failure. `retry.fallbackChains` is keyed
+by the same role names, and a spawn reached through a `@role` alias inherits that role's chain
+rather than the `default` chain. Leave it alone unless the operator asks, and tell them a panel
+slot can land off its configured family when its chain fires.
+
+Three more per-agent records sit beside the model map, keyed the same way and all optional for
+pstack. `task.agentServiceTierOverrides` sets a provider service tier,
+`task.agentPrewalk` arms a cheap-model handoff at the first write, and `task.agentAdvisor` pairs a
+spawn with an advisor model. Write none of them unless the operator asks for one.
 
 Overwrite the whole pstack part of both maps so re-runs stay idempotent, and leave omp's own roles
 alone. Adapt the names below rather than copying them.

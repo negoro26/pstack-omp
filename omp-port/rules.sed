@@ -127,7 +127,7 @@ s#cloud-agent URL#prior agent's `history://<id>` or `agent://<id>`#g
 s#cloud spawns#isolated spawns#g
 s#its spawn budget with the cloud default and the local exception list#its spawn budget with the isolated default and the shared-checkout exception list#
 s#Restacks run in cloud\. A local restack at this scale takes the laptop down\.#Restacks run in an isolated subagent with its own worktree, never in the parent checkout.#
-s#After a Cursor restart: local agents are dead, cloud work is not\.#After an omp restart every agent is dead and only pushed work survives.#
+s#After a Cursor restart: local agents are dead, cloud work is not\.#An omp restart stops every agent. Resuming the session rebuilds its subagents as parked rows that `hub` `op: "send"` revives, except isolated ones, which leave only a `history://<id>` transcript.#
 s#reattach cloud work by PR and branch rather than agent id#reattach pushed work by PR and branch rather than agent id#
 s#a Cursor restart#an omp restart#g
 s#cloud agent#isolated subagent#g
@@ -135,8 +135,8 @@ s#Cloud agent#Isolated subagent#g
 
 ## 5. Wake mechanisms. Cursor's `/loop` builtin and cloud sleeper -> omp's `/loop`, hub, systemd.
 
-s#Drive a long or stubborn hunt with Cursor's `/loop` command\.#Drive a long or stubborn hunt with omp's `/loop`, which re-submits the same prompt after every yield.#
-s#Pick the wake mechanism using Cursor's `/loop` command \(a built-in, not a pstack skill\)\.#Pick the wake mechanism. In session, omp's `/loop` re-submits the prompt after every yield. A wake that must land out of session runs under a `hub` supervised watcher or a systemd user timer.#
+s#Drive a long or stubborn hunt with Cursor's `/loop` command\.#Drive a long or stubborn hunt with omp's `/loop`, which re-submits the same prompt after every yield. State the exit condition as a shell command and pass it as `--until '<cmd>'`, which gates each iteration on that command's exit status.#
+s#Pick the wake mechanism using Cursor's `/loop` command \(a built-in, not a pstack skill\)\.#Pick the wake mechanism. In session, omp's `/loop [count|duration] [--while|--until '<cmd>'] [prompt]` re-submits the prompt after every yield and gates each iteration on a shell command's exit status. A wake that must land out of session runs under a `hub` supervised watcher or a systemd user timer.#
 s#A local root arms each tick as a real terminal `/loop`\. The loop uses a monitored-shell 30-minute sleep and emits an output-notification sentinel\.#A root in session arms each tick with omp's `/loop`, which re-submits the tick prompt after every yield.#
 s#A cloud root uses the existing cloud-sleeper wake chain instead\.#A wake that has to land out of session runs under a `hub` supervised watcher or a systemd user timer instead.#
 s#In a local session, a real terminal `/loop`\. In a cloud root, a cloud-sleeper wake chain\.#In session, omp's `/loop`. For a wake that must land out of session, a `hub` supervised watcher or a systemd user timer.#
@@ -146,25 +146,25 @@ s#`/loop` per component until the diff is zero\.#Hold a `hub` watcher or a syste
 s#a frontier watcher wake \(arm it via the loop skill, with a long heartbeat fallback\)#a frontier watcher wake (hold it under a `hub` watcher or a systemd timer, with a long fallback heartbeat)#
 s#"/loop until X"#"run until X"#g
 # Cursor's `/goal` is on by default; omp ships it behind a settings gate.
-s#arm a `/goal` with the full program objective\.#arm a `/goal` with the full program objective. omp's `/goal` is native but gated, so turn on `goal.enabled` in settings first.#g
-s#arm a `/goal` with this exact text\.#arm a `/goal` with this exact text. omp's `/goal` is native but gated, so turn on `goal.enabled` in settings first.#
+s#arm a `/goal` with the full program objective\.#arm a `/goal` with the full program objective. omp's `/goal` is native but gated, so `goal.enabled` must already be true when the session starts.#g
+s#arm a `/goal` with this exact text\.#arm a `/goal` with this exact text. omp's `/goal` is native but gated, so `goal.enabled` must already be true when the session starts.#
 
 ## 6. cursor-team-kit. Cursor's companion plugin -> omp's built-in tools.
 
 # `/deslop` -> the `unslop` skill plus `omp cleanse` for diagnostics.
-s#the `deslop` skill from the `cursor-team-kit` plugin \(`/deslop`\)#the `unslop` skill (`skill://unslop`) plus `omp cleanse` for diagnostics#g
-s#Run `/deslop` from `cursor-team-kit` over the diff before commit\.#Run the `unslop` skill (`skill://unslop`) plus `omp cleanse` over the diff before commit.#
-s#`/deslop`#the `unslop` skill (`skill://unslop`) plus `omp cleanse`#g
+s#the `deslop` skill from the `cursor-team-kit` plugin \(`/deslop`\)#the `unslop` skill (`skill://unslop`) plus `omp cleanse --all` for diagnostics#g
+s#Run `/deslop` from `cursor-team-kit` over the diff before commit\.#Run the `unslop` skill (`skill://unslop`) plus `omp cleanse --all` over the diff before commit. A bare `omp cleanse` opens an interactive picker and blocks.#
+s#`/deslop`#the `unslop` skill (`skill://unslop`) plus `omp cleanse --all`#g
 # `control-ui` / `control-cli` -> `browser`, `computer`, and `hub` process ops plus bash.
 s#`control-ui` or `control-cli` runtime verification \(from `cursor-team-kit`\)#`browser` or `computer` for UIs, or `hub` process ops plus bash for CLIs and TUIs#
 s#\(`control-cli` or `control-ui` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, `hub` process ops plus bash for CLIs and TUIs, as the change demands)#
 s#\(`control-ui` or `control-cli` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, `hub` process ops plus bash for CLIs and TUIs, as the change demands)#
 s#Drive through `control-ui` or `control-cli` from `cursor-team-kit`\.#Drive through `browser` or `computer` for UIs, and `hub` process ops plus bash for CLIs and TUIs.#
-s#Browser, Electron, and web UIs use `control-ui` from `cursor-team-kit`\. CLIs and TUIs use `control-cli` from `cursor-team-kit`\.#Browser, Electron, and web UIs use the `browser` tool, and native desktop UIs use `computer`. CLIs and TUIs use `hub` process ops plus bash.#
-s#`cursor-team-kit` publishes `control-cli` \(CLIs and TUIs\) and `control-ui` \(browser / Electron / web UIs\)\.#omp provides the levers directly. `hub` process ops plus bash drive CLIs and TUIs, the `browser` tool drives browser, Electron, and web UIs over CDP, and `computer` drives native desktop.#
+s#Browser, Electron, and web UIs use `control-ui` from `cursor-team-kit`\. CLIs and TUIs use `control-cli` from `cursor-team-kit`\.#Browser, Electron, and web UIs use the `browser` eval prelude, and native desktop UIs use `computer`. Both are code in an `eval` cell and not tools. CLIs and TUIs use `hub` process ops plus bash.#
+s#`cursor-team-kit` publishes `control-cli` \(CLIs and TUIs\) and `control-ui` \(browser / Electron / web UIs\)\.#omp provides the levers directly. `hub` process ops plus bash drive CLIs and TUIs, the `browser` eval prelude drives browser, Electron, and web UIs over CDP, and the `computer` prelude drives native desktop. Both preludes are code in an `eval` cell and neither is a tool with its own schema.#
 s#\*\*Control skill\.\*\* Pick it by surface\.#**Control surface.** Pick it by surface.#
-s#through the control skill's commands#through the control tool's commands#
-s#`control-ui`#the `browser` tool#g
+s#through the control skill's commands#through the control surface's own calls#
+s#`control-ui`#the `browser` eval prelude#g
 s#`control-cli`#`hub` process ops plus bash#g
 s#`cursor-team-kit`#omp's built-in tools#g
 s#cursor-team-kit#omp's built-in tools#g
@@ -185,17 +185,17 @@ s#`create-skill`#the `authoring-a-skill` playbook#g
 
 ## 8. Transcripts. Cursor's per-project transcript directory -> omp's session store.
 
-s#`~/\.cursor/projects/<slug>/agent-transcripts/<uuid>/<uuid>\.jsonl`#`~/.omp/agent/sessions/<encoded-cwd>/<ISO-timestamp>_<uuid>.jsonl`#
+s#`~/\.cursor/projects/<slug>/agent-transcripts/<uuid>/<uuid>\.jsonl`#the session store, by default `~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<session-id>.jsonl`#
 s#where `<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-" \(so `/Users/you/proj` becomes `Users-you-proj`\)#where `<encoded-cwd>` is the cwd with $HOME stripped and each "/" turned into "-" (so `~/proj` becomes `-proj`)#
-s#Every line is one chat message\.#Every line is one JSON object. The first is a `type:title` record and the rest are messages.#
-s#the active workspace's `agent-transcripts/` directory#the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, with subagent sidecars at `<session>/<AgentName>.jsonl`#g
-s#the workspace's `agent-transcripts/` directory#the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, with subagent sidecars at `<session>/<AgentName>.jsonl`#g
+s#Every line is one chat message\.#Every line is one JSON object. The first is a fixed-width `type:title` slot, the second a `type:session` header, and the rest messages whose roles are camelCase (`toolResult`, not `tool_result`).#
+s#the active workspace's `agent-transcripts/` directory#the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, with subagent sidecars at `<session-stem>/<AgentId>.jsonl`#g
+s#the workspace's `agent-transcripts/` directory#the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, with subagent sidecars at `<session-stem>/<AgentId>.jsonl`#g
 s#local transcripts under `agent-transcripts/`#local transcripts under `~/.omp/agent/sessions/<encoded-cwd>/`#
 s#`~/\.cursor/projects/\*/`#sibling `~/.omp/agent/sessions/<other-cwd>/` buckets#g
 s#<agent-transcripts>#~/.omp/agent/sessions/<encoded-cwd>#g
 # Cursor kept three historical transcript layouts; omp writes one.
-s#Three transcript layouts: legacy flat \(`<id>\.jsonl`\), current nested \(`<id>/<id>\.jsonl`\), and subagent \(`<parent>/subagents/<child>\.jsonl`\)\.#One transcript layout. A flat `<ISO-timestamp>_<uuid>.jsonl` per session in the bucket, with `<AgentName>.jsonl` subagent sidecars under the matching `<ISO-timestamp>_<uuid>/` directory.#
-s#For each candidate, read the first JSONL line and check that `message\.content\[0\]\.text` contains the conversation's opening user prompt\.#The first line of an omp transcript is a `type:title` object, not a message. For each candidate, scan for the first `type:message` line with `role:user` and check that its text contains the conversation's opening user prompt.#
+s#Three transcript layouts: legacy flat \(`<id>\.jsonl`\), current nested \(`<id>/<id>\.jsonl`\), and subagent \(`<parent>/subagents/<child>\.jsonl`\)\.#One transcript layout. A flat `<timestamp>_<session-id>.jsonl` per session in the bucket, with `<AgentId>.jsonl` sidecars in the sibling directory named for that stem, and one further subdirectory per nesting level whose files carry the full dotted id.#
+s#For each candidate, read the first JSONL line and check that `message\.content\[0\]\.text` contains the conversation's opening user prompt\.#The first line of an omp transcript is a fixed-width `type:title` slot and the second a `type:session` header, neither of them a message. For each candidate, scan for the first `type:message` line with `role:user` and check that its text contains the conversation's opening user prompt.#
 # Cursor's skill roots -> omp's workspace, user, and plugin skill roots.
 s#~/\.cursor/skills/#~/.omp/agent/skills/#g
 s#\.cursor/skills/#.omp/skills/#g
@@ -224,7 +224,7 @@ s#~/\.cursor/#~/.omp/#g
   - [ ] `git show origin/main:<each skill or doc the product repo vendors itself>`
 s#re-read this playbook from trunk with `git show origin/main:pstack/#re-read this playbook from its install path, `~/.omp/plugins/node_modules/pstack/#g
 s#Re-read the execution playbook from trunk and the armed /goal#Re-read the execution playbook from its install path and the armed /goal#g
-s#`git show origin/main:<control skill path>`#the omp tool doc for the control surface, such as `omp://tools/browser.md`#
+s#`git show origin/main:<control skill path>`#the omp doc for the control surface, such as `omp://tools/browser.md`, remembering that `browser` and `computer` are eval preludes rather than tools#
 s#`git show origin/main:pstack/#`~/.omp/plugins/node_modules/pstack/#g
 s#([^/])pstack/skills/#\1~/.omp/plugins/node_modules/pstack/skills/#g
 # Cursor's npm scope for skill tooling -> the port's own scope.

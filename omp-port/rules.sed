@@ -146,8 +146,8 @@ s#`/loop` per component until the diff is zero\.#Hold a `hub` watcher or a syste
 s#a frontier watcher wake \(arm it via the loop skill, with a long heartbeat fallback\)#a frontier watcher wake (hold it under a `hub` watcher or a systemd timer, with a long fallback heartbeat)#
 s#"/loop until X"#"run until X"#g
 # Cursor's `/goal` is on by default; omp ships it behind a settings gate.
-s#arm a `/goal` with the full program objective\.#arm a `/goal` with the full program objective. omp's `/goal` is native but gated, so `goal.enabled` must already be true when the session starts.#g
-s#arm a `/goal` with this exact text\.#arm a `/goal` with this exact text. omp's `/goal` is native but gated, so `goal.enabled` must already be true when the session starts.#
+s#arm a `/goal` with the full program objective\.#arm a `/goal` with the full program objective. omp's `/goal` is native but gated, so turn on `goal.enabled` in settings first. Since 18.0.2 the tool registers lazily, so turning it on mid-session also works.#g
+s#arm a `/goal` with this exact text\.#arm a `/goal` with this exact text. omp's `/goal` is native but gated, so turn on `goal.enabled` in settings first. Since 18.0.2 the tool registers lazily, so turning it on mid-session also works.#
 
 ## 6. cursor-team-kit. Cursor's companion plugin -> omp's built-in tools.
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Gate for the omp port of pstack. Port-only file, never upstream.
-# Usage: bash omp-port/check-port.sh [canonical-checkout]
+# Usage: bash omp-port/check-port.sh [canonical-clone]
+# The argument, or CANON, is the cursor/plugins clone the reproducible check builds from.
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
 cd "$(dirname "$0")/../plugins/pstack"
-CANON="${1:-/tmp/cursor-plugins/pstack}"
+CANON="${1:-$CANON}"
 fail=0
 report() { printf '%-28s %s\n' "$1" "$2"; }
 violate() { fail=1; printf '  %s\n' "$1"; }
@@ -215,12 +216,84 @@ else
 	report "counts" "PASS  $nskills skills, $nplays playbooks, $nprinc principles, pin $pin7"
 fi
 
-if [ -d "$CANON" ]; then
-	drift=$(for d in "${SCOPE[@]}"; do diff -rq "$CANON/$d" "$d" -x node_modules 2>/dev/null; done | wc -l)
-	report "canonical delta" "$drift files differ from $CANON"
+# The port-owned paths are the one exception to "the build owns this tree", so their absence is
+# the build silently dropping port behavior.
+ownmissing=""
+ownn=0
+while IFS= read -r p; do
+	ownn=$((ownn + 1))
+	[ -e "$p" ] || ownmissing="$ownmissing$p missing"$'\n'
+done < <(owned_paths)
+[ "$ownn" -gt 0 ] || ownmissing="no omp-port/owned.txt entries, the build has nothing to carry"$'\n'
+if [ -n "$ownmissing" ]; then
+	report "owned" "FAIL"
+	while read -r o; do [ -n "$o" ] && violate "$o"; done <<<"$ownmissing"
 else
-	report "canonical delta" "SKIP  no canonical checkout at $CANON"
+	report "owned" "PASS  $ownn owned path(s) present"
 fi
+
+# Every pstack skill assumes the Cursor mechanics. omp-mechanics is where the omp ones live, and
+# the injected reminder is the only thing that makes an agent read it.
+nomech=""
+[ -f skills/omp-mechanics/SKILL.md ] || nomech="${nomech}skills/omp-mechanics/SKILL.md missing"$'\n'
+grep -qF 'skill://omp-mechanics' extensions/potetomode/index.js 2>/dev/null ||
+	nomech="${nomech}extensions/potetomode/index.js must point the reminder at skill://omp-mechanics"$'\n'
+if [ -n "$nomech" ]; then
+	report "mechanics" "FAIL"
+	while read -r m; do [ -n "$m" ] && violate "$m"; done <<<"$nomech"
+else
+	report "mechanics" "PASS  omp-mechanics installed and named in the reminder"
+fi
+
+# The tree is build output. Rebuilding the pin has to reproduce it byte for byte outside the
+# owned paths, otherwise someone hand-edited a file the next sync will overwrite.
+pin=$(tr -d '[:space:]' <"$PORT_DIR/UPSTREAM")
+scratch=$(mktemp -d)
+buildlog=$(mktemp)
+canon_ok=no
+if ! ensure_canon "$pin" >"$buildlog" 2>&1; then
+	# A skipped reproduction on a developer box is a nuisance. In CI it would hide the one
+	# invariant this gate exists to prove behind a green check.
+	if [ -n "${CI:-}" ]; then
+		report "reproducible" "FAIL"
+		violate "no clone at $CANON and cloning $UPSTREAM_URL failed, CI cannot skip this"
+	else
+		report "reproducible" "SKIP  no clone at $CANON and cloning $UPSTREAM_URL failed"
+	fi
+elif ! build_tree "$pin" "$scratch" >>"$buildlog" 2>&1; then
+	report "reproducible" "FAIL"
+	violate "build at ${pin:0:7} failed, rules or a patch no longer applies"
+	while read -r l; do [ -n "$l" ] && violate "$l"; done < <(tail -n 5 "$buildlog")
+else
+	canon_ok=yes
+	# Owned content is the port's, so the build is judged on everything else.
+	while IFS= read -r p; do
+		[ -e "$p" ] || continue
+		rm -rf "$scratch/$p"
+		mkdir -p "$(dirname "$scratch/$p")"
+		cp -a "$p" "$scratch/$p"
+	done < <(owned_paths)
+	delta=$(for d in "${SCOPE[@]}"; do diff -rq "$scratch/$d" "$d" -x node_modules; done)
+	if [ -n "$delta" ]; then
+		report "reproducible" "FAIL"
+		while read -r l; do [ -n "$l" ] && violate "$l"; done <<<"$delta"
+	else
+		report "reproducible" "PASS  tree equals the build at ${pin:0:7}"
+	fi
+fi
+
+if [ "$canon_ok" = yes ]; then
+	untiered=$(untiered_slugs "$pin" | sed 's/^/  /')
+	if [ -n "$untiered" ]; then
+		report "untiered slugs" "REPORT  $(printf '%s\n' "$untiered" | wc -l) slug(s) only the catch-all rewrote"
+		printf '%s\n' "$untiered"
+	else
+		report "untiered slugs" "REPORT  none, every slug has a tiered rule"
+	fi
+else
+	report "untiered slugs" "SKIP  needs the clone at $CANON"
+fi
+rm -rf "$scratch" "$buildlog"
 
 echo
 if [ "$fail" -eq 0 ]; then echo "check-port: PASS"; else echo "check-port: FAIL"; fi

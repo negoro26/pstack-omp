@@ -33,22 +33,28 @@ the head a second time and getting a different answer.
 
 ### How to re-sync
 
-1. Run `bash omp-port/sync-upstream.sh [<target-sha>]`, target defaulting to the newest upstream
-   commit that touched `pstack/`. A target that never touched `pstack/` is refused, because the next
-   run has to find that sha again in the path-filtered history. It merges upstream `pstack/skills`
-   and `pstack/agents` into `plugins/pstack` against the pinned sha as ancestor, then writes the
-   version fields and the pin, pin last, and stages all three. Exit 2 means the merge conflicted,
-   either as `CONFLICT` lines from `merge-tree` or as markers left in the tree.
-2. Resolve every marker it lists. Take the upstream text as the content baseline, then re-apply the
-   substitution table below to anything that arrived or changed.
-3. Run `bash omp-port/check-port.sh`. It fails on a leftover marker and on a stale count.
-4. Commit. Squash merging a sync PR is safe because `omp-port/UPSTREAM`, not the branch history,
-   carries the base for the next sync.
+The port is a build, not a maintained tree. `plugins/pstack/skills` and `plugins/pstack/agents` are
+upstream text at the pinned sha with `omp-port/rules.sed` applied, then `omp-port/patches/*.patch`,
+then the paths in `omp-port/owned.txt` carried across. A hand edit under either directory fails the
+`reproducible` check, which rebuilds the pin and diffs it against the tree, and the next build
+deletes it. Put the change in `rules.sed`, in a patch, or in an owned path instead.
 
-The `upstream-sync` workflow runs the same script daily and opens that PR itself, as a draft when
-the merge conflicted or the gate failed. It skips the run while any open PR still carries a
-`sync/upstream-` head. Pass a sha to sync to an older commit, and it must be one that touched
-`pstack/`.
+The `upstream-sync` workflow does this daily. It runs `bash omp-port/check-port.sh` on `main` first,
+so a red trunk stops the run rather than being merged over, then builds at the newest upstream
+commit that touched `pstack/`, opens a PR carrying the sync and gate output in its body, and squash
+merges it with `--delete-branch` when both passed. Squash merging is safe because
+`omp-port/UPSTREAM`, not the branch history, carries the base for the next build. It skips the run
+while any open PR still carries a `sync/upstream-` head.
+
+A maintainer runs `bash omp-port/sync-upstream.sh [<target-sha>]` for the same build locally, target
+defaulting to that newest commit, or `bash omp-port/sync-upstream.sh rebuild` to rebuild at the
+current pin after editing `rules.sed`, `patches/`, or `owned.txt`. A target that never touched
+`pstack/` is refused, because the next run has to find that sha again in the path-filtered history.
+Then run `bash omp-port/check-port.sh` and commit.
+
+There is nothing to resolve. The build never edits an upstream file in place, so upstream text and
+port text cannot collide. A patch that no longer applies exits 1, and that or a gate FAIL leaves the
+PR open for a human with both outputs in the body and the reason printed in the job log.
 
 The gate runs as its own workflow, `gate.yml`, on every pull request and on every push to `main`. A
 PR opened with `github.token` does not trigger `pull_request` workflows, so the sync PR carries the
@@ -131,26 +137,15 @@ Not ported, and inert on omp, `automations/benny`, which is Cursor Automations p
 Treat the port as prose mirrored and mechanics substituted, not as the shipped Cursor plugin
 installed.
 
-## Substitution rules applied
+## Where the port's changes live
 
-Re-apply every row to any text that arrives from canonical on a re-sync. The rules are the rule set,
-not a census. Occurrence counts are deliberately absent because they were measured against the stale
-mirror and go stale again at each sync.
-
-| Cursor mechanic | omp mechanic |
-|---|---|
-| `.cursor/skills/`, `~/.cursor/skills/` | `.omp/skills/`, `~/.omp/agent/skills/` |
-| `subagent_type: X` | `` `agent`: X `` (the task tool's field) |
-| `generalPurpose` | `task` (omp's bundled general-purpose agent) |
-| `~/.cursor/rules/pstack-models.mdc` | `modelRoles` in `~/.omp/agent/config.yml`, or `task.agentModelOverrides` |
-| `/loop` (Cursor builtin) | omp ships its own `/loop` for in-session iteration. A `hub` supervised watcher or a systemd user timer covers an out-of-session wake. `hub` is an omp tool, never a Cursor feature |
-| Cursor cloud agents, `environment: "cloud"` | `isolated: true` subagents, which run on this machine |
-| `cloud_base_branch` | not accepted by omp's task tool. Use a `git worktree` on the wanted base |
-| `agent-transcripts/`, `~/.cursor/projects/...` | `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, subagents at `<session>/<AgentName>.jsonl` |
-| `cursor-team-kit` `control-ui`/`control-cli`/`deslop` | `browser` and `computer` tools, `hub` plus bash, `skill://unslop` plus `omp cleanse` |
-| `AskQuestion` (Cursor's ask tool) | `ask` (omp's tool name) |
-| `is_background: true` (agent frontmatter) | removed, omp does not model it |
-| poteto-mode frontmatter `name: Poteto Mode` | `name: poteto-mode` (kept, omp derives the registry slug from the frontmatter name) |
+`omp-port/rules.sed` is the substitution table, one ordered `sed -E` rule per line, tiered rules for
+the model slugs upstream names first and a catch-all under them whose hits the sync and the gate
+report as `untiered` so they earn a tiered rule. `omp-port/patches/` carries the port's own code as
+unified diffs applied after the rules, which is where a change no substitution can express belongs.
+`skills/omp-mechanics`, listed in `omp-port/owned.txt`, carries the port's prose, so the
+omp-specific levers sit in one skill the injected reminder points every agent at instead of being
+sprinkled through files upstream keeps rewriting.
 
 Known deltas the port mirrors faithfully and will not diverge on. The guide says the verification feature map lives at `references/features` while both trees write `features/`. The guide recommends a daily `/maintain-verification-skill` run while both trees state no cadence.
 

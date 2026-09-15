@@ -22,10 +22,9 @@ prs=$(mktemp)
 gh pr list --author "@me" --state all --limit 1000 \
 	--json number,state,headRefName 2>/dev/null > "$prs" || echo "[]" > "$prs"
 
-# Transcripts: omp keys every session tree by cwd under ~/.omp/agent/sessions/<encoded-cwd>/,
-# encoded as the path with $HOME stripped and "/" rewritten as "-". A chat launched inside a
-# worktree lands in that worktree's own bucket, so scan both and nothing else; walking every
-# bucket scales with total omp history instead of this repo's.
+# omp keys each session tree by cwd, the path with $HOME stripped and "/" rewritten as "-". A
+# chat launched inside a worktree lands in that worktree's own bucket, so scan both and nothing
+# else; walking every bucket scales with total omp history instead of this repo's.
 sessions="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/sessions"
 bucket() { printf '%s/%s' "$sessions" "$(printf '%s' "${1#"$HOME"}" | sed 's#/#-#g')"; }
 repo_bucket=$(bucket "$main_wt")

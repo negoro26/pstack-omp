@@ -25,13 +25,12 @@ The N candidates will receive the same prompt, so the prompt is the contract.
 
 1. State the artifact each candidate is producing.
 2. Derive the rubric. State what success looks like for *this* task, then turn it into 3-6 concrete gradeable criteria. The rubric is the picker's tool in Phase D. Candidates only see the task.
-3. Pick the runners. Use your configured `arena runners` when present. Otherwise run one arm on your strongest judgment model, one on your strongest instruction-following model, and the remaining arms on the other model families `omp models` reports. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.
-   A per-arm model race needs one thin agent file per arm plus a `task.agentModelOverrides` entry in `~/.omp/agent/config.yml` keyed by each of those agent names. The `task` call carries no per-arm model argument, so an arm with no override entry runs on the parent chat model, and N arms with no entries are N runs of the same model. The **setup-pstack** skill owns the configuration.
+3. Pick the runners. Use `arena runners` from `task.agentModelOverrides` in `~/.omp/agent/config.yml` when present. Otherwise default to one each on one model per distinct family `omp models` reports. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.
 4. Assign output paths. Each candidate writes to its own location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill.
 
 ## Phase B: Fan out
 
-Spawn all N subagents in one message with one `task` call with all items in `tasks[]` (batched in parallel), each with the task, the path to the shared grounding, its own output path, and instructions to produce both the artifact and a short rationale.
+Spawn all N subagents in one `task` call with all items in `tasks[]`, each with the task, the path to the shared grounding, its own output path, and instructions to produce both the artifact and a short rationale.
 
 Each rationale names the alternatives the candidate considered and what it rejected.
 
@@ -39,7 +38,7 @@ If a candidate fails to produce output, proceed with N-1 and note the dropout in
 
 ## Phase C: Cross-judge
 
-After all Phase B candidates complete, choose one judge from your configured `arena cross-judge pool` when present. Otherwise use your strongest judgment model. Pick a different model family from the arms and from the parent, resolved at run time from what `omp models` lists. When only one family is available, run the judge anyway and record in the synthesis note that the cross-judge is weaker for it, because judge and arms then share one family's blind spots. The judge needs its own agent file and override entry for that family to take effect; with no entry it runs on the parent chat model. Spawn one judge subagent. The brief grants the judge only Glob, Grep, and Read, and forbids writes. That is posture, not a sandbox, because omp's task wire has no `readonly` field and the per-item `tools` field only exposes eval-defined kernel tools. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.
+After all Phase B candidates complete, choose one model from the `arena cross-judge pool` in `task.agentModelOverrides` in `~/.omp/agent/config.yml` when present. Otherwise use one model per distinct family `omp models` reports. Prefer a different model family from the parent's. Spawn one judge subagent whose brief grants read tools only. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.
 
 ## Phase D: Pick a base
 

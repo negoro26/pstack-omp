@@ -29,5 +29,3 @@ Apply the **type-system-discipline** principle skill first.
 | Structured telemetry | Prefer structured logger diagnostics with enough context to debug from an id. No `console.log` in shipped code. |
 
 Examples: `references/patterns.md`.
-
-omp carries `globs` as skill metadata and does not auto-attach a skill on a file match, so read `skill://typescript-best-practices` yourself when you touch a `.ts` or `.tsx` file.

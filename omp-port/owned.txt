@@ -1,0 +1,5 @@
+# Paths under plugins/pstack the port owns outright, one per line. The build deletes
+# plugins/pstack/{skills,agents} and reinstalls them from upstream, then restores every path
+# listed here from HEAD. A path here is never produced by rules.sed or omp-port/patches, so it
+# survives a sync unchanged and an edit to it is a real commit rather than a rewrite rule.
+skills/omp-mechanics

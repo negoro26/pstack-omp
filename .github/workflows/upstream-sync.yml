@@ -56,6 +56,11 @@ jobs:
           fi
           printf 'target=%s\nshort=%s\ngo=yes\n' "$target" "$short" >> "$GITHUB_OUTPUT"
 
+      # A red trunk means the build no longer reproduces the pinned tree. Syncing on top of that
+      # merges over the breakage instead of fixing it.
+      - if: steps.plan.outputs.go == 'yes'
+        run: bash omp-port/check-port.sh
+
       - if: steps.plan.outputs.go == 'yes'
         env:
           TARGET: ${{ steps.plan.outputs.target }}
@@ -67,15 +72,21 @@ jobs:
           git switch -c "sync/upstream-$SHORT"
           code=0
           bash omp-port/sync-upstream.sh "$TARGET" > "$RUNNER_TEMP/sync.log" 2>&1 || code=$?
-          if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then
+          gate=0
+          if [ "$code" -eq 0 ]; then
+            bash omp-port/check-port.sh > "$RUNNER_TEMP/gate.txt" 2>&1 || gate=$?
+          else
+            gate=1
+            echo "gate not run, the sync exited $code" > "$RUNNER_TEMP/gate.txt"
+          fi
+          version=$(jq -r .version plugins/pstack/package.json)
+          git add -A
+          if git diff --cached --quiet; then
+            echo "sync exited $code and changed nothing, no PR to open"
             cat "$RUNNER_TEMP/sync.log"
             exit 1
           fi
-          version=$(jq -r .version plugins/pstack/package.json)
-          gate=0
-          bash omp-port/check-port.sh > "$RUNNER_TEMP/gate.txt" 2>&1 || gate=$?
-          git add -A
-          git commit -q -m "sync: merge upstream pstack $SHORT ($version)"
+          git commit -q -m "sync: build upstream pstack $SHORT ($version)"
           git push -q origin HEAD
           {
             printf 'Upstream commits since the previous pin.\n\n```\n'; cat "$RUNNER_TEMP/commits.txt"
@@ -83,7 +94,11 @@ jobs:
             printf '```\n\nGate output, exit %s.\n\n```\n' "$gate"; cat "$RUNNER_TEMP/gate.txt"
             printf '```\n'
           } > "$RUNNER_TEMP/body.md"
-          draft=""
-          if [ "$code" -eq 2 ] || [ "$gate" -ne 0 ]; then draft="--draft"; fi
-          gh pr create --base main --head "sync/upstream-$SHORT" \
-            --title "sync: upstream pstack $SHORT ($version)" --body-file "$RUNNER_TEMP/body.md" $draft
+          pr=$(gh pr create --base main --head "sync/upstream-$SHORT" \
+            --title "sync: upstream pstack $SHORT ($version)" --body-file "$RUNNER_TEMP/body.md" | tail -n1)
+          if [ "$code" -eq 0 ] && [ "$gate" -eq 0 ]; then
+            gh pr merge "$pr" --squash --delete-branch
+            exit 0
+          fi
+          echo "left $pr open for a human: sync exit $code, gate exit $gate"
+          exit 1

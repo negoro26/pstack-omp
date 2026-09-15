@@ -16,33 +16,31 @@ Invoke when the user says "reflect" or "/reflect". Skip when the conversation is
 
 ### 1. Locate the active transcript
 
-The parent finds its own transcript file before fanning out. The system prompt names the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl` (subagents: `<session>/<AgentName>.jsonl`). Use that path. Do not glob across sibling `~/.omp/agent/sessions/<other-cwd>/` buckets. That crosses workspace boundaries and reads private chats from unrelated projects.
+The parent finds its own transcript file before fanning out. The system prompt names the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, with subagent sidecars at `<session-stem>/<AgentId>.jsonl`. Use that path. Do not glob across sibling `~/.omp/agent/sessions/<other-cwd>/` buckets. That crosses workspace boundaries and reads private chats from unrelated projects.
 
 ```bash
 ls -t ~/.omp/agent/sessions/<encoded-cwd>/*.jsonl ~/.omp/agent/sessions/<encoded-cwd>/*/*.jsonl ~/.omp/agent/sessions/<encoded-cwd>/*/subagents/*.jsonl 2>/dev/null | head -10
 ```
 
-One transcript layout: flat `<ISO-timestamp>_<uuid>.jsonl` per session in the bucket, with `<AgentName>.jsonl` subagent sidecars under the matching `<ISO-timestamp>_<uuid>/` directory.
+One transcript layout. A flat `<timestamp>_<session-id>.jsonl` per session in the bucket, with `<AgentId>.jsonl` sidecars in the sibling directory named for that stem, and one further subdirectory per nesting level whose files carry the full dotted id.
 
-The first line of a real transcript is a `type:title` object, not a message. For each candidate, scan for the first `type:message` line with `role:user` and check that its text contains the conversation's opening user prompt. Take the matching path. If no path resolves, take the newest file in the bucket. If the bucket is empty, write a tight digest of the session and pass that instead.
+The first line of an omp transcript is a fixed-width `type:title` slot and the second a `type:session` header, neither of them a message. For each candidate, scan for the first `type:message` line with `role:user` and check that its text contains the conversation's opening user prompt. Take the matching path. If no path resolves, write a tight digest of the session and pass that instead.
 
 ### 2. Spawn three reviewers in parallel
 
-One message, three `Task` calls, `agent`: `task` (omp's general-purpose bundled agent), each lens pinned by its own agent name, full tools per spawn. Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript), and the task wire has no `readonly` field to strip it. The prompt forbids file writes, which omp cannot enforce.
+One `task` call with three items in `tasks[]`, each `agent`: `task` (omp's general-purpose bundled agent) pinned by its own agent name, full tools per spawn. Run the three lenses on three different model families where `omp models` offers them, and keep Divergent on a different model family from Judgment, since the lens earns its name from different priors and not a different prompt. Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript). There is no such field on omp's task wire, so nothing strips MCPs.
 
-| Lens | Model | Prompt template |
+| Lens | `model` | Prompt template |
 |---|---|---|
-| Judgment | your configured reflect-judgment model, defaulting to your strongest judgment model | `references/judgment-reviewer.md` |
-| Tooling | your configured reflect-tooling model, defaulting to your strongest instruction-following model | `references/tooling-reviewer.md` |
-| Divergent | your configured reflect-divergent model, defaulting to your prose model | `references/divergent-reviewer.md` |
-
-Run the three lenses on three different model families where `omp models` offers them, and keep Divergent on a different model family from Judgment in particular. The Divergent lens earns its name from a different set of priors, not from a different prompt. When only one family is available, run all three lenses anyway and say in the summary that the divergent read is weaker for it. Each lens takes its family from a `task.agentModelOverrides` entry keyed by its agent name; a lens with no entry runs on the parent chat model. The **setup-pstack** skill owns the configuration.
+| Judgment | your configured reflect-judgment model (default your strongest judgment model) | `references/judgment-reviewer.md` |
+| Tooling | your configured reflect-tooling model (default your strongest instruction-following model) | `references/tooling-reviewer.md` |
+| Divergent | your configured reflect-judgment model (default your strongest judgment model) | `references/divergent-reviewer.md` |
 
 Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `Task` response body.
 
 ### 3. Synthesize
 
-One `Task` call, `agent`: `task` (omp's general-purpose bundled agent), using your configured reflect-synthesizer model, defaulting to your strongest judgment model, full tools per spawn. The synthesizer's quality check includes spot-verifying citations, which can require MCP access, and the task wire has no `readonly` field to strip it. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
+One `Task` call, `agent`: `task` (omp's general-purpose bundled agent), using your configured reflect-judgment model (default your strongest judgment model), full tools per spawn. The synthesizer's quality check includes spot-verifying citations, which can require MCP access. There is no such field on omp's task wire, so nothing strips MCPs. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
 
 ### 4. Structural enforcement check
 

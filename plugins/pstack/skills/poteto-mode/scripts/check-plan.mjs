@@ -4,7 +4,6 @@ import process from "node:process";
 
 const RULE =
 	"Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.";
-// Deliberate divergence from canonical, which names a model slug here. The port substitutes capability wording for the slug. It must name the fast code model, matching the skeleton the checker enforces, since the live lanes drive the real surface.
 const LANES = "Ten lanes on your fast code model at the PR head";
 const SUB_BLOCKS = [
 	"Depends on.",

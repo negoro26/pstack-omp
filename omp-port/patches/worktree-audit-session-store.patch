@@ -1,0 +1,40 @@
+# worktree-audit.sh reads the agent transcript store to date each worktree. Cursor keys that
+# store by slugified repo path, under ~/.cursor/projects/<slug>/agent-transcripts. omp keys it
+# by cwd, under $PI_CODING_AGENT_DIR/sessions/<encoded-cwd>. Different shape, so the lookup is
+# code and not a token swap. The same hunk moves stat and date off BSD spellings onto GNU.
+--- a/skills/poteto-mode/scripts/worktree-audit.sh
++++ b/skills/poteto-mode/scripts/worktree-audit.sh
+@@ -22,9 +22,13 @@
+ gh pr list --author "@me" --state all --limit 1000 \
+ 	--json number,state,headRefName 2>/dev/null > "$prs" || echo "[]" > "$prs"
+ 
+-# Transcripts dir: ~/.omp/projects/<slugified-repo-path>/agent-transcripts.
+-slug=$(printf '%s' "$main_wt" | sed 's#^/##; s#/#-#g')
+-transcripts="$HOME/.cursor/projects/$slug/agent-transcripts"
++# omp keys each session tree by cwd, the path with $HOME stripped and "/" rewritten as "-". A
++# chat launched inside a worktree lands in that worktree's own bucket, so scan both and nothing
++# else; walking every bucket scales with total omp history instead of this repo's.
++sessions="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/sessions"
++bucket() { printf '%s/%s' "$sessions" "$(printf '%s' "${1#"$HOME"}" | sed 's#/#-#g')"; }
++repo_bucket=$(bucket "$main_wt")
++[ -d "$repo_bucket" ] || repo_bucket="$sessions"
+ now=$(date +%s)
+ 
+ printf "SIZE\tAGE\tMERGED\tDIRTY\tREMOTE\tPR\tLAST_CHAT\tBUCKET\tWORKTREE\n"
+@@ -63,11 +67,12 @@
+ 	# Most recent chat whose transcript operated in this worktree. Match path
+ 	# followed by "/" or a quote so glint-482 does not match glint-482-r37.
+ 	last="-"; last_ts=0
+-	if [ -d "$transcripts" ]; then
+-		f=$(rg -l -e "${wt}/" -e "${wt}\"" "$transcripts" 2>/dev/null \
+-			| xargs stat -f '%m %N' 2>/dev/null | sort -rn | head -1)
++	wt_bucket=$(bucket "$wt"); [ -d "$wt_bucket" ] || wt_bucket="$repo_bucket"
++	if [ -d "$repo_bucket" ]; then
++		f=$(rg -l -e "${wt}/" -e "${wt}\"" "$repo_bucket" "$wt_bucket" 2>/dev/null \
++			| xargs -r stat -c '%Y %n' 2>/dev/null | sort -rn | head -1)
+ 		if [ -n "$f" ]; then last_ts=$(echo "$f" | awk '{print $1}')
+-			last=$(date -r "$last_ts" '+%Y-%m-%d' 2>/dev/null); fi
++			last=$(date -d @"$last_ts" '+%Y-%m-%d' 2>/dev/null); fi
+ 	fi
+ 	recent=$([ "$last_ts" -gt 0 ] 2>/dev/null && [ $(( (now - last_ts) / 86400 )) -le 4 ] && echo yes || echo no)
+ 

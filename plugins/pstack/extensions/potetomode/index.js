@@ -19,6 +19,7 @@ const ENTRY = "poteto-mode";
 const REMINDER =
   "poteto-mode is PINNED for this session.\n" +
   "Before acting on a new task: read `skill://poteto-mode` in full (including its Principles index), " +
+  "then read `skill://omp-mechanics` for the omp-specific levers every pstack skill assumes, " +
   "match the request against its playbook table, and copy the matched playbook's steps verbatim into " +
   "your todo list as the first items. A step you skip stays listed with `skip: <reason>`.\n" +
   "Spawn code-writing delegates with the `task` tool using `agent: poteto-agent`. " +

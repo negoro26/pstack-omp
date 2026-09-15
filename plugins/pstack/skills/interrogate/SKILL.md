@@ -33,25 +33,21 @@ Write one clear paragraph. If you're unsure about the intent, ask the user befor
 
 ## Step 3, Spawn Reviewers
 
-Launch all reviewers in a single message using the Task tool. Use your configured `interrogate reviewers` list when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.
+Launch all reviewers in a single message using the Task tool. Use the `interrogate reviewers` list from `task.agentModelOverrides` in `~/.omp/agent/config.yml` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults. Give each reviewer a different model family from the other reviewers and from the parent that wrote the code, resolved at run time from what `omp models` reports. A reviewer sharing the writer's family shares the writer's blind spots, which is the one thing this skill exists to defeat. `skill://omp-mechanics` covers the single-family case.
 
-| Subagent | Default capability |
-|----------|--------------------|
+| Subagent | Default model |
+|----------|---------------|
 | Reviewer A | your strongest judgment model |
 | Reviewer B | your strongest instruction-following model |
 | Reviewer C | your fast code model |
-| Reviewer D | your prose model |
-
-Model diversity is the property that makes this review worth running, so resolve it at run time from the families `omp models` lists. Give each reviewer a different model family from the other reviewers and from the parent that wrote the code. A reviewer sharing the writer's family shares the writer's blind spots, which is the one thing this skill exists to defeat.
-
-When `omp models` reports only one model family, still spawn the full reviewer count and still run the review. Record in the verdict that the review is weaker for it, because every reviewer carries the same priors. Never fake diversity by naming two members of one family, and never drop a reviewer to avoid the note.
+| Reviewer D | your strongest judgment model |
 
 For each reviewer:
-- `agent`: `task` (omp’s general-purpose bundled agent)
-- `model`: the configured `interrogate reviewers` entry, or the table capability with no configured line, pinned by that reviewer's agent name in `task.agentModelOverrides`
-- read-only: the brief grants the reviewer only Glob, Grep, and Read, and forbids writes. omp's task wire has no `readonly` field and the per-item `tools` field only exposes eval-defined kernel tools, so the grant is posture, not a sandbox
+- `agent`: `task` (omp's general-purpose bundled agent)
+- `model`: the configured `interrogate reviewers` entry, or the table default with no configured line
+- read-only posture. The brief grants only Glob, Grep, and Read, and forbids writes
 
-A reviewer with no override entry runs on the parent chat model, which is correct for Reviewer A and is the case where the family spread collapses. Give each reviewer that needs its own family its own thin agent file plus its own override entry. If an override entry names a model this machine cannot resolve, pick the closest equivalent from `omp models` (prefer the highest-reasoning tier of the same family), spawn with that, and open a separate PR to fix the entry. Do not block the review on it. The values `inherit-parent` and `auto` are not broken. They mean the reviewer runs on the parent chat model, so leave that reviewer out of the override map. The **setup-pstack** skill owns the configuration.
+If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the Task tool's error message, pick the closest equivalent (prefer the highest-reasoning tier of the same family), spawn with the valid slug, and open a separate PR to update the configured value or default table. Do not block the review on the slug issue. If the configured value is `inherit-parent` or `auto`, leave that reviewer out of `task.agentModelOverrides` instead. Never treat those aliases as broken slugs or enter this fallback for them.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent

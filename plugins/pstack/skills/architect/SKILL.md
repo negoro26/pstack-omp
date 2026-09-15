@@ -30,7 +30,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
 
 Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt. Each candidate produces a design package shaped per `references/rationale-template.md`.
 
-Use your configured architect runners when present. Otherwise run one runner on your strongest judgment model and spread the rest across the other model families `omp models` reports, so the candidates do not share one model's blind spots. Each runner needs its own agent file plus its own `task.agentModelOverrides` entry keyed by that agent name; a runner with no entry runs on the parent chat model. The **setup-pstack** skill owns the configuration.
+Use your configured architect runners (defaults one model per distinct family `omp models` reports).
 
 Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
 

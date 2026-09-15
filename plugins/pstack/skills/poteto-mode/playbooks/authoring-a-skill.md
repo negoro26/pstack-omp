@@ -2,7 +2,7 @@
 
 **You own the skill's voice.**
 
-1. Write the SKILL.md yourself with `write`/`edit`; `manage_skill` writes only to `~/.omp/agent/managed-skills` and never touches a user-authored skill. Give it YAML frontmatter with `name` matching its directory, a `description` naming what the skill does and when to reach for it (discovery keys off that sentence, so a vague description means the skill never fires), and `disable-model-invocation: true` so it stays out of the per-turn index and fires only when invoked by name or by a playbook.
+1. Write the SKILL.md yourself with `write` or `edit`. omp's `manage_skill` writes only under `~/.omp/agent/managed-skills` and never touches a user-authored skill. Give it YAML frontmatter with `name` matching its directory, a `description` naming what the skill does and when to reach for it, and `disable-model-invocation: true` so it stays out of the per-turn index.
 2. Validate the skill: frontmatter has `name` and `description`, referenced files exist, cross-skill links resolve.
 3. Test cases if structural. Skip if subjective.
 4. Run **Opening a PR**.

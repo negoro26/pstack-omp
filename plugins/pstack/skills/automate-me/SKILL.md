@@ -26,7 +26,7 @@ Update mode changes the rest of the flow:
 
 ### 1. Mine their history
 
-Locate the active workspace's transcripts before fanning out. The system prompt names the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl` (subagents: `<session>/<AgentName>.jsonl`); use that path. Don't glob across other `~/.omp/agent/sessions/*/` directories. That crosses workspace boundaries and reads private chats from unrelated projects.
+Locate the active workspace's transcripts before fanning out. The system prompt names the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, with subagent sidecars at `<session>/<AgentName>.jsonl`. Use only that path. Don't glob across sibling `~/.omp/agent/sessions/<other-cwd>/` buckets. That crosses workspace boundaries and reads private chats from unrelated projects.
 
 Survey recent agent conversations within that scope for recurring patterns. Run multiple parallel subagents across slices of history (e.g. last 2-4 weeks, split into 3 slices so each has enough material). Each slice mining subagent reads transcripts from the workspace-scoped path the parent provides, looks for the signals below, and returns a short structured list of patterns it saw with evidence pointers. Default signals worth hunting:
 
@@ -64,7 +64,7 @@ The **poteto-mode** skill shows the shape. Read it for granularity. Don't copy i
 
 ### 4. Draft the skill
 
-Use the `authoring-a-skill` playbook (`skills/poteto-mode/playbooks/authoring-a-skill.md`) to author the skill. Placement:
+Use the `authoring-a-skill` playbook to author the skill. Placement:
 
 - Path: preserve an existing mode skill's category. For a new mode, use `.omp/skills/<handle>/<handle>-mode/SKILL.md` when the repo has an established personal category for that handle. Otherwise default to `.omp/skills/<handle>-mode/SKILL.md` in the project (or `~/.omp/agent/skills/<handle>-mode/` if the user prefers a personal skill).
 - Handle: the user's first name or chosen identifier.

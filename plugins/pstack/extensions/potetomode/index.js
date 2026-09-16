@@ -22,7 +22,7 @@ const REMINDER =
   "then read `skill://omp-mechanics` for the omp-specific levers every pstack skill assumes, " +
   "match the request against its playbook table, and copy the matched playbook's steps verbatim into " +
   "your todo list as the first items. A step you skip stays listed with `skip: <reason>`.\n" +
-  "Spawn code-writing delegates with the `task` tool using `agent: poteto-agent`. " +
+  "Route delegation through `skill://pstack-omp` using the live tool schema and available roster. " +
   "Casual turns, or an explicit opt-out, do not need the playbook.";
 
 export default function potetomode(pi) {
@@ -62,13 +62,12 @@ export default function potetomode(pi) {
       const e = entries[i];
       // appendEntry persists {type:"custom",customType,data}; same predicate omp
       // uses to replay its own pins (src/session/mode-skills.ts:42).
-      if (e?.type === "custom" && e?.customType === ENTRY) return Boolean(e.data?.pinned);
+      if (e?.type === "custom" && e?.customType === ENTRY) return e.data?.pinned === true;
     }
-    return false;
+    return undefined;
   };
-
   const setPinned = (next, ctx) => {
-    pinned = Boolean(next);
+    pinned = next;
     pi.appendEntry(ENTRY, { pinned });
     syncStatus(ctx);
     ctx?.ui?.notify?.(
@@ -80,7 +79,7 @@ export default function potetomode(pi) {
   pi.registerCommand("poteto-mode", {
     description: "Pin pstack's poteto-mode router for this session (on|off|status; default: toggle on)",
     handler: async (args, ctx) => {
-      const arg = String(args || "").trim().toLowerCase();
+      const arg = args.trim().toLowerCase();
       if (arg === "status") {
         syncStatus(ctx);
         ctx?.ui?.notify?.(`poteto-mode: ${pinned ? "pinned" : "not pinned"}`, "info");
@@ -89,7 +88,7 @@ export default function potetomode(pi) {
       if (arg === "off" || arg === "unpin") return setPinned(false, ctx);
       setPinned(true, ctx);
       // A bare `/poteto-mode <task>` should also start the work, matching Cursor's ergonomics.
-      const rest = String(args || "").trim();
+      const rest = args.trim();
       if (rest && !["on", "off", "pin", "unpin", "status"].includes(rest.toLowerCase())) {
         pi.sendUserMessage(rest, ctx?.isIdle?.() === false ? { deliverAs: "followUp" } : undefined);
       }
@@ -111,8 +110,9 @@ export default function potetomode(pi) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    const entries = ctx?.sessionManager?.getBranch?.() || ctx?.sessionManager?.getEntries?.() || [];
-    pinned = restore(entries);
+    const entries = ctx.sessionManager.getBranch();
+    pinned = restore(entries) ?? pi.getFlag?.("poteto") === true;
+    isActive = false;
     syncStatus(ctx);
   });
 
@@ -127,11 +127,9 @@ export default function potetomode(pi) {
   });
 
   pi.on("before_agent_start", async (event) => {
-    if (!pinned && pi.getFlag?.("poteto") !== true) return;
+    if (!pinned) return;
     // systemPrompt is an ordered block list; interpolating it comma-joins the
     // blocks and collapses the provider's cache segmentation.
-    const raw = event?.systemPrompt;
-    const blocks = Array.isArray(raw) ? raw : raw ? [raw] : [];
-    return { systemPrompt: [...blocks, REMINDER] };
+    return { systemPrompt: [...event.systemPrompt, REMINDER] };
   });
 }

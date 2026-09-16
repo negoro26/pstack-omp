@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Read-only worktree prune audit. Classifies every git worktree by size, merge
-# state, uncommitted work, remote/PR state, and the most recent chat that
-# operated in it. Emits a table sorted by size with a suggested bucket. Never
-# deletes anything; deletion stays a human-gated step in the playbook.
+# state, uncommitted work, and remote/PR state. Emits a table sorted by size
+# with a suggested bucket. Never deletes anything; deletion stays a
+# human-gated step in the playbook.
 #
 # Usage: worktree-audit.sh [repo-path]   (defaults to the current repo)
 set -u
@@ -11,33 +11,50 @@ repo="${1:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 [ -z "$repo" ] && { echo "not in a git repo; pass a repo path" >&2; exit 1; }
 cd "$repo" || exit 1
 
-# Main worktree is the first entry; everything else is a candidate.
-main_wt=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
+# Main worktree is the first entry; everything else is a candidate. Strip the
+# record prefix rather than splitting fields so paths containing spaces survive.
+if ! worktree_records=$(git worktree list --porcelain); then
+	echo "could not inspect git worktrees" >&2
+	exit 1
+fi
+main_wt=$(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print; exit}')
 
 # origin/main drives the merge check. Best-effort; stale is fine for a first pass.
 git fetch origin main --quiet 2>/dev/null || echo "warn: could not fetch origin/main; merged column may be stale" >&2
 
 # PR state by branch, fetched once. Empty if gh is unavailable.
-prs=$(mktemp)
+scratch_dir="${TMPDIR:-$repo/.pstack-scratch}/worktree-audit"
+mkdir -p "$scratch_dir"
+prs=$(mktemp "$scratch_dir/prs.XXXXXX")
+trap 'rm -f "$prs"' EXIT INT TERM
 gh pr list --author "@me" --state all --limit 1000 \
 	--json number,state,headRefName 2>/dev/null > "$prs" || echo "[]" > "$prs"
 
-# omp keys each session tree by cwd, the path with $HOME stripped and "/" rewritten as "-". A
-# chat launched inside a worktree lands in that worktree's own bucket, so scan both and nothing
-# else; walking every bucket scales with total omp history instead of this repo's.
-sessions="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/sessions"
-bucket() { printf '%s/%s' "$sessions" "$(printf '%s' "${1#"$HOME"}" | sed 's#/#-#g')"; }
-repo_bucket=$(bucket "$main_wt")
-[ -d "$repo_bucket" ] || repo_bucket="$sessions"
 now=$(date +%s)
 
-printf "SIZE\tAGE\tMERGED\tDIRTY\tREMOTE\tPR\tLAST_CHAT\tBUCKET\tWORKTREE\n"
+printf "SIZE\tAGE\tMERGED\tDIRTY\tLOCKED\tINSPECT\tREMOTE\tPR\tBUCKET\tWORKTREE\n"
 
-git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
+printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}' | while IFS= read -r wt; do
 	[ "$wt" = "$main_wt" ] && continue
+	inspect=ok
+	lock=$(printf '%s\n' "$worktree_records" | awk -v target="$wt" '
+		BEGIN { RS=""; FS="\n" }
+		$1 == "worktree " target {
+			for (i = 1; i <= NF; i++) {
+				if ($i ~ /^locked/) {
+					reason = substr($i, 8)
+					print reason == "" ? "yes" : reason
+					exit
+				}
+			}
+		}')
+	[ -z "$lock" ] && lock="-"
 
 	size=$(du -sh "$wt" 2>/dev/null | awk '{print $1}')
-	head=$(git -C "$wt" rev-parse HEAD 2>/dev/null)
+	if ! head=$(git -C "$wt" rev-parse HEAD 2>/dev/null); then
+		head=""
+		inspect="head-error"
+	fi
 	head_ts=$(git -C "$wt" log -1 --format='%ct' HEAD 2>/dev/null || echo 0)
 	age=$([ "$head_ts" -gt 0 ] 2>/dev/null && echo "$(( (now - head_ts) / 86400 ))d" || echo "?")
 
@@ -46,8 +63,10 @@ git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt;
 	git merge-base --is-ancestor "$head" origin/main 2>/dev/null && merged=YES || merged=no
 
 	# Distinguish real WIP (tracked edits) from disposable untracked scratch.
-	porcelain=$(git -C "$wt" status --porcelain 2>/dev/null)
-	if [ -z "$porcelain" ]; then dirty=clean
+	if ! porcelain=$(git -C "$wt" status --porcelain 2>/dev/null); then
+		dirty=error
+		inspect="status-error"
+	elif [ -z "$porcelain" ]; then dirty=clean
 	elif printf '%s\n' "$porcelain" | grep -qv '^??'; then
 		dirty="wip:$(printf '%s\n' "$porcelain" | grep -cv '^??')"
 	else dirty="scratch:$(printf '%s\n' "$porcelain" | grep -c '^??')"; fi
@@ -64,28 +83,15 @@ git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt;
 		'.[] | select(.headRefName==$b) | "#\(.number)/\(.state)"' "$prs" 2>/dev/null | head -1)
 	[ -z "$pr" ] && pr="-"
 
-	# Most recent chat whose transcript operated in this worktree. Match path
-	# followed by "/" or a quote so glint-482 does not match glint-482-r37.
-	last="-"; last_ts=0
-	wt_bucket=$(bucket "$wt"); [ -d "$wt_bucket" ] || wt_bucket="$repo_bucket"
-	if [ -d "$repo_bucket" ]; then
-		f=$(rg -l -e "${wt}/" -e "${wt}\"" "$repo_bucket" "$wt_bucket" 2>/dev/null \
-			| xargs -r stat -c '%Y %n' 2>/dev/null | sort -rn | head -1)
-		if [ -n "$f" ]; then last_ts=$(echo "$f" | awk '{print $1}')
-			last=$(date -d @"$last_ts" '+%Y-%m-%d' 2>/dev/null); fi
-	fi
-	recent=$([ "$last_ts" -gt 0 ] 2>/dev/null && [ $(( (now - last_ts) / 86400 )) -le 4 ] && echo yes || echo no)
-
-	case "$dirty" in wip:*) bucket=hold-wip ;; *)
+	if [ "$inspect" != ok ]; then bucket=hold-error
+	else case "$lock" in -) ;; *) bucket=hold-locked ;; esac
+	if [ "$lock" = "-" ]; then case "$dirty" in error) bucket=hold-error ;; wip:*) bucket=hold-wip ;; *)
 		case "$pr" in *OPEN*) bucket=hold-open-pr ;; *)
-			if [ "$recent" = yes ]; then bucket=verify-recent-chat
-			elif [ "$merged" = YES ] || [ "$pr" != "-" ]; then bucket=safe
+			if [ "$merged" = YES ] || [ "$pr" != "-" ]; then bucket=safe
 			else bucket=review; fi ;;
 		esac ;;
-	esac
+	esac; fi; fi
 
-	printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
-		"$size" "$age" "$merged" "$dirty" "$remote" "$pr" "$last" "$bucket" "$wt"
+	printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+		"$size" "$age" "$merged" "$dirty" "$lock" "$inspect" "$remote" "$pr" "$bucket" "$wt"
 done | sort -t$'\t' -k1,1 -rh
-
-rm -f "$prs"

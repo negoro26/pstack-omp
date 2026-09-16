@@ -11,8 +11,8 @@ pstack's skills are mirrored from Cursor and their mechanics are rewritten for o
 kind rather than in name lands here instead. Each section names a skill or playbook and amends a
 numbered step.
 
-This file is the port's only hand-written skill. Every other file under `skills/` and `agents/` is
-built from upstream, so an omp instruction added there is deleted by the next sync.
+The port preserves its runtime adapters through `omp-port/owned.txt`. Read
+`skill://pstack-omp` before dispatch; its live-tool contract overrides task-specific examples here and in imported references. These examples apply only when the corresponding surface is exposed, not to vibe workers.
 
 ## Every task call
 
@@ -89,14 +89,11 @@ the item shape, the per-agent lever table, the isolation lifecycle, and the budg
 
 ## architect, arena, interrogate, reflect
 
-These four exist to get a different model's priors, so they need one agent file and one
-`task.agentModelOverrides` entry per slot. Four runners is four agent files.
-
-- Resolve the families at run time from what `omp models` reports. Give each slot a family that
-  differs from the other slots and from the parent that wrote the code.
-- When `omp models` reports one family, run the full slot count anyway and record in the verdict
-  or synthesis note that the review is weaker for it. Never bind two slots to one family and call
-  the result diverse, and never drop a slot to avoid writing the note.
+These workflows need independent contexts and benefit from different model priors. Resolve roles
+through `skill://pstack-omp`; never require extra agent files or operator configuration changes.
+Use configured model diversity when available and record resolved-model/fallback evidence.
+When only one family is available, keep the independent participant count and report weaker
+model diversity. When independent execution itself is unavailable, report the blocked gate.
 - **arena** Phase C and **interrogate**: the judge's and reviewers' read-only grant is posture per
   **Every task call**, not a sandbox.
 - **reflect** step 3: keep Divergent on a different family from Judgment. The lens earns its name
@@ -167,10 +164,9 @@ artifact describes an eval prelude and not a tool.
 
 ## orchestrate
 
-`task.maxRecursionDepth` caps nesting and defaults to 2, so a wave of grandchildren needs that
-raised first. An agent nests only when its own file declares `spawns`. A nested spawn carries the
-full task schema, `isolated` included. Cap in-flight children at what one drain can process.
-`task.maxConcurrency` is the hard ceiling, so a wave wider than that queues rather than running.
+The root starts every participant through `skill://pstack-omp`. Track owners return briefs for
+the root to dispatch; ordinary children never spawn children. Concurrency and isolation depend
+on the live schema and runtime, not on a fixed nesting depth.
 
 `hub` messaging reaches this omp process's agent tree and nothing outside it. `send`, `wait`, and
 `inbox` are the sanctioned coordination primitives. `collab.autoStart` and `omp collab link` host a

@@ -1,8 +1,8 @@
 # pstack for oh-my-pi
 
-Lauren Tan's pstack methodology, ported to omp. 48 skills, 23 playbooks, 23 principle
-leaves, the `poteto-mode` pin, and the `poteto-agent` and `Comment Sicko` agents.
-47 skills are built from upstream and `omp-mechanics` is the port's own.
+Lauren Tan's pstack methodology, ported to omp. 49 skills, 23 playbooks, 23 principle
+leaves, the `poteto-mode` pin, and the `poteto-agent` and `comment-sicko` agents.
+47 skills are built from upstream; `omp-mechanics` and `pstack-omp` are port adapters.
 
 ## Install
 
@@ -11,7 +11,7 @@ leaves, the `poteto-mode` pin, and the `poteto-agent` and `Comment Sicko` agents
 /marketplace install pstack@pstack-omp
 ```
 
-That loads the 48 skills and the `potetomode` extension. It does not load the two agents.
+That loads the 49 skills and the `potetomode` extension. The two agents are optional.
 On omp 18.1.13 a marketplace plugin's `agents/` directory is scanned only through the
 `claude-plugins` discovery provider, and enabling that provider also loads every Claude Code
 plugin cached under `~/.claude/plugins`. Link the agents into omp's native root instead:
@@ -29,7 +29,7 @@ moves the agents with it. Check with a fresh session:
 omp -p --no-session --thinking off "Do not call any tool. List every agent name in the task tool's Available Agents section."
 ```
 
-`poteto-agent` and `Comment Sicko` must appear beside `task`, `scout`, `reviewer`.
+Use these optional agents only when the live roster lists them; otherwise the adapter maps the role to an available worker.
 
 Then `/poteto-mode on`, or `alt+shift+t`, or `omp -p --poteto '...'` for headless runs.
 

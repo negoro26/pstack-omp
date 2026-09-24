@@ -11,19 +11,19 @@
 ## 1. Whole-sentence rewrites, which must read raw upstream text before any token rule edits it.
 
 # Cursor's reasoning-effort ladder over its own slug names -> a selector omp models reports.
-s#So `small` turns `claude-fable-5-1-thinking-max` into `claude-fable-5-1-thinking-medium`, and `grok-4\.6-fast-xhigh` into `cursor-grok-4\.6-medium-fast` when only that form is detected\.#So `small` takes the lowest-effort selector in the same family that `omp models` reports, and marks the role as needing a choice when that family offers none.#
-# Cursor's four-slug review panel -> one model per family, resolved at run time (backticked form).
-s#`claude-fable-5-1-thinking-max`, `gpt-5\.6-sol-max`, `grok-4\.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`#one model per distinct family `omp models` reports#g
+s#So `small` turns `claude-[a-z0-9.-]+` into `claude-[a-z0-9.-]+`, and `grok-[a-z0-9.-]+` into `[a-z0-9.-]+` when only that form is detected\.#So `small` takes the lowest-effort selector in the same family that `omp models` reports, and marks the role as needing a choice when that family offers none.#
+# Cursor's multi-slug review panel -> one model per family, resolved at run time (backticked form).
+s#(`claude-[a-z0-9.-]+`, `gpt-[a-z0-9.-]+`, `grok-[a-z0-9.-]+`(, `claude-[a-z0-9.-]+`)?|`claude-fable-5-1-thinking-max`, `gpt-5\.6-sol-max`, `grok-4\.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`)#one model per distinct family `omp models` reports#g
 # Same panel in the bare rule-file form, where the slugs carry no backticks.
-s#claude-fable-5-1-thinking-max, gpt-5\.6-sol-max, grok-4\.6-fast-xhigh, claude-opus-5-thinking-xhigh#one model per distinct family omp models reports#g
+s#(claude-[a-z0-9.-]+, gpt-[a-z0-9.-]+, grok-[a-z0-9.-]+(, claude-[a-z0-9.-]+)?|claude-fable-5-1-thinking-max, gpt-5\.6-sol-max, grok-4\.6-fast-xhigh, claude-opus-5-thinking-xhigh)#one model per distinct family omp models reports#g
 # Cursor names the judgment slug twice in one clause; omp names the capability once.
-s#go to your strongest judgment model \(`claude-fable-[0-9.-]+-thinking-[a-z]+`\)#go to your strongest judgment model#
+s#go to your strongest judgment model \(`claude-[a-z0-9.-]+`\)#go to your strongest judgment model#
 # Cursor lists its spawn parameters inline; on omp the whole list is one batched task call.
 s#Spawn all N workers in one message with `subagent_type: generalPurpose`, `environment: "cloud"`, `run_in_background: true`, and the configured model\. Use `environment: "local"` only when the worker needs access to something on the user's computer\.#Spawn all N workers in one `task` call with all items in `tasks[]`, each item `agent`: `task` (omp's general-purpose bundled agent) with `isolated: true`. Every worker runs on this machine, so read `skill://omp-mechanics` for the isolation gate and the per-worker output fallback.#
 s#Spawn all N subagents in one message with `run_in_background: true`, each with#Spawn all N subagents in one `task` call with all items in `tasks[]`, each with#
-s#One message, three `Task` calls, `subagent_type: generalPurpose`, explicit `model:` on each, agent mode \(`readonly: false`\)\.#One `task` call with three items in `tasks[]`, each `agent`: `task` (omp's general-purpose bundled agent) pinned by its own agent name, full tools per spawn. Run the three lenses on three different model families where `omp models` offers them, and keep Divergent on a different model family from Judgment, since the lens earns its name from different priors and not a different prompt.#
+s#One message, three `Task` calls, `subagent_type: generalPurpose`, (explicit `model:` on each|with `model` set as below), agent mode \(`readonly: false`\)\.#One `task` call with three items in `tasks[]`, each `agent`: `task` (omp's general-purpose bundled agent) pinned by its own agent name, full tools per spawn. Run the three lenses on three different model families where `omp models` offers them, and keep Divergent on a different model family from Judgment, since the lens earns its name from different priors and not a different prompt.#
 # A diverse-model review is a property of the reviewers, so each skill states it in its own steps.
-s#extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count\. Otherwise use the table defaults\.#extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults. Give each reviewer a different model family from the other reviewers and from the parent that wrote the code, resolved at run time from what `omp models` reports. A reviewer sharing the writer's family shares the writer's blind spots, which is the one thing this skill exists to defeat. `skill://omp-mechanics` covers the single-family case.#
+s#extending or shrinking the Reviewer [A-Z/]+ labels below to the configured entry count\. (Otherwise|If the rule or that line is missing,) use the table defaults\.#extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults. Give each reviewer a different model family from the other reviewers and from the parent that wrote the code, resolved at run time from what `omp models` reports. A reviewer sharing the writer's family shares the writer's blind spots, which is the one thing this skill exists to defeat. `skill://omp-mechanics` covers the single-family case.#
 # Cursor reads the playbook from trunk because it is vendored there; omp reads the install.
 s#Read these from trunk at program start\. Re-read them at every tick\.#Read these at program start and re-read them at every tick. The install on disk is authoritative, not a remote ref.#
 # Cursor's rule file is the artifact step 5 writes; omp's is a keyed map in its own config.
@@ -33,20 +33,20 @@ s|Write `~/\.cursor/rules/pstack-models\.mdc` with `alwaysApply: true`, a `# bud
 ## 2. Model slugs. Tiered by capability first, then a catch-all for anything upstream adds later.
 
 # Cursor's strongest reasoning slug -> the judgment capability the operator binds.
-s#`claude-fable-[0-9.-]+-thinking-[a-z]+`#your strongest judgment model#g
+s#`claude-fable-[0-9.-]+(-(thinking-)?[a-z]+)?`#your strongest judgment model#g
 # Cursor's second reasoning family -> the same judgment capability.
-s#`claude-opus-[0-9.-]+-thinking-[a-z]+`#your strongest judgment model#g
+s#`claude-opus-[0-9.-]+(-(thinking-)?[a-z]+)?`#your strongest judgment model#g
 # Cursor's instruction-following slug -> the instruction-following capability.
 s#`gpt-[0-9.]+-sol-[a-z]+`#your strongest instruction-following model#g
 # Cursor's fast coding slug, with or without an effort suffix -> the fast code capability.
-s#`grok-[0-9.]+-fast(-[a-z]+)?`#your fast code model#g
+s#`grok-[0-9.]+-([a-z]+-)?fast(-[a-z]+)?`#your fast code model#g
 # The same family under Cursor's provider prefix, effort token in the middle.
-s#`cursor-grok-[0-9.]+-[a-z]+-fast`#your fast code model#g
+s#`cursor-grok-[0-9.]+-([a-z]+-)?fast`#your fast code model#g
 # The same tiers where the rule-file example writes a role value with no backticks. Anchored to
 # the end of a `<role>: <slug>` line, which is the only place upstream writes a bare slug.
-s#: claude-(fable|opus)-[0-9.-]+-thinking-[a-z]+$#: your strongest judgment model#
+s#: claude-(fable|opus)-[0-9.-]+(-(thinking-)?[a-z]+)?$#: your strongest judgment model#
 s#: gpt-[0-9.]+-sol-[a-z]+$#: your strongest instruction-following model#
-s#: grok-[0-9.]+-fast(-[a-z]+)?$#: your fast code model#
+s#: grok-[0-9.]+-([a-z]+-)?fast(-[a-z]+)?$#: your fast code model#
 # Catch-all for a slug no tier above knows. Two hyphen groups required, so an illustrative
 # `gpt-4` rename example is not a prescription and survives. omp-port reports what this rewrote.
 s#`(claude|gpt|grok|gemini|opus)-[a-z0-9.]+-[a-z0-9.-]+`#your configured model for this role#g

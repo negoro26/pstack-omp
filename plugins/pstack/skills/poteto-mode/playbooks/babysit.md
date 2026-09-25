@@ -1,7 +1,5 @@
 ### Babysit
 
-Dispatch and lifecycle mechanics follow `skill://pstack-omp`. The root starts independent reviewers and watchers, relays frozen findings, and retains external-write authorization. A child never starts children. Use discovered tools, agents, models, and isolation only; missing independent execution is a reported blocker, not permission to self-review. Resolve installed script paths from the loaded skill location rather than assuming a global install directory.
-
 **You own the merge frontier. Declare a mode, clear one PR at a time, stop where the human's call begins.** This playbook replaces Cursor's built-in babysit skill for these requests, so do not route there even though its description matches the same words. A request to land or ship is `skill://poteto-mode/playbooks/shipping.md`, which begins where this playbook ends.
 
 Babysitting starts when the user asks for it, which is normally once a phase or a whole stack is built, not when a PR opens. Finish the stack, get it green here, then land it through Shipping.

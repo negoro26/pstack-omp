@@ -1,6 +1,0 @@
-diff --git a/skills/poteto-mode/playbooks/autopilot-stack.md b/skills/poteto-mode/playbooks/autopilot-stack.md
---- a/skills/poteto-mode/playbooks/autopilot-stack.md
-+++ b/skills/poteto-mode/playbooks/autopilot-stack.md
-@@ -9 +9 @@
--3. **Hold the operator gates.** State-then-wait, so a request to state the plan is not a go. On the operator's explicit go, arm a `/goal` with the full program objective. omp's `/goal` is native but gated, so turn on `goal.enabled` in settings first. Since 18.0.2 the tool registers lazily, so turning it on mid-session also works. The goal continues across turns until the chain is done. On the operator's stop, every owner takes an immediate zero-writes hold.
-+3. **Hold the operator gates.** State-then-wait, so a request to state the plan is not a go. On the operator's explicit go, arm a `/goal` with the full program objective. Use `/goal` only if exposed and enabled; otherwise retain the same predicate in the root's durable plan. Do not change global configuration to enable it. The goal continues across turns until the chain is done. On the operator's stop, every owner takes an immediate zero-writes hold.

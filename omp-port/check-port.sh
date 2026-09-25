@@ -48,8 +48,6 @@ scan() {
 
 scan "$PAT_SLUG" "model-agnostic" slug
 
-# Role instructions must name the omp lever in each intended file. /model sets the chat model,
-# task.agentModelOverrides sets a per-agent model.
 model_levers=""
 for f in skills/setup-pstack/SKILL.md skills/poteto-mode/SKILL.md; do
 	grep -Fq 'task.agentModelOverrides' "$f" || model_levers="$model_levers $f"
@@ -67,8 +65,7 @@ else
 	violate "setup-pstack must tell the user to pick the chat model with /model"
 fi
 
-# Require each review workflow's own affirmative diversity sentence. Generic "different models"
-# prose can be negated or incidental and must not satisfy the gate.
+# Mutation tests intentionally treat these exact sentences as the review-diversity gate interface.
 undiversity=""
 grep -qF 'report when the live roster cannot provide the requested model-family diversity' skills/interrogate/SKILL.md || undiversity="$undiversity skills/interrogate/SKILL.md"
 grep -qF 'Prefer distinct configured model families when the roster supplies them' skills/arena/SKILL.md || undiversity="$undiversity skills/arena/SKILL.md"
@@ -80,7 +77,6 @@ else
 	report "review diversity" "PASS  interrogate, arena, and reflect state exact diversity requirements"
 fi
 
-# A capability claim pinned to a version rots on the next upgrade.
 ver=$(grep -rIni -oE '(^|[^0-9])(omp|since)[[:space:]]+v?[0-9]+\.[0-9]+(\.[0-9]+)?' --include='*.md' "${SCOPE[@]}" 2>/dev/null || true)
 if [ -n "$ver" ]; then
 	report "version-agnostic" "FAIL"
@@ -93,8 +89,6 @@ scan "$PAT_CAPS" "capability claims" caps
 
 scan "$PAT_RESIDUE" "cursor residue" residue
 
-# Reject positive standalone readonly prose and task fields. Type syntax and explicit no-field
-# contracts are not runtime directives.
 ro=$(grep -riIn -E '\breadonly\b' --include='*.md' "${SCOPE[@]}" 2>/dev/null || true)
 bad_ro=$(printf '%s\n' "$ro" | awk '{ s = tolower($0); if (s !~ /readonly/) next; if (s ~ /readonly __brand|readonly string|readonly \[|readonly</) next; if (s ~ /(no|not|never|without)[^.;]{0,80}readonly/) next; print }')
 if [ -n "$bad_ro" ]; then
@@ -104,8 +98,6 @@ else
 	report "readonly posture" "PASS  no readonly task field or prose directive"
 fi
 
-# OMP's task batch requires shared context, has no per-call model or Cursor environment fields,
-# and keys model overrides by exact loaded agent names. Check every generated text surface.
 runtime_contract() {
 	local bad label pattern
 	for label in per-call-model pstack-rule-file task-environment; do

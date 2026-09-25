@@ -177,9 +177,9 @@ s#Hold the watch under `/loop` in dynamic mode\.#Hold the watch under omp's `/lo
 s#`/loop` per component until the diff is zero\.#Hold a named bash process observed through `proc://`, or a systemd timer, per component until the diff is zero.#
 s#a frontier watcher wake \(arm it via the loop skill, with a long heartbeat fallback\)#a frontier watcher wake (hold a named bash process observed through `proc://`, or a systemd timer, with a long fallback heartbeat)#
 s#"/loop until X"#"run until X"#g
-# Cursor's `/goal` is on by default; omp ships it behind a settings gate.
-s#arm a `/goal` with the full program objective\.#arm a `/goal` with the full program objective. omp's `/goal` is native but gated, so turn on `goal.enabled` in settings first. Since 18.0.2 the tool registers lazily, so turning it on mid-session also works.#g
-s#arm a `/goal` with this exact text\.#arm a `/goal` with this exact text. omp's `/goal` is native but gated, so turn on `goal.enabled` in settings first. Since 18.0.2 the tool registers lazily, so turning it on mid-session also works.#
+# Cursor's default goal arming needs an omp-specific fallback that preserves the predicate.
+s#arm a `/goal` with the full program objective\.#arm a `/goal` with the full program objective. Use `/goal` only if exposed and enabled; otherwise retain the predicate in the durable plan. Do not change global configuration.#g
+s#arm a `/goal` with this exact text\.#arm a `/goal` with this exact text. Use `/goal` only if exposed and enabled; otherwise retain the predicate in the durable plan. Do not change global configuration.#
 
 ## 6. cursor-team-kit. Cursor's companion plugin -> omp's built-in tools.
 

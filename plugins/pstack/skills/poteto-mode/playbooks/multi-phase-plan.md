@@ -1,7 +1,5 @@
 ### Multi-phase or multi-PR plan
 
-Dispatch and lifecycle mechanics follow `skill://pstack-omp`. The root starts independent reviewers and watchers, relays frozen findings, and retains external-write authorization. A child never starts children. Use discovered tools, agents, models, and isolation only; missing independent execution is a reported blocker, not permission to self-review. Resolve installed script paths from the loaded skill location rather than assuming a global install directory.
-
 **You own the plan, not the code. The plan is a checklist an owner runs box by box and the operator audits from the evidence.** The plan is the deliverable. Do not implement.
 
 1. When the change is one or two files with an obvious approach, skip the plan. Say so and stop.
@@ -34,7 +32,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 ### Arm the program
 
 - [ ] State the protocol and this plan to the operator, then stop. Start execution only on the operator's explicit go.
-- [ ] On the operator's go, arm a `/goal` with this exact text. Use `/goal` only if exposed and enabled; otherwise retain the same predicate in the root’s durable plan. Do not change global configuration to enable it. "<The plan path, the PR ids in order, the verification rule, who merges, and the done condition.>"
+- [ ] On the operator's go, arm a `/goal` with this exact text. Use `/goal` only if exposed and enabled; otherwise retain the predicate in the durable plan. Do not change global configuration. "<The plan path, the PR ids in order, the verification rule, who merges, and the done condition.>"
 - [ ] Read these at program start and re-read them at every tick. The install on disk is authoritative, not a remote ref.
   - [ ] `~/.omp/plugins/node_modules/pstack/skills/poteto-mode/playbooks/<execution playbook>.md`
   - [ ] `~/.omp/plugins/node_modules/pstack/skills/swarm/SKILL.md`

@@ -28,21 +28,25 @@ The first line of an omp transcript is a fixed-width `type:title` slot and the s
 
 ### 2. Spawn three reviewers in parallel
 
-One `task` call with three items in `tasks[]`, each `agent`: `task` (omp's general-purpose bundled agent) pinned by its own agent name, full tools per spawn. Run the three lenses on three different model families where `omp models` offers them, and keep Divergent on a different model family from Judgment, since the lens earns its name from different priors and not a different prompt. Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript). There is no such field on omp's task wire, so nothing strips MCPs.
+One `task` call with three items in `tasks[]` and one required shared `context`, each item using an exact discovered agent name. Full tools per spawn. Run the three lenses on three different configured model families where available, and keep Divergent on a different model family from Judgment, since the lens earns its name from different priors and not a different prompt. Reviewers need full tools for MCP lookups (tickets, chat threads, observability traces referenced in the transcript); there is no task `readonly` field.
 
-Each reviewer and the synthesizer name a role line in the `pstack-models.mdc` rule and a default. Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message.
+Resolve exact discovered agent names for the three lenses and the synthesizer. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; the task item has no `model` field.
 
-| Lens | Role line | Default `model` | Prompt template |
+| Lens | Exact agent | Prompt template |
 |---|---|---|---|
-| Judgment | `reflect judgment, divergent, synthesizer` | your strongest judgment model | `references/judgment-reviewer.md` |
-| Tooling | `reflect tooling` | your strongest instruction-following model | `references/tooling-reviewer.md` |
-| Divergent | `reflect judgment, divergent, synthesizer` | your strongest judgment model | `references/divergent-reviewer.md` |
+| Judgment | discovered judgment agent | `references/judgment-reviewer.md` |
+| Tooling | discovered tooling agent | `references/tooling-reviewer.md` |
+| Divergent | discovered divergent agent | `references/divergent-reviewer.md` |
 
 Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `Task` response body.
 
 ### 3. Synthesize
 
-One `Task` call, `agent`: `task` (omp's general-purpose bundled agent), with `model` from the `reflect judgment, divergent, synthesizer` line (default your strongest judgment model), full tools per spawn. The synthesizer's quality check includes spot-verifying citations, which can require MCP access. There is no such field on omp's task wire, so nothing strips MCPs. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
+One `task` call with one item in `tasks[]`, the required shared `context`, and an exact discovered synthesizer agent name. Its frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; the task item has no `model` field. The synthesizer needs full tools for citation spot-checks; there is no task `readonly` field. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. Pass this explicit `outputSchema` when the live task schema exposes it:
+
+```json
+{"type":"object","required":["Accepted","Rejected","Backlog"],"properties":{"Accepted":{"type":"array","items":{"type":"object","required":["Problem","Proposal","Routing"],"properties":{"Problem":{"type":"string"},"Proposal":{"type":"string"},"Routing":{"type":"string"}}}},"Rejected":{"type":"array","items":{"type":"object","required":["Principle","Reason"],"properties":{"Principle":{"type":"string"},"Reason":{"type":"string"}}}},"Backlog":{"type":"array","items":{"type":"object","required":["Pattern","Hit","Mechanism"],"properties":{"Pattern":{"type":"string"},"Hit":{"type":"string"},"Mechanism":{"type":"string"}}}}}}
+```
 
 ### 4. Structural enforcement check
 

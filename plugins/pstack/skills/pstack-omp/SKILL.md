@@ -5,7 +5,7 @@ description: "Translate poteto-mode roles and lifecycle protocols to the live OM
 
 # pstack on OMP
 
-`skill://poteto-mode` selects the playbook, role, step order, and gates. This adapter owns dispatch mechanics. Read it before following a task-shaped instruction in any imported skill. Its live-tool mapping takes precedence over examples in imported prose. It does not weaken a playbook's verification or safety gate.
+`skill://poteto-mode` selects the playbook, role, step order, and gates. This skill is the sole live task, vibe, eval, and runtime contract. Read it before following a task-shaped instruction in any imported skill. Its live-tool mapping takes precedence over examples in imported prose. It does not weaken a playbook's verification or safety gate.
 
 ## Detect the live surface
 
@@ -32,6 +32,8 @@ Inspect the tools and schemas exposed in this session, not a version number or a
 | mechanical | sonic | fast | Fully specified low-judgment edits. |
 
 The live roster is authoritative. Never invent missing specialists. When a preferred specialist is absent, use an available worker with the role explicitly in its brief; omit `agent` for the default worker. `poteto-agent` and `comment-sicko` are optional bundled custom agents. Use their exact names only when discovered. Otherwise include their skill/agent instructions as file pointers in an available worker's brief.
+
+For plugin-provided agent instructions, resolve the loaded skill path to its plugin root and pass the absolute sibling agent file in the brief. Do not pass a path relative to the target workspace.
 
 Agent selection is not model selection. `modelRoles` and `task.agentModelOverrides` are operator configuration, not task payload fields. Vibe's `fast` and `good` are runtime tiers, not model names. Claim independence of models or providers only when returned resolved-model/fallback metadata proves it. Independent contexts remain useful when only one model is available; report that limitation.
 
@@ -68,6 +70,13 @@ These are documented OMP wire shapes; confirm the live schema before calling the
 Spawn independent workstreams before waiting. Use one persistent worker per coupled workstream. Workers share the configured workspace unless an explicit worktree is arranged in their briefs; do not assume isolation. Start independent verification in a separate worker after implementation artifacts freeze. A director without execution tools sends exact verification commands to that verifier, reads its evidence and touched files, and owns acceptance. It must not bypass its restricted tools to run commands itself.
 
 Results self-deliver into the director conversation; the vibe tool schema does not guarantee an `agent://<id>` resource, so use one when the runtime returns it and otherwise read the delivered report. Transcripts, when the runtime reports them, live at `history://<id>`. Preserve the actual returned identifiers instead of constructing them from display names. Vibe sessions belong to the current owner/scope; never control another scope's worker. Restarted workers require live-state reconciliation before sending new work.
+
+## Eval surface
+
+When the eval prelude is exposed, it is code inside an eval cell, not a tool schema. Use a fixed `tasks[]` batch for a fixed coverage matrix. For a long open item stream, `workpool()` queues items onto keep-alive workers, `status()` and `peek()` expose progress, and `close()` ends the pool. Final results return through the normal eval result path. Eval's `agent()` returns a handle and accepts `apply` and `merge`; a task item does not.
+
+`browser` and `computer` are eval preludes when exposed. Drive browser tabs and native windows through the live helpers, close browser tabs, and re-observe after navigation or UI changes. Prefer accessibility state over coordinates. Bash remains a separate tool with its named process and `proc://` lifecycle. Probe the live surface instead of pinning an OMP version.
+
 
 ## Lifecycle protocols
 

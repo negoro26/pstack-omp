@@ -2,7 +2,7 @@
 
 Lauren Tan's pstack methodology, ported to omp. 49 skills, 23 playbooks, 23 principle
 leaves, the `poteto-mode` pin, and the `poteto-agent` and `comment-sicko` agents.
-47 skills are built from upstream; `omp-mechanics` and `pstack-omp` are port adapters.
+46 skills are built from upstream. `omp-mechanics`, `pstack-omp`, and `setup-pstack` are port-owned.
 
 ## Install
 

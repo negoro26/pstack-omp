@@ -143,9 +143,9 @@ installed.
 the model slugs upstream names first and a catch-all under them whose hits the sync and the gate
 report as `untiered` so they earn a tiered rule. `omp-port/patches/` carries the port's own code as
 unified diffs applied after the rules, which is where a change no substitution can express belongs.
-`skills/omp-mechanics`, listed in `omp-port/owned.txt`, carries the port's prose, so the
-omp-specific levers sit in one skill the injected reminder points every agent at instead of being
-sprinkled through files upstream keeps rewriting.
+`omp-port/owned.txt` names three port-owned skills. `pstack-omp` is the sole live task, vibe, eval,
+and runtime contract. `omp-mechanics` keeps only pstack-specific OMP deltas, and `setup-pstack`
+owns model selection and config writes. Upstream syncs preserve these paths without rewriting them.
 
 Known deltas the port mirrors faithfully and will not diverge on. The guide says the verification feature map lives at `references/features` while both trees write `features/`. The guide recommends a daily `/maintain-verification-skill` run while both trees state no cadence.
 

@@ -10,4 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: bash omp-port/check-port.sh
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Shell syntax
+        run: bash -n omp-port/check-port.sh omp-port/test-gate-mutations.sh
+      - name: Port gate
+        run: bash omp-port/check-port.sh
+      - name: Install script test dependencies
+        working-directory: plugins/pstack/skills/poteto-mode/scripts
+        run: bun install --frozen-lockfile
+      - name: Script tests
+        working-directory: plugins/pstack/skills/poteto-mode/scripts
+        run: bun run test
+      - name: Script typecheck
+        working-directory: plugins/pstack/skills/poteto-mode/scripts
+        run: bun run typecheck
+      - name: Extension tests
+        working-directory: plugins/pstack
+        run: bun test ./extensions/potetomode/index.test.js

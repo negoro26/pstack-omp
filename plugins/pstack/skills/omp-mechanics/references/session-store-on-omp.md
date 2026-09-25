@@ -21,10 +21,9 @@ One bucket per canonicalized cwd, so two symlinked spellings of one directory sh
 - A cwd under the temp root becomes `-tmp-<rest>`.
 - Anything else becomes `--<encoded-absolute>--`.
 
-Two distinct paths that encode identically share one bucket, and 18.2.0 adds no digest to separate
-them. A short-lived hashed scheme, `<scope>-<basename>-<sha256>`, shipped in 17.2.5 and was
-reverted in 17.2.9. Old buckets in that form are migrated back to path-encoded names on access, so a
-store with history may still show one.
+Two distinct paths that encode identically share one bucket unless the live runtime separates them.
+Probe the current store after an upgrade. Older stores may contain a short-lived hashed form,
+`<scope>-<basename>-<sha256>`, which is migrated back to path-encoded names on access.
 
 ## The files
 

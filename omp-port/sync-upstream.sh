@@ -146,10 +146,10 @@ shadowed_report() {
 	# program returns a named token for every case. A path that does not exist upstream yields
 	# an empty commit list rather than a 404, so length is what separates port-only from real.
 	prog=$(printf 'length as $n | if $n == 0 then "no-upstream-path" else (map(.sha[0:7]) | index("%s") // "outside-window") end' "${pin:0:7}")
-	while read -r rel; do
-		case "$rel" in
-		'' | '#'*) continue ;;
-		esac
+	# owned_paths is the one parser for owned.txt; a comment-format change must not desync
+	# the build's list from this one.
+	owned_paths | while read -r rel; do
+		[ -n "$rel" ] || continue
 		if ! n=$(gh api "repos/cursor/plugins/commits?path=pstack/$rel&sha=main&per_page=100" --jq "$prog" 2>/dev/null); then
 			printf 'shadowed %s: unreadable, widen the query\n' "$rel" >&2
 		else
@@ -165,7 +165,7 @@ shadowed_report() {
 				;;
 			esac
 		fi
-	done <"$PORT_DIR/owned.txt"
+	done
 }
 
 case "${1:-}" in

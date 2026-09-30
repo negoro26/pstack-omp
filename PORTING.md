@@ -149,13 +149,14 @@ owns model selection and config writes. Upstream syncs preserve these paths with
 
 `skills/setup-pstack` is port-owned, so the build restores it from `HEAD` and never rebuilds it from
 upstream. Upstream's version writes a Cursor rules file with no omp meaning, so the fork is
-deliberate, but the consequence is that an upstream edit to that skill produces a line in the drift
-list and nothing else: no patch conflict, no gate failure, no reminder to re-derive it. That is why
-`bash omp-port/sync-upstream.sh check` writes a `shadowed <path>:` line per owned path to stderr,
-counting the upstream commits ahead of the pin for each and reporting how many of them were never
-applied. A non-zero count on `skills/setup-pstack` means re-derive the selection procedure by hand
-before trusting the skill; the two other owned paths have no upstream counterpart and always report
-as port-only.
+deliberate, but the drift list alone does not mark it: an upstream edit to that skill shows up as an
+ordinary pstack commit with no patch conflict, no gate failure, and no reminder to re-derive it.
+`bash omp-port/sync-upstream.sh check` therefore writes a `shadowed <path>:` line per owned path to
+stderr, counting the upstream commits sitting ahead of the pin on that path. Every one of them is
+unapplied by construction, since the build restores the path from `HEAD`; the count is what tells
+you how much upstream moved underneath you. A non-zero count on `skills/setup-pstack` means re-derive
+the selection procedure by hand before trusting the skill; the two other owned paths have no
+upstream counterpart and always report as port-only.
 
 Known deltas the port mirrors faithfully and will not diverge on. The guide says the verification feature map lives at `references/features` while both trees write `features/`. The guide recommends a daily `/maintain-verification-skill` run while both trees state no cadence.
 

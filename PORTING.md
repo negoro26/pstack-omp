@@ -147,6 +147,13 @@ unified diffs applied after the rules, which is where a change no substitution c
 and runtime contract. `omp-mechanics` keeps only pstack-specific OMP deltas, and `setup-pstack`
 owns model selection and config writes. Upstream syncs preserve these paths without rewriting them.
 
+`skills/setup-pstack` is port-owned, so the build restores it from `HEAD` and never rebuilds it from
+upstream. Upstream's version writes a Cursor rules file with no omp meaning, so the fork is
+deliberate, but the consequence is that an upstream edit to that skill produces a line in the drift
+list and nothing else: no patch conflict, no gate failure, no reminder to re-derive it. Read
+`bash omp-port/sync-upstream.sh check` for that skill's upstream history before trusting it, and
+re-derive the selection procedure by hand when upstream changes it.
+
 Known deltas the port mirrors faithfully and will not diverge on. The guide says the verification feature map lives at `references/features` while both trees write `features/`. The guide recommends a daily `/maintain-verification-skill` run while both trees state no cadence.
 
 ## The one thing that needed new code
@@ -169,15 +176,24 @@ The injected reminder is a pointer, not the playbook. It tells the agent to read
   anti-worktree argument about storage cost is about plain `git worktree` copies, and COW clones on
   this btrfs box do not carry it, so Cursor cloud agents are a bigger machine here rather than a
   missing capability.
-- **The control CLI's driving surface.** `browser` (CDP, `tab.observe`/`screenshot`/`evaluate`),
-  `computer` (native desktop plus a11y tree), `hub` (`op:start` with `ready:{log,port}` readiness),
-  `debug` (full DAP, breakpoints, eval, stack). A generated `control-<app>` script only needs
-  app-specific semantics, `doctor`, `new-session`, `seed`/auth, `feature-flag`, `wait-settle`.
+- **The control CLI's driving surface.** `browser` (CDP, `tab.observe`/`screenshot`/`evaluate`) and
+  `computer` (native desktop plus a11y tree) are eval preludes, not tools. Long-running processes
+  are a `bash` call with a unique async `name`, a `ready` block, and `read proc://<id>` for state.
+  Agent Hub is a human-facing TUI, not a programmatic interface, so nothing addresses workers
+  through it. `debug` is full DAP with breakpoints, eval, and stack. A generated `control-<app>`
+  script only needs app-specific semantics, `doctor`, `new-session`, `seed`/auth, `feature-flag`,
+  `wait-settle`.
 - **`swarm` / `arena` / `interrogate`.** One `task` call with a `tasks[]` batch,
   `task.maxConcurrency=100`, `isolated: true` per candidate, `outputSchema` for judged verdicts.
 - **Never-block.** Subagents run `approvalMode: yolo`, and `proofgate`'s `session_stop` veto is the
   enforced backstop.
-- **Sibling coordination.** Same-session `hub` `send`, `wait`, and `inbox` ship in the harness and are the sanctioned primitive when workers must coordinate instead of running independent. Pstack never calls them yet. Cross-session messaging does not exist locally and gets no workaround here. It is tracked upstream and stays open.
+- **Sibling coordination.** `write agent://<id>` steers or follows up with a running, idle, or parked
+  worker, `agent://all` broadcasts to visible live peers, `read history://` lists registered agents
+  with status and parent, and `read proc://` lists background jobs and project services. These are
+  the sanctioned primitives when workers must coordinate instead of running independent. The
+  orchestrator uses its own TSV store and `orch inbox` for the queue instead, so sibling messaging
+  stays unused there. Cross-session messaging does not exist locally and gets no workaround here. It
+  is tracked upstream and stays open.
 
 ## Still missing in omp
 

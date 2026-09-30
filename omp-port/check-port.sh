@@ -125,13 +125,35 @@ runtime_contract() {
 		fi
 	done
 
-	retired='swarm workers|architect runners|arena runners|arena cross-judge pool|interrogate reviewers|reflect judgment, divergent, synthesizer|reflect tooling|why investigators|why synthesizer|how explorer|how explainer|feature, refactoring|<swarm workers model>|your configured [a-z-]+ model|default your fast code model|`hub` process ops|`hub` process op|Blocking on `drive`|`drive` inside a phase agent|`hub` `op: "(list|jobs|send|wait)"'
+	retired='swarm workers|architect runners|arena runners|arena cross-judge pool|interrogate reviewers|reflect judgment, divergent, synthesizer|reflect tooling|why investigators|why synthesizer|how explorer|how explainer|feature, refactoring|<swarm workers model>|your configured [a-z-]+ model|default your fast code model|`hub` process ops|`hub` process op|Blocking on `drive`|`drive` inside a phase agent|`hub` +`op:|"hub"'
 	bad=$(grep -rInE "$retired" --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null || true)
 	if [ -n "$bad" ]; then
 		report "retired runtime labels" "FAIL"
 		while read -r line; do violate "$line"; done <<<"$bad"
 	else
 		report "retired runtime labels" "PASS  no abstract role labels, placeholders, or stale process wording"
+	fi
+
+	# Agent Hub is the Alt+A TUI, not a programmatic tool. Any backticked `hub` or a hub op
+	# vocabulary in the tree references an API that does not exist. A line stating the absence
+	# is the correction, not the defect, so it is exempt the way the readonly check exempts it.
+	hub=$(grep -rInE '`hub`|"hub"|hub `op' --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null |
+		awk '{ s = tolower($0); if (s ~ /(no|not|never|without|rather than)[^.;]{0,60}hub/) next; print }' || true)
+	if [ -n "$hub" ]; then
+		report "agent hub api" "FAIL"
+		while read -r line; do violate "$line"; done <<<"$hub"
+	else
+		report "agent hub api" "PASS  workers are addressed through agent://, history://, and proc://"
+	fi
+
+	# One install root. A path under any other agent store resolves to nothing on this machine,
+	# and the playbook that names it cannot run its own binary.
+	install=$(grep -rInE '~/\.(agents|claude|cursor)/' --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null || true)
+	if [ -n "$install" ]; then
+		report "install root" "FAIL"
+		while read -r line; do violate "$line"; done <<<"$install"
+	else
+		report "install root" "PASS  every install path resolves under ~/.omp"
 	fi
 	bad=""
 	for f in skills/poteto-mode/playbooks/autopilot-full.md skills/poteto-mode/playbooks/autopilot-stack.md; do

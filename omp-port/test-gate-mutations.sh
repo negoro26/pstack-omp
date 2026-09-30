@@ -94,6 +94,14 @@ mutate_tool_class_renamed() {
 	sed -i 's/kernel-defined/eval-defined/g' "$FIXTURE/skills/pstack-omp/SKILL.md"
 }
 
+mutate_hub_api() {
+	sed -i 's/Follow up with a write to `agent:\/\/<id>`/Follow up with `hub` `op: "send"` in place of a write to `agent:\/\/<id>`/' "$FIXTURE/skills/pstack-omp/SKILL.md"
+}
+
+mutate_install_root() {
+	sed -i 's#~/\.omp/plugins/node_modules/pstack/skills#~/.agents/skills#' "$FIXTURE/skills/poteto-mode/playbooks/multi-phase-plan.md"
+}
+
 expect_failure 'unrelated ownership' 'setup config contract' mutate_preserve_ownership
 expect_failure 'per-agent ownership' 'setup config contract' mutate_override_ownership
 expect_failure 'alias shape' 'setup config contract' mutate_alias_shape
@@ -107,6 +115,8 @@ expect_failure 'yield account dropped' 'runtime contract fields' mutate_yield_ac
 expect_failure 'required item field' 'runtime contract fields' mutate_required_item_field
 expect_failure 'gate setting dropped' 'runtime contract fields' mutate_gate_setting_dropped
 expect_failure 'tool class renamed' 'runtime contract fields' mutate_tool_class_renamed
+expect_failure 'agent hub api' 'agent hub api' mutate_hub_api
+expect_failure 'install root' 'install root' mutate_install_root
 
 if [ "$fail" -ne 0 ]; then
 	printf 'mutation tests: FAIL\n'

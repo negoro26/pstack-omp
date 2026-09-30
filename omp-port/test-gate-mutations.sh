@@ -95,7 +95,7 @@ mutate_tool_class_renamed() {
 }
 
 mutate_hub_api() {
-	sed -i 's/Follow up with a write to `agent:\/\/<id>`/Follow up with `hub` `op: "send"` in place of a write to `agent:\/\/<id>`/' "$FIXTURE/skills/pstack-omp/SKILL.md"
+	printf '\nUse `hub` `op: "list"` to enumerate workers.\n' >>"$FIXTURE/skills/pstack-omp/SKILL.md"
 }
 
 mutate_install_root() {

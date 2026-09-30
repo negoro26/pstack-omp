@@ -196,6 +196,14 @@ runtime_contract() {
 		report "runtime batch context" "PASS  arena, swarm, reflect, and interrogate name context"
 	fi
 
+	bad=$(grep -rInE '`(Read|Grep|Glob|Shell|Task)` (tool calls|prompts|response body)|Tool calls \(Shell,|Use Glob to find|Use Read, Grep|Subagents inherit it' --include='*.md' "${SCOPE[@]}" 2>/dev/null || true)
+	if [ -n "$bad" ]; then
+		report "cursor tool names" "FAIL"
+		while read -r line; do violate "$line"; done <<<"$bad"
+	else
+		report "cursor tool names" "PASS  no prompt template names a Cursor tool"
+	fi
+
 	bad=""
 	contract=skills/pstack-omp/SKILL.md
 	for required in \

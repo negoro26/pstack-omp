@@ -263,3 +263,14 @@ s#([^/])pstack/skills/#\1~/.omp/plugins/node_modules/pstack/skills/#g
 s#@cursor-skill/#@omp-skill/#g
 # Cursor auto-attaches a skill on a file-glob match; omp carries `globs` as metadata only.
 s#^paths: \[#globs: [#
+# Subagent prompt templates are the one place a wrong tool name is fatal rather than cosmetic:
+# the lens greps the transcript for the tools that were called and finds none, so it returns
+# nothing. Each pattern carries enough surrounding context to match the instruction and not the
+# English verb of the same word.
+s#- `Read` tool calls against any#- `read` calls against any#
+s#- `Task` prompts that name a skill path#- `task` calls whose brief names a skill path#
+s#Tool calls \(Shell, Grep, MCP, etc\.\)#Tool calls (`bash`, `grep`, MCP, etc.)#
+s#Reviewers return findings in the `Task` response body\.#Reviewers return findings in the spawn result's structured `data`, or in the delivered report when no schema was requested.#
+s#Use Glob to find directories and files, Grep to find key symbols, Read to understand#Use `glob` to find directories and files, `grep` to find key symbols, `read` to understand#
+s#Use Read, Grep, and Glob as needed\.#Use `read`, `grep`, and `glob` as needed.#
+s#Subagents inherit it\. Multiple `Task` calls on the same branch each get their own worktree#A worker shares the parent's checkout unless its spawn sets `isolated: true` where the live schema exposes it, so give every concurrent writer its own worktree explicitly#

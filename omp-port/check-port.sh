@@ -483,6 +483,18 @@ if [ "$canon_ok" = yes ]; then
 else
 	report "untiered slugs" "SKIP  needs the clone at $CANON"
 fi
+
+if [ "$canon_ok" = yes ]; then
+	dead=$(dead_rules "$pin" | sed 's/^/  rules.sed:/')
+	if [ -n "$dead" ]; then
+		report "rule liveness" "REPORT  $(printf '%s\n' "$dead" | wc -l) rule(s) matched nothing at the pin"
+		printf '%s\n' "$dead"
+	else
+		report "rule liveness" "PASS  every substitution rule matched at the pin"
+	fi
+else
+	report "rule liveness" "SKIP  needs the clone at $CANON"
+fi
 rm -rf "$scratch" "$buildlog"
 
 echo

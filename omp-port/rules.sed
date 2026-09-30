@@ -187,16 +187,16 @@ s#the `deslop` skill from the `cursor-team-kit` plugin \(`/deslop`\)#the `unslop
 s#Run `/deslop` from `cursor-team-kit` over the diff before commit\.#Run the `unslop` skill (`skill://unslop`) plus `omp cleanse --all` over the diff before commit. A bare `omp cleanse` opens an interactive picker and blocks.#
 s#`/deslop`#the `unslop` skill (`skill://unslop`) plus `omp cleanse --all`#g
 # `control-ui` / `control-cli` -> browser, computer, and named bash processes.
-s#`control-ui` or `control-cli` runtime verification \(from `cursor-team-kit`\)#`browser` or `computer` for UIs, or bash with a unique async `name`, `ready` checks, and `proc://` state for CLIs and TUIs#
-s#\(`control-cli` or `control-ui` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique async `name`, `ready` checks, and `proc://` state for CLIs and TUIs, as the change demands)#
-s#\(`control-ui` or `control-cli` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique async `name`, `ready` checks, and `proc://` state for CLIs and TUIs, as the change demands)#
-s#Drive through `control-ui` or `control-cli` from `cursor-team-kit`\.#Drive through `browser` or `computer` for UIs, and bash with a unique async `name`, `ready` checks, and `proc://` state for CLIs and TUIs.#
-s#Browser, Electron, and web UIs use `control-ui` from `cursor-team-kit`\. CLIs and TUIs use `control-cli` from `cursor-team-kit`\.#Browser, Electron, and web UIs use the `browser` eval prelude, and native desktop UIs use `computer`. Both are code in an `eval` cell and not tools. CLIs and TUIs use bash with a unique async `name`, `ready` checks, and `proc://` state.#
-s#`cursor-team-kit` publishes `control-cli` \(CLIs and TUIs\) and `control-ui` \(browser / Electron / web UIs\)\.#omp provides the levers directly. Bash with a unique async `name`, `ready` checks, and `proc://` state drives CLIs and TUIs, the `browser` eval prelude drives browser, Electron, and web UIs over CDP, and the `computer` prelude drives native desktop. Both preludes are code in an `eval` cell and neither is a tool with its own schema.#
+s#`control-ui` or `control-cli` runtime verification \(from `cursor-team-kit`\)#`browser` or `computer` for UIs, or bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs#
+s#\(`control-cli` or `control-ui` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs, as the change demands)#
+s#\(`control-ui` or `control-cli` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs, as the change demands)#
+s#Drive through `control-ui` or `control-cli` from `cursor-team-kit`\.#Drive through `browser` or `computer` for UIs, and bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs.#
+s#Browser, Electron, and web UIs use `control-ui` from `cursor-team-kit`\. CLIs and TUIs use `control-cli` from `cursor-team-kit`\.#Browser, Electron, and web UIs use the `browser` eval prelude, and native desktop UIs use `computer`. Both are code in an `eval` cell and not tools. CLIs and TUIs use bash with a unique `name`, a `ready` check, and `proc://` state.#
+s#`cursor-team-kit` publishes `control-cli` \(CLIs and TUIs\) and `control-ui` \(browser / Electron / web UIs\)\.#omp provides the levers directly. Bash with a unique `name`, `ready` checks, and `proc://` state drives CLIs and TUIs, the `browser` eval prelude drives browser, Electron, and web UIs over CDP, and the `computer` prelude drives native desktop. Both preludes are code in an `eval` cell and neither is a tool with its own schema.#
 s#\*\*Control skill\.\*\* Pick it by surface\.#**Control surface.** Pick it by surface.#
 s#through the control skill's commands#through the control surface's own calls#
 s#`control-ui`#the `browser` eval prelude#g
-s#`control-cli`#bash with a unique async `name`, `ready` checks, and `proc://` state#g
+s#`control-cli`#bash with a unique `name`, a `ready` check, and `proc://` state#g
 s#`cursor-team-kit`#omp's built-in tools#g
 s#cursor-team-kit#omp's built-in tools#g
 

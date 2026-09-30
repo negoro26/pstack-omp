@@ -1,5 +1,5 @@
 ---
-name: Make Bot UI
+name: make-bot-ui
 description: >-
   Use when building a custom UI (page, dashboard, buttons) that should wake a
   Grok Bot over a webhook, when the user must provide a webhook sender key, or
@@ -7,6 +7,13 @@ description: >-
 disable-model-invocation: true
 ---
 # How to make a bot UI
+
+**This skill is upstream Cursor text and the mechanic it teaches does not exist on omp.** There
+are no webhook routines, no `update_state`, no routine panel, no `SendToUser` secret card, and no
+`api2.cursor.sh` endpoint here, so step 1 below dead-ends. What omp can do is the half the port's
+own reference describes: serve the page, hold the sender key on the server, expose it, and probe
+it. Read `skill://omp-mechanics/references/make-bot-ui-on-omp.md` for the omp version and for what
+it deliberately leaves out; do not create an equivalent routine mechanic.
 
 Build a page the user clicks. A server on this computer POSTs JSON to a webhook routine. The bot wakes with that JSON. Keep the sender key on the server. Do not put the sender key in the browser, in chat, or in this skill.
 

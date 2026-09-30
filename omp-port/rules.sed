@@ -274,3 +274,15 @@ s#Reviewers return findings in the `Task` response body\.#Reviewers return findi
 s#Use Glob to find directories and files, Grep to find key symbols, Read to understand#Use `glob` to find directories and files, `grep` to find key symbols, `read` to understand#
 s#Use Read, Grep, and Glob as needed\.#Use `read`, `grep`, and `glob` as needed.#
 s#Subagents inherit it\. Multiple `Task` calls on the same branch each get their own worktree#A worker shares the parent's checkout unless its spawn sets `isolated: true` where the live schema exposes it, so give every concurrent writer its own worktree explicitly#
+# omp registers one slash command per skill as /skill:<name>; a bare /how is not a command on
+# this harness. /poteto-mode is excluded because the port's own extension registers that one.
+s#`/no-comments`#`/skill:no-comments`#g
+s#`/unslop`#`/skill:unslop`#g
+s#`/create-verification-skill`#`/skill:create-verification-skill`#g
+s#`/maintain-verification-skill`#`/skill:maintain-verification-skill`#g
+s#`/architect`#`/skill:architect`#g
+s#`/why`#`/skill:why`#g
+s#`/how`#`/skill:how`#g
+s#/create-verification-skill#/skill:create-verification-skill#g
+s#/maintain-verification-skill#/skill:maintain-verification-skill#g
+s#`/technical-writing`#`skill://technical-writing`#g

@@ -204,6 +204,19 @@ runtime_contract() {
 		report "cursor tool names" "PASS  no prompt template names a Cursor tool"
 	fi
 
+	# Derived from the tree, not from a list: a hand-kept list of names is a list that forgets.
+	bare=""
+	while read -r n; do
+		hits=$(grep -rInF "\`/$n\`" --include='*.md' "${SCOPE[@]}" 2>/dev/null || true)
+		[ -n "$hits" ] && bare="$bare$hits"$'\n'
+	done < <(find skills -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+	if [ -n "$bare" ]; then
+		report "skill command form" "FAIL"
+		while read -r line; do [ -n "$line" ] && violate "$line"; done <<<"$bare"
+	else
+		report "skill command form" "PASS  every skill command uses the registered /skill:<name> form"
+	fi
+
 	bad=""
 	contract=skills/pstack-omp/SKILL.md
 	for required in \

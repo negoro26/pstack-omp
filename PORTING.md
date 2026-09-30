@@ -212,7 +212,7 @@ patches, or conflicts, because omp already does.
 
 ## Next action
 
-The verification skill is generated, not ported. Run `/create-verification-skill` inside a real repo,
+The verification skill is generated, not ported. Run `skill://create-verification-skill` inside a real repo,
 which writes `<repo>/.omp/skills/verify-<app>/` (SKILL.md plus control script plus a `features/`
 feature map), then `/maintain-verification-skill` on a schedule. Pick a repo with a runnable UI. A
 React or Vite app with a dev server is the easiest first target.

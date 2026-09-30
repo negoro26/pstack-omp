@@ -118,6 +118,10 @@ mutate_cursor_tool_name() {
 	printf '\n- `Read` tool calls against any `SKILL.md` file in the repo\n' >>"$FIXTURE/skills/reflect/references/judgment-reviewer.md"
 }
 
+mutate_bare_skill_command() {
+	printf '\nRun `/how` first, then `/skill:how`.\n' >>"$FIXTURE/skills/no-comments/SKILL.md"
+}
+
 expect_failure 'unrelated ownership' 'setup config contract' mutate_preserve_ownership
 expect_failure 'per-agent ownership' 'setup config contract' mutate_override_ownership
 expect_failure 'alias shape' 'setup config contract' mutate_alias_shape
@@ -136,6 +140,7 @@ expect_failure 'install root' 'install root' mutate_install_root
 expect_failure 'hub prescribed after a denial' 'agent hub api' mutate_hub_prescribed_after_denial
 expect_failure 'install root in the port docs' 'install root' mutate_install_root_in_docs
 expect_failure 'cursor tool name' 'cursor tool names' mutate_cursor_tool_name
+expect_failure 'bare skill command' 'skill command form' mutate_bare_skill_command
 
 if [ "$fail" -ne 0 ]; then
 	printf 'mutation tests: FAIL\n'

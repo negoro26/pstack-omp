@@ -58,4 +58,4 @@ Report the exact aliases and agent keys written, the selectors and effort suffix
 
 ### 7. Offer a verification skill (optional)
 
-Check whether the project has a way to drive the real app for proof. If not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with /create-verification-skill." On yes, invoke `/create-verification-skill`. On no, move on without pushing.
+Check whether the project has a way to drive the real app for proof. If not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one." On yes, read `skill://create-verification-skill` in full and follow it. On no, move on without pushing.

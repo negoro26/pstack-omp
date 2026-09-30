@@ -4,17 +4,21 @@ set -uo pipefail
 PORT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 REPO_ROOT=$(cd "$PORT_DIR/.." && pwd -P)
 FIXTURE=$(mktemp -d)
-trap 'rm -rf "$FIXTURE"' EXIT
+FIXTURE_DOCS=$(mktemp -d)
+trap 'rm -rf "$FIXTURE" "$FIXTURE_DOCS"' EXIT
 fail=0
 
 reset_fixture() {
 	rm -rf "$FIXTURE"
 	mkdir -p "$FIXTURE"
 	cp -a "$REPO_ROOT/plugins/pstack/." "$FIXTURE/"
+	cp -a "$REPO_ROOT/PORTING.md" "$FIXTURE_DOCS/PORTING.md"
+	[ -f "$REPO_ROOT/README.md" ] && cp -a "$REPO_ROOT/README.md" "$FIXTURE_DOCS/README.md"
+	return 0
 }
 
 run_contracts() {
-	CHECK_PORT_ROOT="$FIXTURE" CHECK_PORT_CONTRACTS_ONLY=1 bash "$PORT_DIR/check-port.sh"
+	CHECK_PORT_ROOT="$FIXTURE" CHECK_PORT_DOCS_ROOT="$FIXTURE_DOCS" CHECK_PORT_CONTRACTS_ONLY=1 bash "$PORT_DIR/check-port.sh"
 }
 
 reset_fixture
@@ -102,6 +106,14 @@ mutate_install_root() {
 	sed -i 's#~/\.omp/plugins/node_modules/pstack/skills#~/.agents/skills#' "$FIXTURE/skills/poteto-mode/playbooks/multi-phase-plan.md"
 }
 
+mutate_hub_prescribed_after_denial() {
+	printf 'There is no `agent://all` in the live schema, and `hub` `op: "list"` is the fallback.\n' >>"$FIXTURE/skills/pstack-omp/SKILL.md"
+}
+
+mutate_install_root_in_docs() {
+	printf 'Install to ~/.agents/skills/pstack now.\n' >>"$FIXTURE_DOCS/PORTING.md"
+}
+
 expect_failure 'unrelated ownership' 'setup config contract' mutate_preserve_ownership
 expect_failure 'per-agent ownership' 'setup config contract' mutate_override_ownership
 expect_failure 'alias shape' 'setup config contract' mutate_alias_shape
@@ -117,6 +129,8 @@ expect_failure 'gate setting dropped' 'runtime contract fields' mutate_gate_sett
 expect_failure 'tool class renamed' 'runtime contract fields' mutate_tool_class_renamed
 expect_failure 'agent hub api' 'agent hub api' mutate_hub_api
 expect_failure 'install root' 'install root' mutate_install_root
+expect_failure 'hub prescribed after a denial' 'agent hub api' mutate_hub_prescribed_after_denial
+expect_failure 'install root in the port docs' 'install root' mutate_install_root_in_docs
 
 if [ "$fail" -ne 0 ]; then
 	printf 'mutation tests: FAIL\n'

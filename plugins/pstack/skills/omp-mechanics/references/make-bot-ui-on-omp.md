@@ -20,9 +20,11 @@ that collects a secret without showing it in the transcript.
 Serving the page, the local server that holds the key, the outbound POST, the Tailscale exposure,
 and every probe.
 
-Run the server as a named async `bash` process. Give it a unique `name` and set `ready.port` so
-readiness is observed rather than assumed. Read its output at `proc://<job-id>` and stop it at
-`proc://<job-id>/kill`. Probe it with the `browser` eval prelude or with `curl`.
+Run the server as a supervised `bash` service: one call carrying a unique `name` and `ready.port`
+so readiness is observed rather than assumed. A `name` is incompatible with `async`, so do not ask
+for both. Read it at `proc://<name>`, send it stdin at `proc://<name>`, and stop it at
+`proc://<name>/kill`. Its exit notification auto-delivers. Probe it with the `browser` eval prelude
+or with `curl`.
 
 Serving a page and putting it on the tailnet is the whole job when the target is a plain HTTP
 endpoint you already own. Reach for this skill for that half.

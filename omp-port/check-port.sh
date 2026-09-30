@@ -138,7 +138,13 @@ runtime_contract() {
 	# vocabulary in the tree references an API that does not exist. A line stating the absence
 	# is the correction, not the defect, so it is exempt the way the readonly check exempts it.
 	hub=$(grep -rInE '`hub`|"hub"|hub `op' --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null |
-		awk '{ s = tolower($0); if (s ~ /(no|not|never|without|rather than)[^.;]{0,60}hub/) next; print }' || true)
+		awk '{
+			s = tolower($0)
+			if (s !~ /(no|not|never|without|rather than)[^.;]{0,60}hub/) { print; next }
+			clause = s
+			sub(/[.;].*$/, "", clause)
+			if (clause ~ /(use|fall back|fallback|try|instead|or)\b[^`]{0,40}hub/) print
+		}' || true)
 	if [ -n "$hub" ]; then
 		report "agent hub api" "FAIL"
 		while read -r line; do violate "$line"; done <<<"$hub"
@@ -148,7 +154,9 @@ runtime_contract() {
 
 	# One install root. A path under any other agent store resolves to nothing on this machine,
 	# and the playbook that names it cannot run its own binary.
-	install=$(grep -rInE '~/\.(agents|claude|cursor)/' --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null || true)
+	install=$(grep -rInE '~/\.(agents|claude|cursor)/' --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' --include='*.js' \
+		"${SCOPE[@]}" "${CHECK_PORT_DOCS_ROOT:-$REPO_ROOT}"/PORTING.md "${CHECK_PORT_DOCS_ROOT:-$REPO_ROOT}"/README.md README.md extensions 2>/dev/null |
+		grep -vE 'claude-plugins|~/.claude/plugins' || true)
 	if [ -n "$install" ]; then
 		report "install root" "FAIL"
 		while read -r line; do violate "$line"; done <<<"$install"

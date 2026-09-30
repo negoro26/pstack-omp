@@ -26,7 +26,7 @@ Create `orchestrate/<project-slug>/` in the current agent's store (path in the s
 
 - `preferences.md` is the standing-orders register: numbered lines, one constraint each (adapter routing policy, stack shape and count, verification bar, forbidden paths, escalation policy). Paste it verbatim into every start and every follow-up; directives decay across resumes, and each dropped one costs a human turn. When you catch yourself restating an instruction, append the line before you act (principle-encode-lessons-in-structure).
 - `overview.md` is the durable PR and issue DB. Append; never rewrite wholesale per event.
-- `units.tsv` has one row per unit: id, track, state, canonical role, adapter, runtime session ID, runtime agent ID, runtime job ID, generation, branch, PR, head SHA, brief path. RepoPrompt uses the session field; OMP uses the agent and job fields. Update rows in place.
+- `units.tsv` has one row per unit: id, track, state, canonical role, adapter, runtime session ID, runtime agent ID, runtime job ID, generation, branch, PR, head SHA, brief path. Record the agent and job IDs the spawn returned; the session ID is the parent's and never identifies a unit. Update rows in place.
 - `frontier.json` is the computed merge frontier, per Stack safety.
 - `ledger.tsv` is the verification ledger, per Verification.
 - `inbox/` holds completion pointers. `gates.md` parks human gates (question, options, default on no answer) so a completion flood cannot wipe the active user-question state.

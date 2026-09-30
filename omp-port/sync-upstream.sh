@@ -141,28 +141,24 @@ cmd_rebuild() {
 # account of what upstream changed. This reports the gap per owned path. stderr, not stdout,
 # because check's stdout is the drift list and an empty one means no drift.
 shadowed_report() {
-	local pin="$1" rel n prog
-	# gh renders a bare string unquoted, and an empty jq result prints nothing at all, so the
-	# program returns a named token for every case. A path that does not exist upstream yields
-	# an empty commit list rather than a 404, so length is what separates port-only from real.
-	prog=$(printf 'length as $n | if $n == 0 then "no-upstream-path" else (map(.sha[0:7]) | index("%s") // "outside-window") end' "${pin:0:7}")
+	local pin="$1" rel n prog pindate
+	pindate=$(gh api "repos/cursor/plugins/commits/$pin" --jq '.commit.committer.date' 2>/dev/null || true)
+	if [ -z "$pindate" ]; then
+		printf 'shadowed: pin %s unreadable, no count computed\n' "${pin:0:7}" >&2
+		return 0
+	fi
+	prog=$(printf 'length as $n | if $n == 0 then "no-upstream-path" else (map(select(.commit.committer.date > "%s")) | length) end' "$pindate")
 	# owned_paths is the one parser for owned.txt; a comment-format change must not desync
 	# the build's list from this one.
 	owned_paths | while read -r rel; do
 		[ -n "$rel" ] || continue
-		if ! n=$(gh api "repos/cursor/plugins/commits?path=pstack/$rel&sha=main&per_page=100" --jq "$prog" 2>/dev/null); then
+		if ! n=$(gh api "repos/cursor/plugins/commits?path=pstack/$rel&sha=main&per_page=100" --jq "$prog" 2>/dev/null </dev/null); then
 			printf 'shadowed %s: unreadable, widen the query\n' "$rel" >&2
 		else
 			case "$n" in
 			no-upstream-path) printf 'shadowed %s: no upstream path, port-only\n' "$rel" >&2 ;;
-			outside-window) printf 'shadowed %s: pin outside this path last 100 commits, widen the query\n' "$rel" >&2 ;;
-			*)
-				if [ "$n" -gt 0 ] 2>/dev/null; then
-					printf 'shadowed %s: %s upstream commit(s) ahead of the pin, none applied\n' "$rel" "$n" >&2
-				else
-					printf 'shadowed %s: at the pin\n' "$rel" >&2
-				fi
-				;;
+			0) printf 'shadowed %s: at the pin\n' "$rel" >&2 ;;
+			*) printf 'shadowed %s: %s upstream commit(s) ahead of the pin, none applied\n' "$rel" "$n" >&2 ;;
 			esac
 		fi
 	done

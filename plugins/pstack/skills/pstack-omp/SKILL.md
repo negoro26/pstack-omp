@@ -47,8 +47,6 @@ Children start blank and do not inherit the parent conversation. Every brief mus
 
 Common immutable material belongs in batch context or an accessible artifact. A large shared payload goes to `local://<name>.md`, which subagents share through the parent's root, and the brief names that path; otherwise inline what the worker needs or point at absolute paths. Never substitute a file pointer for the brief's goal or ownership. Tell ordinary children not to start subagents or ask the user directly. A role change requires a fresh context. A coupled correction may reuse the owner. Children report only checks actually executed; the root independently accepts or rejects the result.
 
-End every brief with a result-shape line naming the exact call the worker owes its parent and the arguments it takes. A worker that answers in prose instead of making the call costs three reminder prompts, then a system warning with no structured output: measured 13 of 20 without the line against 20 of 20 with it, same model, same width. For a role that accumulates findings across a run, name the incremental call and the finalizing call separately.
-
 **Yield first.** End every brief with a yield-first line that names the yield tool, its top-level `data` argument for a result and `error` for a failure, and that no text goes outside the call. Thinking models default to answering in prose and skipping it. Measured on one deployment with the same prompt shape: 13 of 20 children without the line, 20 of 20 with it, same model, same width. A child that ends without the call costs three reminder prompts, then a system warning and no structured output. For a role that accumulates findings across a run, name the incremental call and the finalizing call separately.
 
 ## Task contract

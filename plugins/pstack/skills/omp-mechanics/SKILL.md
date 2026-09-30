@@ -14,7 +14,7 @@ The `architect`, `arena`, `interrogate`, and `reflect` workflows need independen
 
 ## LSP and debugging
 
-For `bug-fix`, use `lsp` action `definition` and `references` to narrow a suspect value before runtime evidence. The parent owns this step when `task.enableLsp` is off.
+For `bug-fix`, use `lsp` action `definition` and `references` to narrow a suspect value before runtime evidence. The tool is present only when `lsp.enabled` and the session's `enableLsp` both allow it, so treat its absence as a session-wide condition rather than a parent-or-child ownership question.
 
 When program state is unclear, use the `debug` tool before custom logging. With `debug.enabled` on, launch the reproduction, set a breakpoint, step with `step_over` and `step_in`, and read state with `evaluate`. Fall back to logging only when the tool or adapter is unavailable.
 

@@ -67,22 +67,26 @@ Never substitute the `backnotprop/pstack` mirror for upstream.
 These landed in syncs before the current pin and are recorded because each one still constrains what
 the port carries, not as a census of the tree. `omp-port/UPSTREAM` is the only current record.
 
+Everything below `pstack/skills` and `pstack/agents` is outside this port. The build is one
+`git archive` of exactly those two subtrees, so `.cursor-plugin/`, `docs/`, `assets/`, and
+`automations/` are structurally absent rather than carried and edited.
+
 - **Added** `skills/make-bot-ui/` (webhook-driven Grok Bot UI skill). Listed in the README skill
   table and installed as a skill here.
 - **Deleted** `skills/poteto-mode/references/plan.md`. Canonical replaced the prose reference with an
   executable checker, `skills/poteto-mode/scripts/check-plan.mjs`. Both moves are reflected on disk
   in this port.
-- **Added** `assets/logo.png` plus a `"logo": "assets/logo.png"` field in `.cursor-plugin/plugin.json`.
-  The 353 KiB PNG is **not carried**. It is a Cursor marketplace image with no omp consumer, nothing
-  in omp reads it, and no skill or doc links it. The manifest field is kept so `.cursor-plugin/plugin.json`
-  stays byte-identical to canonical and future drift diffs show only real changes. The consequence is
-  one unresolved relative path inside a file nothing on this machine parses.
-- Canonical also moved Shipping and Autopilot-stack off Graphite merge-when-ready to landing one PR at
-  a time "through GitHub by default or Origin when its CLI is available". That wording is ported into
-  `docs/guide/06-verify-and-ship.md`, `docs/guide/07-overnight.md`, and the README playbook table.
+- **Not carried** `assets/logo.png` and its `"logo": "assets/logo.png"` field. They are a Cursor
+  marketplace image with no omp consumer. An earlier tree vendored the manifest beside it so that
+  future drift diffs would show only real changes; that ended when the build narrowed to the two
+  subtrees it archives, so no dangling reference is left to fix here.
+- Canonical also moved Shipping and Autopilot-stack off Graphite merge-when-ready to landing one PR
+  at a time "through GitHub by default or Origin when its CLI is available". That wording reaches
+  this port through the two playbooks themselves, not through `docs/guide/`, which the build does
+  not extract.
 
-`.cursor-plugin/plugin.json` is kept for upstream fidelity only. omp never reads it. Editing the
-manifest changes no runtime behavior on this machine.
+`.cursor-plugin/plugin.json` is not vendored and never was in the current build: it sits outside the
+two subtrees `omp-port/lib.sh` archives, and omp never read it. Nothing in the tree parses it.
 
 ## Install, the two live shapes
 

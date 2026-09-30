@@ -67,6 +67,7 @@ material the previous agent could no longer see.
 For a prior agent in this process, the internal URIs beat globbing. Bare `history://` lists every
 agent with its status and its parent. `history://<id>` renders one transcript and takes line
 selectors, as in `history://<id>:1-50`. `agent://<id>` serves that agent's final output artifact,
-`agent://<parent>/<child>` a nested child's, and `agent://<id>?q=.<field>` one field of a structured
-result. Prefer `?q=` for a field, because the slash resolves a child agent first and only falls back
-to JSON extraction.
+result. Take a structured result from the spawn's own return value, which carries the parsed
+`data` alongside its validation status, rather than extracting it out of the prose artifact. A
+nested child is addressed with a dotted id, `agent://<id>.<child>`, because a slash is
+always JSON extraction: `agent://<id>/<key>/<index>/...` pulls that value out of a JSON output.

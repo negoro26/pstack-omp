@@ -1,0 +1,15 @@
+diff --git a/skills/interrogate/SKILL.md b/skills/interrogate/SKILL.md
+index 291d31d..1448962 100644
+--- a/skills/interrogate/SKILL.md
++++ b/skills/interrogate/SKILL.md
+@@ -35,8 +35,8 @@ Write one clear paragraph. If you're unsure about the intent, ask the user befor
+ 
+ Launch all reviewers in one `task` call with the required shared `context` and all items in `tasks[]`. Resolve exact discovered reviewer agent names, use one agent per reviewer slot, and report when the live roster cannot provide the requested model-family diversity.
+ 
+-| Subagent | Default model |
+-|----------|---------------|
++| Reviewer slot | Model strength the slot wants |
++|---------------|-------------------------------|
+ | Reviewer A | your strongest judgment model |
+ | Reviewer B | your strongest instruction-following model |
+ | Reviewer C | your fast code model |

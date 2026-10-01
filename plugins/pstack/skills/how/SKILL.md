@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
-Each spawn below names a role line in the `pstack-models.mdc` rule and a default. Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message.
+Resolve agents against the live roster. Use an exact preferred agent only when it is present; otherwise follow the workflow's default-worker fallback. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects its model; the task item has no `model` field.
 
 ## Step 1. Assess Complexity
 
@@ -21,31 +21,28 @@ When in doubt, take the simple path.
 
 ## Step 2a. Explore (complex questions only)
 
-Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:
+Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in one `task` call with the required shared `context` and all items in `tasks[]`:
 
-- `agent`: `task` (omp's general-purpose bundled agent)
-- `model`: the `how explorer` line, default your fast code model
-- read-only posture. The brief grants only Glob, Grep, and Read, and forbids writes
+- `agent`: an exact discovered scout for repository-only exploration
+- read-only posture. The brief grants only the tools the discovered agent actually has and forbids writes
 
 Each explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.
 
 ## Step 2b. Direct Explain (simple questions)
 
-Spawn one Task subagent that explores and explains in one pass:
+Start one direct explainer in one `task` call with one item in `tasks[]` and the required shared `context`:
 
-- `agent`: `task` (omp's general-purpose bundled agent)
-- `model`: the `how explainer` line, default your strongest judgment model
-- read-only posture. The brief grants only Glob, Grep, and Read, and forbids writes
+- `agent`: an exact discovered explainer only when the live roster has one; otherwise omit `agent` for the default worker. Use the explainer and read-only brief in both cases. An override cannot create an agent.
+- read-only posture. The brief grants only the tools the discovered agent actually has and forbids writes
 
 Build its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.
 
 ## Step 3. Synthesize (complex questions only)
 
-Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:
+After all explorers have returned, start the synthesis in one `task` call with one item in `tasks[]` and the required shared `context`, using Step 2b's explainer routing:
 
-- `agent`: `task` (omp's general-purpose bundled agent)
-- `model`: the `how explainer` line, default your strongest judgment model
-- read-only posture. The brief grants only Glob, Grep, and Read, and forbids writes
+- `agent`: an exact discovered explainer only when the live roster has one; otherwise omit `agent` for the default worker. Use the explainer and read-only brief in both cases. An override cannot create an agent.
+- read-only posture. The brief grants only the tools the discovered agent actually has and forbids writes
 
 Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.
 

@@ -4,14 +4,15 @@
 # The argument, or CANON, is the cursor/plugins clone the reproducible check builds from.
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
-cd "$(dirname "$0")/../plugins/pstack"
+PLUGIN_ROOT=${CHECK_PORT_ROOT:-"$(dirname "$0")/../plugins/pstack"}
+cd "$PLUGIN_ROOT"
 CANON="${1:-$CANON}"
 fail=0
 report() { printf '%-28s %s\n' "$1" "$2"; }
 violate() { fail=1; printf '  %s\n' "$1"; }
 
 SCOPE=(skills agents)
-ALLOW=../../omp-port/slug-allowlist.txt
+ALLOW="$PORT_DIR/slug-allowlist.txt"
 
 # An audited exception is `path:line<TAB>pattern<TAB>reason`, where pattern is one of slug, caps,
 # or residue. An exception covers that one pattern on that one line, nothing else. Illustrative
@@ -47,13 +48,15 @@ scan() {
 
 scan "$PAT_SLUG" "model-agnostic" slug
 
-# Role instructions must name an omp lever. /model sets the chat model,
-# task.agentModelOverrides sets a per-agent model.
-if grep -rIlq 'task.agentModelOverrides' skills/setup-pstack/SKILL.md skills/poteto-mode/SKILL.md 2>/dev/null; then
-	report "omp model levers" "PASS  task.agentModelOverrides named"
-else
+model_levers=""
+for f in skills/setup-pstack/SKILL.md skills/poteto-mode/SKILL.md; do
+	grep -Fq 'task.agentModelOverrides' "$f" || model_levers="$model_levers $f"
+done
+if [ -n "$model_levers" ]; then
 	report "omp model levers" "FAIL"
-	violate "setup-pstack and poteto-mode must name task.agentModelOverrides"
+	for f in $model_levers; do violate "$f must name task.agentModelOverrides"; done
+else
+	report "omp model levers" "PASS  setup-pstack and poteto-mode name task.agentModelOverrides"
 fi
 if grep -rIlq '/model' skills/setup-pstack/SKILL.md 2>/dev/null; then
 	report "chat-model lever" "PASS  /model named in setup-pstack"
@@ -62,22 +65,23 @@ else
 	violate "setup-pstack must tell the user to pick the chat model with /model"
 fi
 
-# A diverse-model review is a property of the reviewer, not a named slug.
-undiverse=""
-for f in skills/interrogate/SKILL.md skills/arena/SKILL.md skills/reflect/SKILL.md; do
-	grep -qiE 'different (model )?(family|provider)|separate model family' "$f" ||
-		undiverse="$undiverse $f"
-done
-if [ -n "$undiverse" ]; then
+# Mutation tests intentionally treat these exact sentences as the review-diversity gate interface.
+undiversity=""
+grep -qF 'report when the live roster cannot provide the requested model-family diversity' skills/interrogate/SKILL.md || undiversity="$undiversity skills/interrogate/SKILL.md"
+grep -qF 'Prefer distinct configured model families when the roster supplies them' skills/arena/SKILL.md || undiversity="$undiversity skills/arena/SKILL.md"
+grep -qF 'Run the three lenses on three different configured model families where available' skills/reflect/SKILL.md || undiversity="$undiversity skills/reflect/SKILL.md"
+if [ -n "$undiversity" ]; then
 	report "review diversity" "FAIL"
-	for f in $undiverse; do violate "no model-diversity property stated in $f"; done
+	for f in $undiversity; do violate "$f lacks its affirmative model-family diversity rule"; done
 else
-	report "review diversity" "PASS  stated as a property"
+	report "review diversity" "PASS  interrogate, arena, and reflect state exact diversity requirements"
 fi
 
-# A capability claim pinned to a version rots on the next upgrade, exactly like a
-# hardcoded model slug. Depend on a probe or a conditional instead.
-ver=$(grep -rIn -oE 'omp[/ ]?1[0-9]+\.[0-9]+(\.[0-9]+)?' --include='*.md' "${SCOPE[@]}" 2>/dev/null)
+# `[[:space:]/]` rather than whitespace alone: main's pattern was `omp[/ ]?1[0-9]+\.[0-9]+`, which
+# caught the slash form, and narrowing it to whitespace made `omp/18.1.9` invisible while the gate
+# still claimed to be strengthening the check. Verified both ways: with a space the old pattern
+# fired, with a slash it did not.
+ver=$(grep -rIni -oE '(^|[^0-9])(omp|since)[[:space:]/]+v?[0-9]+\.[0-9]+(\.[0-9]+)?' --include='*.md' "${SCOPE[@]}" 2>/dev/null || true)
 if [ -n "$ver" ]; then
 	report "version-agnostic" "FAIL"
 	while read -r v; do violate "version-pinned: $v"; done <<<"$ver"
@@ -89,16 +93,172 @@ scan "$PAT_CAPS" "capability claims" caps
 
 scan "$PAT_RESIDUE" "cursor residue" residue
 
-# omp's task wire has no readonly field, so a bare `readonly: true` task parameter
-# is silently ignored. Read-only posture must be a brief-level tool grant plus a
-# write ban, with the skill stating omp cannot enforce it.
-ro=$(grep -rIn -E '`readonly`:\s*`?true`?|readonly:\s*true' --include='*.md' "${SCOPE[@]}" 2>/dev/null)
+# A positive pattern over the Cursor wire shapes, not a ban on the English word. The previous form
+# grepped every occurrence of `readonly` and tried to rescue legitimate prose with an allowlist and a
+# negation skip, and both leaked: "Do not use readonly/Ask mode" contains "not", so the skip threw
+# away the exact sentence the assertion exists to catch, while a legitimate TypeScript sentence the
+# allowlist did not happen to name would have failed the build. This names the shapes instead, so
+# `readonly __brand` and `readonly owner: string` in the tree's own TypeScript are simply not matches.
+ro=$(grep -rInE '`?readonly`?\s*:\s*`?(true|false)`?|readonly[ /]Ask|readonly mode|agent mode \(`?readonly' \
+	--include='*.md' "${SCOPE[@]}" 2>/dev/null || true)
 if [ -n "$ro" ]; then
 	report "readonly posture" "FAIL"
-	while read -r r; do violate "unenforceable readonly: $r"; done <<<"$ro"
+	while read -r r; do [ -n "$r" ] && violate "unsupported readonly directive: $r"; done <<<"$ro"
 else
-	report "readonly posture" "PASS  read-only stated as brief posture"
+	report "readonly posture" "PASS  no readonly task field or prose directive"
 fi
+
+runtime_contract() {
+	local bad label pattern
+	for label in per-call-model pstack-rule-file task-environment; do
+		case "$label" in
+		per-call-model) pattern='subagent_type|run_in_background|`model`:\s*[^f]|Set `model`|set `model` to|with `model` from|omit `model` so' ;;
+		pstack-rule-file) pattern='pstack-models\.mdc' ;;
+		task-environment) pattern='environment:[[:space:]]*"?((local)|(cloud))\b|cloud_base_branch' ;;
+		esac
+		bad=$(grep -rInE "$pattern" --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null || true)
+		if [ -n "$bad" ]; then
+			report "runtime $label" "FAIL"
+			while read -r line; do violate "$line"; done <<<"$bad"
+		else
+			report "runtime $label" "PASS"
+		fi
+	done
+
+	retired='swarm workers|architect runners|arena runners|arena cross-judge pool|interrogate reviewers|reflect judgment, divergent, synthesizer|reflect tooling|why investigators|why synthesizer|how explorer|how explainer|feature, refactoring|<swarm workers model>|your configured [a-z-]+ model|default your fast code model|`hub` process ops|`hub` process op|Blocking on `drive`|`drive` inside a phase agent|`hub` `op: "(list|jobs|send|wait)"'
+	bad=$(grep -rInE "$retired" --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null || true)
+	if [ -n "$bad" ]; then
+		report "retired runtime labels" "FAIL"
+		while read -r line; do violate "$line"; done <<<"$bad"
+	else
+		report "retired runtime labels" "PASS  no abstract role labels, placeholders, or stale process wording"
+	fi
+	bad=""
+	for f in skills/poteto-mode/playbooks/autopilot-full.md skills/poteto-mode/playbooks/autopilot-stack.md; do
+		grep -qF 'exact discovered owner agent' "$f" && grep -qF 'default worker with the owner role' "$f" || bad="$bad$f lacks exact owner fallback"$'\n'
+	done
+	grep -qF 'exact discovered watcher agent' skills/poteto-mode/playbooks/autonomous-run.md && grep -qF 'default worker with the watcher role' skills/poteto-mode/playbooks/autonomous-run.md || bad="$bad"$'skills/poteto-mode/playbooks/autonomous-run.md lacks exact watcher fallback'$'\n'
+	grep -qF '`<plugin-root>/agents/comment-sicko.md`' skills/no-comments/SKILL.md && grep -qF 'omit `agent` for the default worker' skills/no-comments/SKILL.md || bad="$bad"$'skills/no-comments/SKILL.md lacks exact absolute fallback instructions'$'\n'
+	grep -qF 'This investigation is read-only: do not write files, change git state, commit, push, open pull requests, or mutate any external system.' skills/why/references/investigator-prompt.md || bad="$bad"$'skills/why investigator template lacks the explicit no-mutation posture'$'\n'
+	grep -qF 'forbids file writes, git state changes, commits, pushes, pull requests, and external mutations' skills/why/SKILL.md || bad="$bad"$'skills/why investigator briefs lack the explicit no-mutation posture'$'\n'
+	if [ -n "$bad" ]; then
+		report "canonical role fallback" "FAIL"
+		while read -r line; do [ -n "$line" ] && violate "$line"; done <<<"$bad"
+	else
+		report "canonical role fallback" "PASS"
+	fi
+
+
+	# The two tokens have to co-occur ON ONE LINE. Two independent whole-file greps pass a file whose
+	# dispatch line was reverted to Cursor's non-batch shape as long as some other line still carries
+	# both tokens, which is exactly what happens in arena: Phase C's judge line has them, so deleting
+	# them from Phase B's spawn line is invisible. Verified: replacing the batch instruction with
+	# "Spawn all N subagents in one message" left this assertion PASS before the fix.
+	bad=""
+	for f in skills/arena/SKILL.md skills/swarm/SKILL.md skills/reflect/SKILL.md skills/interrogate/SKILL.md; do
+		grep -qE 'tasks\[\].*required shared .context.|required shared .context..*tasks\[\]' "$f" ||
+			bad="$bad$f has no single line naming both the tasks[] batch and its required shared context"$'\n'
+	done
+	if [ -n "$bad" ]; then
+		report "runtime batch context" "FAIL"
+		while read -r line; do violate "$line"; done <<<"$bad"
+	else
+		report "runtime batch context" "PASS  arena, swarm, reflect, and interrogate name context"
+	fi
+
+	bad=""
+	contract=skills/pstack-omp/SKILL.md
+	for required in \
+		'solutionSpace' \
+		'kernel-defined' \
+		'eval.tools.enabled' \
+		'names the yield tool' \
+		'`error` for a failure' \
+		'three reminder prompts' \
+		'task.isolation.enabled' \
+		'task.enableEffort' \
+		'task.batch' \
+		'task.maxRecursionDepth' \
+		'task.softRequestBudget' \
+		'task.maxRuntimeMs' \
+		'task.maxConcurrency' \
+		'task.agentIdleTtlMs'; do
+		grep -qF "$required" "$contract" || bad="$bad"'pstack-omp runtime contract lacks '"$required"$'\n'
+	done
+	if [ -n "$bad" ]; then
+		report "runtime contract fields" "FAIL"
+		while read -r line; do [ -n "$line" ] && violate "$line"; done <<<"$bad"
+	else
+		report "runtime contract fields" "PASS  required item fields, the yield call, and the gating settings are named"
+	fi
+
+	bad=$(grep -riEn '(start|spawn|launch|run|use|gets?) (one|a single) [^.]*(subagent|worker|judge|synthesizer|explainer|investigator|reviewer|owner|watcher|comment review)|(^|[.!?] )one [^.]{0,40}subagent per |gets? (a|an) (owner|watcher) subagent|one item in `tasks\[\]`' --include='*.md' "${SCOPE[@]}" 2>/dev/null | grep -vE '^skills/(pstack-omp|omp-mechanics)/' | awk '{ s = tolower($0); if (s ~ /all items in `tasks\[\]`/ || s ~ /one item per [^.]* in `tasks\[\]`/) next; if (s !~ /one `task` call with one item in `tasks\[\]`,? (and |)(one|the) required shared `context`/) print }' || true)
+	for required in \
+		'full-access worker for every MCP-backed lane' \
+		'A repository-only lane may use `scout` only when its file-only grant covers the evidence' \
+		'full-access worker for citation spot-checks that call MCP'; do
+		grep -qF "$required" skills/why/SKILL.md || bad="$bad"'skills/why/SKILL.md lacks required investigator routing'$'\n'
+	done
+	if [ -n "$bad" ]; then
+		report "one-item role routing" "FAIL"
+		while read -r line; do [ -n "$line" ] && violate "$line"; done <<<"$bad"
+	else
+		report "one-item role routing" "PASS  every explicit single-spawn line has one-item context"
+	fi
+
+	bad=""
+	setup_skill=skills/setup-pstack/SKILL.md
+	setup_ref=skills/omp-mechanics/references/setup-pstack-config.md
+	expected_aliases=$'pstack_fast_code\npstack_instruction\npstack_judgment'
+	actual_aliases=$(grep -hoE '^[[:space:]]{2,}pstack_[a-z0-9_]+:' "$setup_ref" 2>/dev/null | sed 's/^[[:space:]]*//; s/:$//' | sort -u || true)
+	[ "$actual_aliases" = "$expected_aliases" ] || bad="unexpected pstack-owned modelRoles alias set"$'\n'
+	expected_alias_shapes=$'  pstack_fast_code: "<detected-selector>:<effort>"\n  pstack_instruction: "<detected-selector>:<effort>"\n  pstack_judgment: "<detected-selector>:<effort>"'
+	actual_alias_shapes=$(awk '/^modelRoles:/{roles=1; next} roles && /^task:/{exit} roles && /^  pstack_/{print}' "$setup_ref" | sort || true)
+	[ "$actual_alias_shapes" = "$expected_alias_shapes" ] || bad="$bad"'unexpected pstack alias shape'$'\n'
+	grep -q '^task:$' "$setup_ref" && grep -q '^  agentModelOverrides:$' "$setup_ref" && grep -qF '    <exact discovered agent name>: "@pstack_fast_code"' "$setup_ref" || bad="$bad"'task.agentModelOverrides YAML shape is missing'$'\n'
+	for alias in pstack_fast_code pstack_judgment pstack_instruction; do grep -qF "$alias" "$setup_skill" || bad="$bad$alias is missing from setup-pstack"$'\n'; done
+	setup_keys=$(grep -nE '^[[:space:]]{4,}pstack_[a-z0-9_]+:' "$setup_skill" "$setup_ref" 2>/dev/null || true)
+	[ -z "$setup_keys" ] || bad="$bad$setup_keys"$'\n'
+	old_setup=$(grep -nE '^([[:space:]]{4,})?(feature, refactoring|arena runners|arena cross-judge pool|architect runners|swarm workers|interrogate reviewers|reflect judgment, divergent, synthesizer):|For panel roles .* value is a list' "$setup_skill" 2>/dev/null || true)
+	[ -z "$old_setup" ] || bad="$bad$old_setup"$'\n'
+	grep -Fxq 'A `task.agentModelOverrides` entry is pstack-owned only when its exact key is a discovered agent and its value is one of `@pstack_fast_code`, `@pstack_judgment`, or `@pstack_instruction`.' "$setup_skill" || bad="$bad"'per-agent setup ownership is missing'$'\n'
+	grep -Fxq 'Preserve every unrelated entry in both maps.' "$setup_skill" || bad="$bad"'unrelated setup ownership preservation is missing'$'\n'
+	grep -Fq 'capability, exact discovered agent name' "$setup_skill" || bad="$bad"'setup capability mapping is missing'$'\n'
+	grep -Fq 'The effort ladder is `max > xhigh > high > medium > low > minimal`.' "$setup_skill" || bad="$bad"'setup effort ladder is missing minimal or ordering'$'\n'
+	grep -Fq 'Strip only that supported suffix and require the remaining base to equal a selector from `omp models --json`.' "$setup_skill" || bad="$bad"'setup suffix or base-selector validation is missing'$'\n'
+	grep -Fq 'Never strip an arbitrary colon fragment.' "$setup_skill" || bad="$bad"'setup allows arbitrary suffix stripping'$'\n'
+	grep -Fq '`:low`, or `:minimal` suffix' "$setup_skill" || bad="$bad"'setup supported suffix list is missing minimal'$'\n'
+	grep -Fq 'selected model' "$setup_skill" && grep -Fq '`thinking.efforts`' "$setup_skill" || bad="$bad"'setup does not validate supported model efforts'$'\n'
+	grep -Fq 'An omitted override uses the discovered agent' "$setup_skill" && grep -Fq "frontmatter model first, then the parent session's active or default model" "$setup_skill" || bad="$bad"'setup omission precedence is missing'$'\n'
+	grep -Fq 'Family diversity is optional' "$setup_skill" || bad="$bad"'setup family fallback is missing'$'\n'
+	bad_alias_choices=$(grep -nE 'offer(s|ing).*`(inherit-parent|auto)`| `(inherit-parent|auto)` always pass|omission for parent inheritance|Omit an override to inherit the parent model' "$setup_skill" 2>/dev/null || true)
+	[ -z "$bad_alias_choices" ] || bad="$bad$bad_alias_choices"$'\n'
+	grep -Fq 'exactly one supported effort suffix from `max`, `xhigh`, `high`, `medium`, `low`, and `minimal`' "$setup_ref" || bad="$bad"'setup reference suffix list is missing minimal'$'\n'
+	grep -Fq 'remaining base to equal a selector from `omp models --json`' "$setup_ref" || bad="$bad"'setup reference base-selector validation is missing'$'\n'
+	grep -Fq 'selected model' "$setup_ref" && grep -Fq '`thinking.efforts`' "$setup_ref" || bad="$bad"'setup reference does not validate model efforts'$'\n'
+	if [ -n "$bad" ]; then
+		report "setup config contract" "FAIL"
+		while read -r line; do [ -n "$line" ] && violate "$line"; done <<<"$bad"
+	else
+		report "setup config contract" "PASS  ownership, aliases, model efforts, suffix, and base selector"
+	fi
+}
+runtime_contract
+
+if [ "${CHECK_PORT_CONTRACTS_ONLY:-}" = 1 ]; then
+	echo
+	if [ "$fail" -eq 0 ]; then echo "check-port contracts: PASS"; else echo "check-port contracts: FAIL"; fi
+	exit "$fail"
+fi
+
+mutation_log=$(mktemp)
+if bash "$PORT_DIR/test-gate-mutations.sh" >"$mutation_log" 2>&1; then
+	report "gate mutations" "PASS  ownership, alias, effort, and per-file lever mutations rejected"
+else
+	report "gate mutations" "FAIL"
+	while read -r line; do [ -n "$line" ] && violate "$line"; done <"$mutation_log"
+fi
+rm -f "$mutation_log"
 
 missing=""
 while read -r p; do

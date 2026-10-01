@@ -11,7 +11,11 @@ UPSTREAM_URL=https://github.com/cursor/plugins
 
 PAT_SLUG='\b(claude-[a-z0-9.-]+|gpt-[0-9][a-z0-9.-]*|grok-[a-z0-9.-]+|gemini-[a-z0-9.-]+|opus-[a-z0-9.-]+)\b'
 PAT_CAPS='omp (has no|does not support|cannot|lacks) [A-Za-z`_.:-]+'
-PAT_RESIDUE='cursor-team-kit|/deslop|run_in_background|<agent-transcripts>|~/\.cursor/|AskQuestion|cloud_base_branch|~/\.omp/skills/|~/\.omp/pstack/|environment: "cloud"'
+# The last two are Cursor batch-spawn shapes rather than named APIs. A file-scoped assertion cannot
+# catch them: arena's Phase C line still names the batch and its context, so deleting that phrase
+# from Phase B's dispatch line leaves every per-file check green while the spawn instruction is back
+# to Cursor's one-message form. Banning the shape directly is what actually holds.
+PAT_RESIDUE='cursor-team-kit|/deslop|run_in_background|<agent-transcripts>|~/\.cursor/|AskQuestion|cloud_base_branch|~/\.omp/skills/|~/\.omp/pstack/|environment: "cloud"|Spawn all N (workers|subagents) in one message|one `Task` call, `subagent_type`'
 # Every conflict git writes is bracketed by <<<<<<< and >>>>>>>, so a bare ======= needs no
 # branch of its own and a seven-character setext underline stops being a false positive.
 PAT_MARKER='^(<{7} |\|{7}( |$)|>{7} )'

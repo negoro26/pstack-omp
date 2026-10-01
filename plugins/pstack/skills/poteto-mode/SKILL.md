@@ -12,7 +12,7 @@ reminder: New task? Playbook match or rigor needed -> apply /poteto-mode. Casual
 
 ## Non-negotiables
 
-**Read `skill://omp-mechanics` and `skill://pstack-omp` right after this file.** The adapter owns live dispatch mechanics; the router owns methodology and independent verification.
+**Read `skill://omp-mechanics` and `skill://pstack-omp` right after this file.** `pstack-omp` is the sole live task, vibe, eval, and runtime contract. `omp-mechanics` keeps only pstack-specific OMP deltas.
 
 The Principles section below grounds every trigger. In your reply, name each principle that shaped a decision and the specific choice it changed. Cite only principles whose leaf SKILL.md you read this session.
 
@@ -29,8 +29,8 @@ Remaining triggers:
 - Docs, RFCs, readmes, PR descriptions, or commit messages → the **technical-writing** skill (`/technical-writing`).
 - Before commit → the `unslop` skill (`skill://unslop`) plus `omp cleanse --all` for diagnostics.
 - Before review → the **no-comments** skill (`/no-comments`).
-- Shipping UI / IDE / CLI → the matching control skill. omp provides the levers directly. `hub` process ops plus bash drive CLIs and TUIs, the `browser` eval prelude drives browser, Electron, and web UIs over CDP, and the `computer` prelude drives native desktop. Both preludes are code in an `eval` cell and neither is a tool with its own schema. For bug fixes, reproduce first on the same surface yourself. Hand to the user only under the narrow Bug fix step 1 exception.
-- Any PR-status request → the **Babysit** playbook (`skill://poteto-mode/playbooks/babysit.md`), and not Cursor's built-in babysit skill, whose description matches the same words. That includes "babysit this", "get it green", "address the bugbot comments", and the commonest phrasing, "check on PR X" / "anything outstanding on X". Never triggered by merely opening a PR. Declare its mode before polling. The playbook's step 1 owns the request-to-mode mapping. Blocking on `drive`, or on `hub` `op: "wait"`, inside a phase agent stops that agent finishing its turn.
+- Shipping UI / IDE / CLI → the matching control skill. omp provides the levers directly. Bash with a unique async `name`, `ready` checks, and `proc://` state drives CLIs and TUIs, the `browser` eval prelude drives browser, Electron, and web UIs over CDP, and the `computer` prelude drives native desktop. Both preludes are code in an `eval` cell and neither is a tool with its own schema. For bug fixes, reproduce first on the same surface yourself. Hand to the user only under the narrow Bug fix step 1 exception.
+- Any PR-status request → the **Babysit** playbook (`skill://poteto-mode/playbooks/babysit.md`), and not Cursor's built-in babysit skill, whose description matches the same words. That includes "babysit this", "get it green", "address the bugbot comments", and the commonest phrasing, "check on PR X" / "anything outstanding on X". Never triggered by merely opening a PR. Declare its mode before polling. The playbook's step 1 owns the request-to-mode mapping. Blocking inside a phase agent stops that agent finishing its turn.
 - Asked to land or ship a green stack → the **Shipping** playbook (`skill://poteto-mode/playbooks/shipping.md`). Green is not safe. Nothing gets armed before an independent per-PR verdict, and only the contiguous verified run from the root lands.
 - Bugbot or the agentic security review commented → skeptical posture. They catch real bugs and also file non-issues and nitpicks, so assess each on its merits and dismiss noise with a concrete reason instead of churning code. Triage fix / dismiss / ask per `skill://poteto-mode/references/bugbot-triage.md`.
 - Broken skill mid-task → fix it in its own PR. Don't block. Don't silently work around it.
@@ -94,15 +94,9 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
 
 Batch genuinely independent work when supported. Give each participant a standalone brief and explicit write ownership. The root starts additional participants and independent reviewers; ordinary workers do not start children. Runtime role configuration selects models. Preserve required independent contexts and report unavailable model diversity honestly. Do not change operator configuration merely to satisfy a skill example.
 
-Model selection belongs to the active runtime's role configuration, not the routed skill.
+Model selection belongs to `task.agentModelOverrides` and agent frontmatter, not to routed-skill task fields.
 
 You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. Interrupt-chained resumes silently drop directives, so fire a fresh subagent with consolidated scope rather than trusting a "done" summary. A second opinion is the same prompt against a different model. Agreement is high-signal.
-
-## OMP task behavior
-
-Spawn workers with a fresh-context brief: goal, scope, writable paths, verification, and report contract. Point at files and artifacts instead of inlining history. Use the result and history resources the active adapter actually exposes; do not construct `agent://` resources for vibe sessions.
-
-The root keeps user interaction, external writes, merges, deletions, and final verification. A worker's report never verifies its own work. Delegate subagents with `skill://pstack-omp`; it maps canonical roles to the live worker surface. For a standing multi-week program, follow `skill://poteto-mode/playbooks/orchestrate.md`.
 
 ## Writing the reply
 

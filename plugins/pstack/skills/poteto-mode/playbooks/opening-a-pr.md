@@ -1,7 +1,5 @@
 ### Opening a PR
 
-Dispatch and lifecycle mechanics follow `skill://pstack-omp`. The root starts independent reviewers and watchers, relays frozen findings, and retains external-write authorization. A child never starts children. Use discovered tools, agents, models, and isolation only; missing independent execution is a reported blocker, not permission to self-review. Resolve installed script paths from the loaded skill location rather than assuming a global install directory.
-
 Invoked at the end of every other playbook.
 
 **Worktree.** Work from a git worktree off main. Subagents inherit it. Multiple `Task` calls on the same branch each get their own worktree, or `git fetch && git reset --hard origin/<branch>` between them. Dirty branch with unrelated work: patch out, fresh worktree, apply. Snarled worktree: reset from main, redo minimally.

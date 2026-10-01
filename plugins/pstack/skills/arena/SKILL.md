@@ -25,12 +25,12 @@ The N candidates will receive the same prompt, so the prompt is the contract.
 
 1. State the artifact each candidate is producing.
 2. Derive the rubric. State what success looks like for *this* task, then turn it into 3-6 concrete gradeable criteria. The rubric is the picker's tool in Phase D. Candidates only see the task.
-3. Pick the runners. Use the `arena runners` line in `task.agentModelOverrides` in `~/.omp/agent/config.yml`. If the rule or that line is missing, default to one each on one model per distinct family `omp models` reports. An `auto` or `inherit-parent` entry in this line or the cross-judge line means the parent model, so omit `model` for it. If the Task tool rejects a configured entry, run that seat on its family's default and say so. Families go by prefix: `claude-*`, `gpt-*`, and `grok-*`. With no family match, use your strongest judgment model. If it rejects a default, use the closest valid slug of the same family from its error message. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.
+3. Pick the runners. Resolve exact discovered agent names and inspect each agent's frontmatter or `task.agentModelOverrides[<exact-name>]`. Prefer distinct configured model families when the roster supplies them; otherwise keep the independent contexts and report weaker model diversity. A model override cannot create an agent. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.
 4. Assign output paths. Each candidate writes to its own location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill.
 
 ## Phase B: Fan out
 
-Spawn all N subagents in one `task` call with all items in `tasks[]`, each with the task, the path to the shared grounding, its own output path, and instructions to produce both the artifact and a short rationale.
+Spawn all N subagents in one `task` call with all items in `tasks[]` and the required shared `context`, each with the task, the path to the shared grounding, its own output path, and instructions to produce both the artifact and a short rationale.
 
 Each rationale names the alternatives the candidate considered and what it rejected.
 
@@ -38,7 +38,7 @@ If a candidate fails to produce output, proceed with N-1 and note the dropout in
 
 ## Phase C: Cross-judge
 
-After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `task.agentModelOverrides` in `~/.omp/agent/config.yml`. If the rule or that line is missing, choose from one model per distinct family `omp models` reports. Prefer a different model family from the parent's. Spawn one judge subagent whose brief grants read tools only. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.
+After all Phase B candidates complete, choose an exact discovered judge agent. Start the judge in one `task` call with one item in `tasks[]`, the required shared `context`, and that exact agent name. Its frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; the task item has no `model` field. The brief carries read-only posture, grants only the tools that discovered agent actually has, forbids writes, and has no task `readonly` field. Prefer a different configured model family when the operator's model policy and roster supply one; otherwise keep the exact agent and report weaker model diversity. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.
 
 ## Phase D: Pick a base
 

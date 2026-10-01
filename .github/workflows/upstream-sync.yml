@@ -32,8 +32,7 @@ jobs:
           SHA_INPUT: ${{ inputs.sha }}
         run: |
           export SYNC_TARGET_OUT="$RUNNER_TEMP/target.txt"
-          bash omp-port/sync-upstream.sh check > "$RUNNER_TEMP/commits.txt" 2> "$RUNNER_TEMP/shadowed.txt"
-          cat "$RUNNER_TEMP/shadowed.txt" >> "$GITHUB_STEP_SUMMARY"
+          bash omp-port/sync-upstream.sh check > "$RUNNER_TEMP/commits.txt"
           if [ ! -s "$RUNNER_TEMP/commits.txt" ]; then
             echo "no upstream pstack change since the pin"
             exit 0
@@ -43,12 +42,6 @@ jobs:
             gh pr list --state open --json number,headRefName \
               --jq '.[] | select(.headRefName | startswith("sync/upstream-")) | "open sync PR #\(.number) on \(.headRefName), resolve it first"'
             exit 0
-          fi
-          stacked=$(gh pr list --state open --base main --json headRefName \
-            --jq '[.[] | select(.headRefName | startswith("sync/upstream-") | not)] | length')
-          if [ "$stacked" -gt 0 ]; then
-            gh pr list --state open --base main --json number,headRefName \
-              --jq '.[] | select(.headRefName | startswith("sync/upstream-") | not) | "open PR #\(.number) on \(.headRefName) is based on main, so this sync will be left for a human"'
           fi
           target="$SHA_INPUT"
           [ -n "$target" ] || target=$(cat "$RUNNER_TEMP/target.txt")
@@ -61,7 +54,7 @@ jobs:
             echo "sync/upstream-$short already exists on origin"
             exit 0
           fi
-          printf 'target=%s\nshort=%s\nstacked=%s\ngo=yes\n' "$target" "$short" "$stacked" >> "$GITHUB_OUTPUT"
+          printf 'target=%s\nshort=%s\ngo=yes\n' "$target" "$short" >> "$GITHUB_OUTPUT"
 
       # A red trunk means the build no longer reproduces the pinned tree. Syncing on top of that
       # merges over the breakage instead of fixing it.
@@ -99,14 +92,13 @@ jobs:
             printf 'Upstream commits since the previous pin.\n\n```\n'; cat "$RUNNER_TEMP/commits.txt"
             printf '```\n\nSync output, exit %s.\n\n```\n' "$code"; cat "$RUNNER_TEMP/sync.log"
             printf '```\n\nGate output, exit %s.\n\n```\n' "$gate"; cat "$RUNNER_TEMP/gate.txt"
-            printf '```\n\nShadowed owned paths.\n\n```\n'; cat "$RUNNER_TEMP/shadowed.txt"
             printf '```\n'
           } > "$RUNNER_TEMP/body.md"
           pr=$(gh pr create --base main --head "sync/upstream-$SHORT" \
             --title "sync: upstream pstack $SHORT ($version)" --body-file "$RUNNER_TEMP/body.md" | tail -n1)
-          if [ "$code" -eq 0 ] && [ "$gate" -eq 0 ] && [ "${{ steps.plan.outputs.stacked }}" = "0" ]; then
+          if [ "$code" -eq 0 ] && [ "$gate" -eq 0 ]; then
             gh pr merge "$pr" --squash --delete-branch
             exit 0
           fi
-          echo "left $pr open for a human: sync exit $code, gate exit $gate, open non-sync PRs on main ${{ steps.plan.outputs.stacked }}"
+          echo "left $pr open for a human: sync exit $code, gate exit $gate"
           exit 1

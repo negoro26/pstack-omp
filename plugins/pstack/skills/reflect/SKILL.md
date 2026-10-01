@@ -38,7 +38,7 @@ Resolve exact discovered agent names for the three lenses and the synthesizer. E
 | Tooling | discovered tooling agent | `references/tooling-reviewer.md` |
 | Divergent | discovered divergent agent | `references/divergent-reviewer.md` |
 
-Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `Task` response body.
+Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the spawn result's structured `data`, or in the delivered report when no schema was requested.
 
 ### 3. Synthesize
 

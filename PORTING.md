@@ -67,22 +67,26 @@ Never substitute the `backnotprop/pstack` mirror for upstream.
 These landed in syncs before the current pin and are recorded because each one still constrains what
 the port carries, not as a census of the tree. `omp-port/UPSTREAM` is the only current record.
 
+Everything below `pstack/skills` and `pstack/agents` is outside this port. The build is one
+`git archive` of exactly those two subtrees, so `.cursor-plugin/`, `docs/`, `assets/`, and
+`automations/` are structurally absent rather than carried and edited.
+
 - **Added** `skills/make-bot-ui/` (webhook-driven Grok Bot UI skill). Listed in the README skill
   table and installed as a skill here.
 - **Deleted** `skills/poteto-mode/references/plan.md`. Canonical replaced the prose reference with an
   executable checker, `skills/poteto-mode/scripts/check-plan.mjs`. Both moves are reflected on disk
   in this port.
-- **Added** `assets/logo.png` plus a `"logo": "assets/logo.png"` field in `.cursor-plugin/plugin.json`.
-  The 353 KiB PNG is **not carried**. It is a Cursor marketplace image with no omp consumer, nothing
-  in omp reads it, and no skill or doc links it. The manifest field is kept so `.cursor-plugin/plugin.json`
-  stays byte-identical to canonical and future drift diffs show only real changes. The consequence is
-  one unresolved relative path inside a file nothing on this machine parses.
-- Canonical also moved Shipping and Autopilot-stack off Graphite merge-when-ready to landing one PR at
-  a time "through GitHub by default or Origin when its CLI is available". That wording is ported into
-  `docs/guide/06-verify-and-ship.md`, `docs/guide/07-overnight.md`, and the README playbook table.
+- **Not carried** `assets/logo.png` and its `"logo": "assets/logo.png"` field. They are a Cursor
+  marketplace image with no omp consumer. An earlier tree vendored the manifest beside it so that
+  future drift diffs would show only real changes; that ended when the build narrowed to the two
+  subtrees it archives, so no dangling reference is left to fix here.
+- Canonical also moved Shipping and Autopilot-stack off Graphite merge-when-ready to landing one PR
+  at a time "through GitHub by default or Origin when its CLI is available". That wording reaches
+  this port through the two playbooks themselves, not through `docs/guide/`, which the build does
+  not extract.
 
-`.cursor-plugin/plugin.json` is kept for upstream fidelity only. omp never reads it. Editing the
-manifest changes no runtime behavior on this machine.
+`.cursor-plugin/plugin.json` is not vendored and never was in the current build: it sits outside the
+two subtrees `omp-port/lib.sh` archives, and omp never read it. Nothing in the tree parses it.
 
 ## Install, the two live shapes
 
@@ -147,6 +151,17 @@ unified diffs applied after the rules, which is where a change no substitution c
 and runtime contract. `omp-mechanics` keeps only pstack-specific OMP deltas, and `setup-pstack`
 owns model selection and config writes. Upstream syncs preserve these paths without rewriting them.
 
+`skills/setup-pstack` is port-owned, so the build restores it from `HEAD` and never rebuilds it from
+upstream. Upstream's version writes a Cursor rules file with no omp meaning, so the fork is
+deliberate, but the drift list alone does not mark it: an upstream edit to that skill shows up as an
+ordinary pstack commit with no patch conflict, no gate failure, and no reminder to re-derive it.
+`bash omp-port/sync-upstream.sh check` therefore writes a `shadowed <path>:` line per owned path to
+stderr, counting the upstream commits sitting ahead of the pin on that path. Every one of them is
+unapplied by construction, since the build restores the path from `HEAD`; the count is what tells
+you how much upstream moved underneath you. A non-zero count on `skills/setup-pstack` means re-derive
+the selection procedure by hand before trusting the skill; the two other owned paths have no
+upstream counterpart and always report as port-only.
+
 Known deltas the port mirrors faithfully and will not diverge on. The guide says the verification feature map lives at `references/features` while both trees write `features/`. The guide recommends a daily `/maintain-verification-skill` run while both trees state no cadence.
 
 ## The one thing that needed new code
@@ -169,15 +184,24 @@ The injected reminder is a pointer, not the playbook. It tells the agent to read
   anti-worktree argument about storage cost is about plain `git worktree` copies, and COW clones on
   this btrfs box do not carry it, so Cursor cloud agents are a bigger machine here rather than a
   missing capability.
-- **The control CLI's driving surface.** `browser` (CDP, `tab.observe`/`screenshot`/`evaluate`),
-  `computer` (native desktop plus a11y tree), `hub` (`op:start` with `ready:{log,port}` readiness),
-  `debug` (full DAP, breakpoints, eval, stack). A generated `control-<app>` script only needs
-  app-specific semantics, `doctor`, `new-session`, `seed`/auth, `feature-flag`, `wait-settle`.
+- **The control CLI's driving surface.** `browser` (CDP, `tab.observe`/`screenshot`/`evaluate`) and
+  `computer` (native desktop plus a11y tree) are eval preludes, not tools. Long-running processes
+  are a `bash` call with a unique async `name`, a `ready` block, and `read proc://<id>` for state.
+  Agent Hub is a human-facing TUI, not a programmatic interface, so nothing addresses workers
+  through it. `debug` is full DAP with breakpoints, eval, and stack. A generated `control-<app>`
+  script only needs app-specific semantics, `doctor`, `new-session`, `seed`/auth, `feature-flag`,
+  `wait-settle`.
 - **`swarm` / `arena` / `interrogate`.** One `task` call with a `tasks[]` batch,
   `task.maxConcurrency=100`, `isolated: true` per candidate, `outputSchema` for judged verdicts.
 - **Never-block.** Subagents run `approvalMode: yolo`, and `proofgate`'s `session_stop` veto is the
   enforced backstop.
-- **Sibling coordination.** Same-session `hub` `send`, `wait`, and `inbox` ship in the harness and are the sanctioned primitive when workers must coordinate instead of running independent. Pstack never calls them yet. Cross-session messaging does not exist locally and gets no workaround here. It is tracked upstream and stays open.
+- **Sibling coordination.** `write agent://<id>` steers or follows up with a running, idle, or parked
+  worker, `agent://all` broadcasts to visible live peers, `read history://` lists registered agents
+  with status and parent, and `read proc://` lists background jobs and project services. These are
+  the sanctioned primitives when workers must coordinate instead of running independent. The
+  orchestrator uses its own TSV store and `orch inbox` for the queue instead, so sibling messaging
+  stays unused there. Cross-session messaging does not exist locally and gets no workaround here. It
+  is tracked upstream and stays open.
 
 ## Still missing in omp
 
@@ -188,7 +212,7 @@ patches, or conflicts, because omp already does.
 
 ## Next action
 
-The verification skill is generated, not ported. Run `/create-verification-skill` inside a real repo,
+The verification skill is generated, not ported. Run `skill://create-verification-skill` inside a real repo,
 which writes `<repo>/.omp/skills/verify-<app>/` (SKILL.md plus control script plus a `features/`
 feature map), then `/maintain-verification-skill` on a schedule. Pick a repo with a runnable UI. A
 React or Vite app with a dev server is the easiest first target.

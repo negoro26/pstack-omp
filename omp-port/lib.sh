@@ -141,3 +141,36 @@ untiered_slugs() {
 	rm -rf "$work" "$rules"
 	return "$st"
 }
+
+# Which substitution rules fire against the pinned upstream text. A rule whose left-hand side
+# no longer matches changes nothing and sed still exits 0, so without this the build cannot
+# distinguish a rule that substituted from one upstream has outrun. Each rule's replacement is
+# rewritten to carry its own line number as a marker, so one marked build answers for all of
+# them: a marker with no occurrence in the tree is a rule that matched nothing.
+dead_rules() {
+	local sha="$1" work marked st=0
+	work=$(mktemp -d)
+	marked=$(mktemp)
+	awk '
+		{
+			s = $0
+			if (s !~ /^s./) { print s; next }
+			d = substr(s, 2, 1)
+			rest = substr(s, 3)
+			k = index(rest, d)
+			if (k == 0) { print s; next }
+			body = substr(rest, k + 1)
+			j = index(body, d)
+			if (j == 0) { print s; next }
+			printf "s%s%s%s@%d@%s%s\n", d, substr(rest, 1, k - 1), d, NR, substr(body, 1, j - 1), substr(body, j)
+		}' "$RULES" >"$marked"
+	if extract_upstream "$sha" "$work" && apply_rules "$work" "$marked"; then
+		awk '/^s./ { print NR }' "$RULES" | while read -r n; do
+			grep -rqF "@$n@" "$work" 2>/dev/null || sed -n "${n}p" "$RULES" | cut -c1-100
+		done
+	else
+		st=1
+	fi
+	rm -rf "$work" "$marked"
+	return "$st"
+}

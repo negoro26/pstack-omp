@@ -12,6 +12,8 @@
 #       "<short-sha>\t<date>\t<subject>". Empty stdout and exit 0 mean no drift. The resolved
 #       target head sha is written to stderr as "target <full-sha>", and also to the file named
 #       by SYNC_TARGET_OUT when that variable is set, which is how CI captures it.
+#       stderr also carries one "shadowed <path>: ..." line per path in omp-port/owned.txt, which
+#       the build restores from HEAD and therefore never applies upstream edits to.
 #   bash omp-port/sync-upstream.sh [<target-sha>]
 #       Rebuilds plugins/pstack at <target-sha> and moves the pin to it. <target-sha> must be a
 #       full 40-hex sha that touched pstack/. Default is the newest such commit. Refuses to run
@@ -133,6 +135,35 @@ cmd_rebuild() {
 	do_build "$pin" "$pin" no
 }
 
+# A commit touching an owned path never reaches the tree, because the build restores that path
+# from HEAD after reinstalling upstream. Such a commit does touch pstack/, so it appears in the
+# drift list with nothing marking it as skipped, and a maintainer reads that list as a complete
+# account of what upstream changed. This reports the gap per owned path. stderr, not stdout,
+# because check's stdout is the drift list and an empty one means no drift.
+shadowed_report() {
+	local pin="$1" rel n prog pindate
+	pindate=$(gh api "repos/cursor/plugins/commits/$pin" --jq '.commit.committer.date' 2>/dev/null || true)
+	if [ -z "$pindate" ]; then
+		printf 'shadowed: pin %s unreadable, no count computed\n' "${pin:0:7}" >&2
+		return 0
+	fi
+	prog=$(printf 'length as $n | if $n == 0 then "no-upstream-path" else (map(select(.commit.committer.date > "%s")) | length) end' "$pindate")
+	# owned_paths is the one parser for owned.txt; a comment-format change must not desync
+	# the build's list from this one.
+	owned_paths | while read -r rel; do
+		[ -n "$rel" ] || continue
+		if ! n=$(gh api "repos/cursor/plugins/commits?path=pstack/$rel&sha=main&per_page=100" --jq "$prog" 2>/dev/null </dev/null); then
+			printf 'shadowed %s: unreadable, widen the query\n' "$rel" >&2
+		else
+			case "$n" in
+			no-upstream-path) printf 'shadowed %s: no upstream path, port-only\n' "$rel" >&2 ;;
+			0) printf 'shadowed %s: at the pin\n' "$rel" >&2 ;;
+			*) printf 'shadowed %s: %s upstream commit(s) ahead of the pin, none applied\n' "$rel" "$n" >&2 ;;
+			esac
+		fi
+	done
+}
+
 case "${1:-}" in
 check)
 	pin=$(read_pin)
@@ -140,6 +171,7 @@ check)
 	printf 'target %s\n' "$target" >&2
 	[ -z "${SYNC_TARGET_OUT:-}" ] || printf '%s\n' "$target" >"$SYNC_TARGET_OUT"
 	commits_since "$pin"
+	shadowed_report "$pin"
 	;;
 rebuild) cmd_rebuild ;;
 -h | --help) sed -n '2,25p' "$0" ;;

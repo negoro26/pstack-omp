@@ -11,7 +11,7 @@ description: "Translate poteto-mode roles and lifecycle protocols to the live OM
 
 Inspect the tools and schemas exposed in this session, not a version number or a remembered roster.
 
-- With `task`, use the task contract below. Only pass fields actually exposed. Use `hub` operations only when their live schema exposes them.
+- With `task`, use the task contract below. Only pass fields actually exposed. Read and steer workers through the runtime's own resources, `agent://<id>` and `history://<id>`, and watch background processes through `proc://<id>`. There is no programmatic `hub` tool; the Agent Hub is a human-facing view.
 - Without `task`, when `vibe_spawn`, `vibe_send`, `vibe_wait`, `vibe_list`, and `vibe_kill` are exposed, use the vibe contract below. Do not try to enable task or escape director restrictions.
 - With neither surface, do bounded work directly only when the current mode permits it. If independent review or unavailable execution is required, report the exact missing capability. Never claim a panel ran locally as one session.
 
@@ -45,7 +45,7 @@ Children start blank and do not inherit the parent conversation. Every brief mus
 - **Change:** relevant source pointers, settled contract, constraints, dependencies, base SHA or generation, and decisions already made.
 - **Acceptance:** observable done predicates, required evidence, allowed verification commands or an explicit root-only validation rule, report format, and stop conditions.
 
-Common immutable material belongs in batch context or an accessible artifact. Never substitute a file pointer for the brief's goal or ownership. Tell ordinary children not to start subagents or ask the user directly. A role change requires a fresh context. A coupled correction may reuse the owner. Children report only checks actually executed; the root independently accepts or rejects the result.
+Common immutable material belongs in batch context or an accessible artifact. A large shared payload goes to `local://<name>.md`, which subagents share through the parent's root, and the brief names that path; otherwise inline what the worker needs or point at absolute paths. Never substitute a file pointer for the brief's goal or ownership. Tell ordinary children not to start subagents or ask the user directly. A role change requires a fresh context. A coupled correction may reuse the owner. Children report only checks actually executed; the root independently accepts or rejects the result.
 
 **Yield first.** End every brief with a yield-first line that names the yield tool, its top-level `data` argument for a result and `error` for a failure, and that no text goes outside the call. Thinking models default to answering in prose and skipping it. Measured on one deployment with the same prompt shape: 13 of 20 children without the line, 20 of 20 with it, same model, same width. A child that ends without the call costs three reminder prompts, then a system warning and no structured output. For a role that accumulates findings across a run, name the incremental call and the finalizing call separately.
 
@@ -59,7 +59,7 @@ When `tasks[]` is exposed, start all independent participants in one batch. Give
 
 Give concurrent writers disjoint paths or separate worktrees. If `isolated` is exposed, inspect returned isolation metadata to learn where changes landed. Otherwise arrange explicit worktrees through available execution, or serialize a genuinely shared write. Never switch branches in a shared checkout and call that isolation.
 
-Record returned agent and job identifiers. Results auto-deliver. Read complete output at `agent://<id>` when the runtime exposes it, and otherwise the delivered report; inspect `history://<id>` for incomplete or suspicious reports. `hub` jobs/wait uses job IDs; peer list/send uses agent IDs. Use only the live operation schema. Reuse a session only when the host reports it can be resumed. Cancel superseded jobs by exact ID; do not infer liveness from transcript timestamps.
+Record returned agent and job identifiers. Results auto-deliver. Read complete output at `agent://<id>` when the runtime exposes it, and otherwise the delivered report; inspect `history://<id>` for incomplete or suspicious reports. Follow up with a write to `agent://<id>`, which revives a parked worker, and broadcast to visible live peers with `agent://all`. `read history://` lists registered agents with status and parent; `read proc://` lists background jobs and project services, and reading one does not consume its delivery. Use only the live operation schema. Reuse a session only when the host reports it can be resumed. Cancel superseded jobs by exact ID; do not infer liveness from transcript timestamps.
 
 ## What the live schema gates
 

@@ -187,16 +187,16 @@ s#the `deslop` skill from the `cursor-team-kit` plugin \(`/deslop`\)#the `unslop
 s#Run `/deslop` from `cursor-team-kit` over the diff before commit\.#Run the `unslop` skill (`skill://unslop`) plus `omp cleanse --all` over the diff before commit. A bare `omp cleanse` opens an interactive picker and blocks.#
 s#`/deslop`#the `unslop` skill (`skill://unslop`) plus `omp cleanse --all`#g
 # `control-ui` / `control-cli` -> browser, computer, and named bash processes.
-s#`control-ui` or `control-cli` runtime verification \(from `cursor-team-kit`\)#`browser` or `computer` for UIs, or bash with a unique async `name`, `ready` checks, and `proc://` state for CLIs and TUIs#
-s#\(`control-cli` or `control-ui` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique async `name`, `ready` checks, and `proc://` state for CLIs and TUIs, as the change demands)#
-s#\(`control-ui` or `control-cli` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique async `name`, `ready` checks, and `proc://` state for CLIs and TUIs, as the change demands)#
-s#Drive through `control-ui` or `control-cli` from `cursor-team-kit`\.#Drive through `browser` or `computer` for UIs, and bash with a unique async `name`, `ready` checks, and `proc://` state for CLIs and TUIs.#
-s#Browser, Electron, and web UIs use `control-ui` from `cursor-team-kit`\. CLIs and TUIs use `control-cli` from `cursor-team-kit`\.#Browser, Electron, and web UIs use the `browser` eval prelude, and native desktop UIs use `computer`. Both are code in an `eval` cell and not tools. CLIs and TUIs use bash with a unique async `name`, `ready` checks, and `proc://` state.#
-s#`cursor-team-kit` publishes `control-cli` \(CLIs and TUIs\) and `control-ui` \(browser / Electron / web UIs\)\.#omp provides the levers directly. Bash with a unique async `name`, `ready` checks, and `proc://` state drives CLIs and TUIs, the `browser` eval prelude drives browser, Electron, and web UIs over CDP, and the `computer` prelude drives native desktop. Both preludes are code in an `eval` cell and neither is a tool with its own schema.#
+s#`control-ui` or `control-cli` runtime verification \(from `cursor-team-kit`\)#`browser` or `computer` for UIs, or bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs#
+s#\(`control-cli` or `control-ui` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs, as the change demands)#
+s#\(`control-ui` or `control-cli` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs, as the change demands)#
+s#Drive through `control-ui` or `control-cli` from `cursor-team-kit`\.#Drive through `browser` or `computer` for UIs, and bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs.#
+s#Browser, Electron, and web UIs use `control-ui` from `cursor-team-kit`\. CLIs and TUIs use `control-cli` from `cursor-team-kit`\.#Browser, Electron, and web UIs use the `browser` eval prelude, and native desktop UIs use `computer`. Both are code in an `eval` cell and not tools. CLIs and TUIs use bash with a unique `name`, a `ready` check, and `proc://` state.#
+s#`cursor-team-kit` publishes `control-cli` \(CLIs and TUIs\) and `control-ui` \(browser / Electron / web UIs\)\.#omp provides the levers directly. Bash with a unique `name`, `ready` checks, and `proc://` state drives CLIs and TUIs, the `browser` eval prelude drives browser, Electron, and web UIs over CDP, and the `computer` prelude drives native desktop. Both preludes are code in an `eval` cell and neither is a tool with its own schema.#
 s#\*\*Control skill\.\*\* Pick it by surface\.#**Control surface.** Pick it by surface.#
 s#through the control skill's commands#through the control surface's own calls#
 s#`control-ui`#the `browser` eval prelude#g
-s#`control-cli`#bash with a unique async `name`, `ready` checks, and `proc://` state#g
+s#`control-cli`#bash with a unique `name`, a `ready` check, and `proc://` state#g
 s#`cursor-team-kit`#omp's built-in tools#g
 s#cursor-team-kit#omp's built-in tools#g
 
@@ -263,3 +263,31 @@ s#([^/])pstack/skills/#\1~/.omp/plugins/node_modules/pstack/skills/#g
 s#@cursor-skill/#@omp-skill/#g
 # Cursor auto-attaches a skill on a file-glob match; omp carries `globs` as metadata only.
 s#^paths: \[#globs: [#
+# Subagent prompt templates are the one place a wrong tool name is fatal rather than cosmetic:
+# the lens greps the transcript for the tools that were called and finds none, so it returns
+# nothing. Each pattern carries enough surrounding context to match the instruction and not the
+# English verb of the same word.
+s#- `Read` tool calls against any#- `read` calls against any#
+s#- `Task` prompts that name a skill path#- `task` calls whose brief names a skill path#
+s#Tool calls \(Shell, Grep, MCP, etc\.\)#Tool calls (`bash`, `grep`, MCP, etc.)#
+s#Reviewers return findings in the `Task` response body\.#Reviewers return findings in the spawn result's structured `data`, or in the delivered report when no schema was requested.#
+s#Use Glob to find directories and files, Grep to find key symbols, Read to understand#Use `glob` to find directories and files, `grep` to find key symbols, `read` to understand#
+s#Use Read, Grep, and Glob as needed\.#Use `read`, `grep`, and `glob` as needed.#
+s#Subagents inherit it\. Multiple `Task` calls on the same branch each get their own worktree#A worker shares the parent's checkout unless its spawn sets `isolated: true` where the live schema exposes it, so give every concurrent writer its own worktree explicitly#
+# omp registers one slash command per skill as /skill:<name>; a bare /how is not a command on
+# this harness. /poteto-mode is excluded because the port's own extension registers that one.
+s#`/no-comments`#`/skill:no-comments`#g
+s#`/unslop`#`/skill:unslop`#g
+s#`/create-verification-skill`#`/skill:create-verification-skill`#g
+s#`/maintain-verification-skill`#`/skill:maintain-verification-skill`#g
+s#`/architect`#`/skill:architect`#g
+s#`/why`#`/skill:why`#g
+s#`/how`#`/skill:how`#g
+s#/create-verification-skill#/skill:create-verification-skill#g
+s#/maintain-verification-skill#/skill:maintain-verification-skill#g
+s#`/technical-writing`#`skill://technical-writing`#g
+# One verdict vocabulary. pstack-omp and swarm both name PASS/ISSUES/BLOCKED; shipping named a
+# different three, and its landing rule tested for a different set, so a verifier told by one file
+# and checked by another could not satisfy both.
+s#Each returns `PASS`, `PASS\+NOTES` or `FAIL` and posts that verdict on its own PR\.#Each returns `PASS`, `ISSUES` or `BLOCKED`, the three verdicts `skill://pstack-omp` and **swarm** use, and posts that verdict on its own PR. Notes ride on a `PASS` rather than forming a fourth verdict, so a passing run with observations is still a pass.#
+s#stop at the first one without a passing verdict, where both `PASS` and `PASS\+NOTES` pass\.#stop at the first one whose verdict is not `PASS`.#

@@ -115,13 +115,43 @@ runtime_contract() {
 		fi
 	done
 
-	retired='swarm workers|architect runners|arena runners|arena cross-judge pool|interrogate reviewers|reflect judgment, divergent, synthesizer|reflect tooling|why investigators|why synthesizer|how explorer|how explainer|feature, refactoring|<swarm workers model>|your configured [a-z-]+ model|default your fast code model|`hub` process ops|`hub` process op|Blocking on `drive`|`drive` inside a phase agent|`hub` `op: "(list|jobs|send|wait)"'
+	retired='swarm workers|architect runners|arena runners|arena cross-judge pool|interrogate reviewers|reflect judgment, divergent, synthesizer|reflect tooling|why investigators|why synthesizer|how explorer|how explainer|feature, refactoring|<swarm workers model>|your configured [a-z-]+ model|default your fast code model|`hub` process ops|`hub` process op|Blocking on `drive`|`drive` inside a phase agent|`hub` +`op:|"hub"'
 	bad=$(grep -rInE "$retired" --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null || true)
 	if [ -n "$bad" ]; then
 		report "retired runtime labels" "FAIL"
 		while read -r line; do violate "$line"; done <<<"$bad"
 	else
 		report "retired runtime labels" "PASS  no abstract role labels, placeholders, or stale process wording"
+	fi
+
+	# Agent Hub is the Alt+A TUI, not a programmatic tool. Any backticked `hub` or a hub op
+	# vocabulary in the tree references an API that does not exist. A line stating the absence
+	# is the correction, not the defect, so it is exempt the way the readonly check exempts it.
+	hub=$(grep -rInE '`hub`|"hub"|hub `op' --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null |
+		awk '{
+			s = tolower($0)
+			if (s !~ /(no|not|never|without|rather than)[^.;]{0,60}hub/) { print; next }
+			clause = s
+			sub(/[.;].*$/, "", clause)
+			if (clause ~ /(use|fall back|fallback|try|instead|or)\b[^`]{0,40}hub/) print
+		}' || true)
+	if [ -n "$hub" ]; then
+		report "agent hub api" "FAIL"
+		while read -r line; do violate "$line"; done <<<"$hub"
+	else
+		report "agent hub api" "PASS  workers are addressed through agent://, history://, and proc://"
+	fi
+
+	# One install root. A path under any other agent store resolves to nothing on this machine,
+	# and the playbook that names it cannot run its own binary.
+	install=$(grep -rInE '~/\.(agents|claude|cursor)/' --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' --include='*.js' \
+		"${SCOPE[@]}" "${CHECK_PORT_DOCS_ROOT:-$REPO_ROOT}"/PORTING.md "${CHECK_PORT_DOCS_ROOT:-$REPO_ROOT}"/README.md README.md extensions 2>/dev/null |
+		grep -vE 'claude-plugins|~/.claude/plugins' || true)
+	if [ -n "$install" ]; then
+		report "install root" "FAIL"
+		while read -r line; do violate "$line"; done <<<"$install"
+	else
+		report "install root" "PASS  every install path resolves under ~/.omp"
 	fi
 	bad=""
 	for f in skills/poteto-mode/playbooks/autopilot-full.md skills/poteto-mode/playbooks/autopilot-stack.md; do
@@ -148,6 +178,27 @@ runtime_contract() {
 		while read -r line; do violate "$line"; done <<<"$bad"
 	else
 		report "runtime batch context" "PASS  arena, swarm, reflect, and interrogate name context"
+	fi
+
+	bad=$(grep -rInE '`(Read|Grep|Glob|Shell|Task)` (tool calls|prompts|response body)|Tool calls \(Shell,|Use Glob to find|Use Read, Grep|Subagents inherit it' --include='*.md' "${SCOPE[@]}" 2>/dev/null || true)
+	if [ -n "$bad" ]; then
+		report "cursor tool names" "FAIL"
+		while read -r line; do violate "$line"; done <<<"$bad"
+	else
+		report "cursor tool names" "PASS  no prompt template names a Cursor tool"
+	fi
+
+	# Derived from the tree, not from a list: a hand-kept list of names is a list that forgets.
+	bare=""
+	while read -r n; do
+		hits=$(grep -rInF "\`/$n\`" --include='*.md' "${SCOPE[@]}" 2>/dev/null || true)
+		[ -n "$hits" ] && bare="$bare$hits"$'\n'
+	done < <(find skills -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+	if [ -n "$bare" ]; then
+		report "skill command form" "FAIL"
+		while read -r line; do [ -n "$line" ] && violate "$line"; done <<<"$bare"
+	else
+		report "skill command form" "PASS  every skill command uses the registered /skill:<name> form"
 	fi
 
 	bad=""
@@ -436,6 +487,18 @@ if [ "$canon_ok" = yes ]; then
 	fi
 else
 	report "untiered slugs" "SKIP  needs the clone at $CANON"
+fi
+
+if [ "$canon_ok" = yes ]; then
+	dead=$(dead_rules "$pin" | sed 's/^/  rules.sed:/')
+	if [ -n "$dead" ]; then
+		report "rule liveness" "REPORT  $(printf '%s\n' "$dead" | wc -l) rule(s) matched nothing at the pin"
+		printf '%s\n' "$dead"
+	else
+		report "rule liveness" "PASS  every substitution rule matched at the pin"
+	fi
+else
+	report "rule liveness" "SKIP  needs the clone at $CANON"
 fi
 rm -rf "$scratch" "$buildlog"
 

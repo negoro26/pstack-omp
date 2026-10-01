@@ -286,3 +286,8 @@ s#`/how`#`/skill:how`#g
 s#/create-verification-skill#/skill:create-verification-skill#g
 s#/maintain-verification-skill#/skill:maintain-verification-skill#g
 s#`/technical-writing`#`skill://technical-writing`#g
+# One verdict vocabulary. pstack-omp and swarm both name PASS/ISSUES/BLOCKED; shipping named a
+# different three, and its landing rule tested for a different set, so a verifier told by one file
+# and checked by another could not satisfy both.
+s#Each returns `PASS`, `PASS\+NOTES` or `FAIL` and posts that verdict on its own PR\.#Each returns `PASS`, `ISSUES` or `BLOCKED`, the three verdicts `skill://pstack-omp` and **swarm** use, and posts that verdict on its own PR. Notes ride on a `PASS` rather than forming a fourth verdict, so a passing run with observations is still a pass.#
+s#stop at the first one without a passing verdict, where both `PASS` and `PASS\+NOTES` pass\.#stop at the first one whose verdict is not `PASS`.#

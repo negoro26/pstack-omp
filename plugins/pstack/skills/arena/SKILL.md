@@ -40,11 +40,19 @@ If a candidate fails to produce output, proceed with N-1 and note the dropout in
 
 After all Phase B candidates complete, choose an exact discovered judge agent. Start the judge in one `task` call with one item in `tasks[]`, the required shared `context`, and that exact agent name. Its frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; the task item has no `model` field. The brief carries read-only posture, grants only the tools that discovered agent actually has, forbids writes, and has no task `readonly` field. Prefer a different configured model family when the operator's model policy and roster supply one; otherwise keep the exact agent and report weaker model diversity. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.
 
+Pass this explicit `outputSchema` so the scores arrive typed instead of scraped from prose. It takes precedence over the agent's own frontmatter output and over the inherited session schema, and the result carries the validation status and any validation error. Shape it around the criteria Phase A actually produced rather than fixed field names, because the rubric is derived at runtime. When the live task schema does not expose `outputSchema`, ask for the same shape in the brief and keep reading the free-text report.
+
+```json
+{"type":"object","required":["scores","recommendedBase","rationale"],"properties":{"scores":{"type":"array","items":{"type":"object","required":["label","criterion","score","evidence"],"properties":{"label":{"type":"string"},"criterion":{"type":"string"},"score":{"type":"number"},"evidence":{"type":"string"}}}},"recommendedBase":{"type":"string"},"rationale":{"type":"string"}}}
+```
+
+Take the verdict from the spawn's own structured result, whose parsed `data` you index into, rather than parsing the report yourself. The full artifact is at `agent://<judge-id>`, and a slash path on it is JSON extraction whose exact grammar varies, so prefer the structured result and read the artifact only when you need the prose. A validation error on the result means the judge's own output was malformed, which is a fact about the judge worth recording next to the verdict.
+
 ## Phase D: Pick a base
 
 Read every candidate end to end before picking.
 
-Score each candidate against the rubric criterion by criterion, not on holistic feel. Compare against the cross-judge. Agreement on the base confirms the pick. Disagreement means one of you is biased or the rubric was ambiguous. Read both rationales before deciding.
+Score each candidate against the rubric criterion by criterion, not on holistic feel. Compare against the cross-judge's typed scores rather than re-deriving them from its prose. Agreement on the base confirms the pick. Disagreement means one of you is biased or the rubric was ambiguous. Read both rationales before deciding.
 
 Pick the base on which candidate a future maintainer can extend most easily without breaking invariants. Prefer the cleaner boundary or smaller API when two feel tied, per the Laziness Protocol.
 

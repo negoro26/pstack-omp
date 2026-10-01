@@ -2,6 +2,8 @@
 
 Use this reference when the Babysit playbook (`skill://poteto-mode/playbooks/babysit.md`) handles Bugbot or review-automation comments. The goal is not to ignore Bugbot by default. The goal is to stop treating every comment as a required code change.
 
+The rubric is about the comment, not the bot that wrote it, so it applies unchanged to any review automation on the PR. On this runtime the security lane is usually native rather than hosted: resolve an exact discovered `security-reviewer` agent for a read-only security pass, and run the repo's own scan device when one is exposed. Treat a native reviewer's finding exactly as you treat a hosted bot's — triage it on the rubric, not on the author. A scan is evidence about a class of defect, never a verdict on the PR.
+
 ## Decision rubric
 
 Classify each Bugbot thread before acting:

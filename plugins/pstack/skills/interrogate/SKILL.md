@@ -44,6 +44,7 @@ Launch all reviewers in one `task` call with the required shared `context` and a
 For each reviewer:
 - `agent`: an exact discovered reviewer agent name. Its frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; the task item has no `model` field
 - read-only posture. The brief grants only the tools the discovered agent actually has and forbids writes
+- an explicit `outputSchema` when the live task schema exposes one, so findings arrive as records instead of prose. One shared schema goes on every reviewer item, so consensus scoring in Step 4 reads a field rather than a paragraph
 
 If the requested exact reviewer is absent, use another discovered reviewer with the same brief and report the missing model diversity. A model override cannot create an agent.
 
@@ -55,12 +56,18 @@ Read `references/reviewer-prompt.md` and fill in the template with:
 
 The same filled template goes to all reviewers, so every model applies the code-quality lens.
 
+```json
+{"type":"object","required":["findings"],"properties":{"findings":{"type":"array","items":{"type":"object","required":["description","severity","file"],"properties":{"description":{"type":"string"},"severity":{"type":"string"},"file":{"type":"string"},"line":{"type":"string"},"why_it_matters":{"type":"string"}}}}}}
+```
+
+Take the records from each spawn's structured result, whose parsed `data` you index into, rather than parsing the report. The full artifact is at `agent://<reviewer-id>`; a slash path on it is JSON extraction whose exact grammar varies, so prefer the structured result and read the artifact when you need the prose. A validation error on a result is a fact about that reviewer, and a reviewer whose findings never validate has not reported.
+
 ## Step 4, Synthesize
 
 As results come back, build a unified picture:
 
-1. **Parse all findings** from the reviewers
-2. **Identify consensus**. Findings raised by 2+ models independently are highest signal.
+1. **Parse all findings** from the reviewers, from the typed records where they exist and the report text where they do not
+2. **Identify consensus**. Findings raised by 2+ models independently are highest signal, and the shared `outputSchema` makes that a field comparison rather than a reading exercise.
 3. **Identify lone-model findings**. Still worth reading, but weight accordingly.
 4. **Deduplicate**. Different models may describe the same issue differently. Merge these and note which models raised it.
 5. **Note disagreements**. If one model flags something and another explicitly says the opposite, that's useful context for the verdict.

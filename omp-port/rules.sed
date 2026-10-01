@@ -145,8 +145,8 @@ s#When a worker must start from a non-default pushed branch, pass `cloud_base_br
 s#One Cursor cloud agent#One isolated subagent (`isolated: true`)#g
 s#each a Cursor cloud agent#an isolated subagent (`isolated: true`)#g
 s#Cloud agents cannot read the local store, so their briefs inline what they need or point at repo paths\.#An isolated worker runs on this machine in its own worktree with no conversation history, so its brief inlines what it needs or points at absolute paths.#
-# Cursor's cloud dashboard -> `hub`, omp's live agent and job roster.
-s#the cloud agent's status in the Cursor dashboard#agent state from `hub` `op: "list"` and `hub` `op: "jobs"`#
+# Cursor's cloud dashboard -> the live omp agent roster read through history://.
+s#the cloud agent's status in the Cursor dashboard#agent state from `read history://` and `read proc://`#
 # Cursor's cloud PR tooling defaults to draft; omp's github tool defaults to ready.
 s#Cloud-agent PR tools default to draft, so set `draft: false` on every PR creation call\.#omp's `github` tool opens a ready PR from `op: "pr_create"` unless you pass `draft: true`, so leave that flag off.#
 s#Each live lane runs on its own cloud VM at the PR head\.#Each live lane runs in its own subagent at the PR head, asking for a private worktree with `isolated: true`.#
@@ -158,7 +158,7 @@ s#cloud-agent URL#prior agent's `history://<id>` or `agent://<id>`#g
 s#cloud spawns#isolated spawns#g
 s#its spawn budget with the cloud default and the local exception list#its spawn budget with the isolated default and the shared-checkout exception list#
 s#Restacks run in cloud\. A local restack at this scale takes the laptop down\.#Restacks run in an isolated subagent with its own worktree, never in the parent checkout.#
-s#After a Cursor restart: local agents are dead, cloud work is not\.#An omp restart stops every agent. Resuming the session rebuilds its subagents as parked rows that `hub` `op: "send"` revives, except isolated ones, which leave only a `history://<id>` transcript.#
+s#After a Cursor restart: local agents are dead, cloud work is not\.#An omp restart stops every agent. Resuming the session rebuilds its subagents as parked rows that `write agent://<id>` revives, except isolated ones, which leave only a `history://<id>` transcript.#
 s#reattach cloud work by PR and branch rather than agent id#reattach pushed work by PR and branch rather than agent id#
 s#a Cursor restart#an omp restart#g
 s#cloud agent#isolated subagent#g
@@ -235,13 +235,13 @@ s#, or plugin-installed paths under `~/\.cursor/plugins/`#, or plugin-installed 
 # Cursor's worktree path convention -> whatever path the local tool manages.
 s#misses one that lives at `\.cursor/worktrees/myrepo/x`#misses one that lives at a tool-managed path like `.worktrees/myrepo/x`#
 # Cursor's pinned-chat sidebar -> omp's live roster plus the session store.
-s#The pinned and active chats are the real artifact \(principle-prove-it-works\)\. Get that set from the user or sidebar and cross-check every candidate\. The lever has marked `safe` a worktree the user had pinned, so the pinned set wins\.#The live omp sessions are the real artifact (principle-prove-it-works). Get that set from `hub` `op: "list"` plus the session store at `~/.omp/agent/sessions/<encoded-cwd>/`, confirm it with the user, and cross-check every candidate. The lever has marked `safe` a worktree a live session still owned, so the live set wins.#
+s#The pinned and active chats are the real artifact \(principle-prove-it-works\)\. Get that set from the user or sidebar and cross-check every candidate\. The lever has marked `safe` a worktree the user had pinned, so the pinned set wins\.#The live omp sessions are the real artifact (principle-prove-it-works). Get that set from `read history://` plus the session store at `~/.omp/agent/sessions/<encoded-cwd>/`, confirm it with the user, and cross-check every candidate. The lever has marked `safe` a worktree a live session still owned, so the live set wins.#
 s#report whether the chat is pinned or ongoing and which worktrees it touches#report whether the session is still live and which worktrees it touches#
-s#A pinned chat spawns arena and repro trees into sibling worktrees via background subagents, and those are in use even when their names never hit the sidebar\.#A live session spawns arena and repro trees into sibling worktrees via background subagents, and those are in use even when `hub` `op: "list"` never names them.#
+s#A pinned chat spawns arena and repro trees into sibling worktrees via background subagents, and those are in use even when their names never hit the sidebar\.#A live session spawns arena and repro trees into sibling worktrees via background subagents, and those are in use even when `read history://` never names them.#
 # Cursor exposes enabled MCP servers as a directory; omp lists them in one config file.
 s#Before spawning investigators, list the available MCPs from the Cursor environment\. Use the available-tools map when present\. Otherwise inspect the `mcps/` directory Cursor exposes for enabled MCP servers\.#Before spawning investigators, list the available MCPs from the session environment. Use the available-tools map when present. Otherwise read `~/.omp/agent/mcp.json` for enabled MCP servers.#
 # Cursor resumes an idle agent to reach it; omp messages it and leaves it running.
-s#Agents are spawned, resumed, and drained only through the Task tool\.#Agents are spawned and drained only through the Task tool, and resumed only through `hub` messaging.#
+s#Agents are spawned, resumed, and drained only through the Task tool\.#Agents are spawned and drained only through the Task tool, and resumed only through `write agent://<id>` messaging.#
 # Bugbot is a Cursor product, so the rubric names what plays its part on omp.
 s#^Use this reference when the Babysit playbook \(`\.\./playbooks/babysit\.md`\) handles Bugbot or review-automation comments\.#Use this reference when the Babysit playbook (`../playbooks/babysit.md`) handles Bugbot or review-automation comments. Bugbot is Cursor's hosted review product, so without it this rubric applies to whatever review bot posts on your PRs, including omp's own `security-reviewer`.#
 # Net for any Cursor home path a later upstream commit introduces.

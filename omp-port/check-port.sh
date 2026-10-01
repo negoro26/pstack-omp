@@ -153,6 +153,73 @@ runtime_contract() {
 	else
 		report "install root" "PASS  every install path resolves under ~/.omp"
 	fi
+
+	# Harness capabilities the port names but does not wire. Each of these was described in the
+	# adapter and unreachable from the playbook that needs it, which is the failure this block
+	# exists to make impossible: prose that documents a capability nothing routes to.
+	bad=""
+	adopt() {
+		local f=$1 needle=$2 what=$3
+		grep -qF "$needle" "$f" || bad="$bad$f lacks $what"$'\n'
+	}
+	adopt skills/arena/SKILL.md 'Pass this explicit `outputSchema`' 'a typed cross-judge result'
+	adopt skills/arena/SKILL.md 'parsed `data` you index into' 'a typed read of the judge verdict'
+	adopt skills/interrogate/SKILL.md 'an explicit `outputSchema` when the live task schema exposes one' 'a typed reviewer finding'
+	adopt skills/interrogate/SKILL.md 'parsed `data` you index into' 'a typed read of reviewer findings'
+	adopt skills/reflect/SKILL.md '"required":["Accepted","Rejected","Backlog"]' 'the synthesizer output schema'
+	adopt skills/poteto-mode/playbooks/shipping.md 'pr://<n>/diff/all' 'the github device read surface'
+	adopt skills/poteto-mode/playbooks/shipping.md 'github.enabled' 'the github tool availability gate'
+	# The device adoption is only real where the playbooks that read PRs actually use it.
+	# Shipping alone left the claim half-true, because babysit is the playbook that reads
+	# review threads most.
+	adopt skills/poteto-mode/playbooks/babysit.md 'pr://<n>' 'the github device read surface'
+	adopt skills/poteto-mode/playbooks/babysit.md 'Keep every *write* on the resolved forge' 'a single writer per mutation'
+	# A pr:// selector no doc names is the same class of error as the hub fiction this gate
+	# already bans, so pin the documented forms and refuse the invented cross-repo one.
+	if grep -rqE 'pr://<[a-z-]+>/<[a-z-]+>/<n>' "${SCOPE[@]}" 2>/dev/null; then
+		bad="$bad"'an undocumented pr://<owner>/<repo>/<n> selector'$'\n'
+	fi
+	adopt skills/poteto-mode/playbooks/autopilot-stack.md 'proc://<name>/kill' 'the named proc watcher lifecycle'
+	adopt skills/poteto-mode/playbooks/orchestrate.md 'A refilling window is what a work pool is for' 'a pool for the refilling window'
+	adopt skills/poteto-mode/playbooks/orchestrate.md 'open a todo list with one entry per phase' 'root plan tracking'
+	adopt skills/poteto-mode/references/bugbot-triage.md 'exact discovered `security-reviewer`' 'the native security lane'
+	adopt skills/poteto-mode/playbooks/pause-safely.md 'collapses *conversation* context' 'checkpoint scoped to what it does'
+	# The device summary calls checkpoint git-based and filesystem-saving. It is neither, and a
+	# playbook that repeats that claim sends a cold-start handoff through the wrong primitive.
+	if grep -qiE 'git-based checkpoint|checkpoint (snapshots|saves) (the |your )?(working tree|filesystem|files|repo|repository)' skills/poteto-mode/playbooks/pause-safely.md; then
+		bad="$bad"'skills/poteto-mode/playbooks/pause-safely.md claims checkpoint snapshots the filesystem'$'\n'
+	fi
+	if [ -n "$bad" ]; then
+		report "capability wiring" "FAIL"
+		while read -r line; do [ -n "$line" ] && violate "$line"; done <<<"$bad"
+	else
+		report "capability wiring" "PASS  typed verdicts, github reads, named proc, pool, root plan, native security lane"
+	fi
+	# A capability claim sourced from outside this repository needs its provenance on the same line,
+	# or a maintainer reads a local install as a guarantee the plugin ships. PORTING.md and the
+	# shipped README are the two places that claim; PORTING.md sits at the repo root, outside SCOPE.
+	# PORTING.md lives outside the plugin root, so no fixture can cover it and the mutation
+	# harness proves only the README half below. $PWD is the plugin root, which the harness
+	# points at the fixture.
+	porting="$PORT_DIR/../PORTING.md"
+	readme="README.md"
+	unbacked=$(grep -nE 'veto is the +enforced backstop' "$porting" 2>/dev/null || true)
+	[ -z "$unbacked" ] ||
+		unbacked="$unbacked"$'\n'
+	grep -q 'neither ships nor requires' "$porting" 2>/dev/null || unbacked="$unbacked"$'PORTING.md must name the external veto extension as unshipped'$'\n'
+	grep -q 'ships no `session_stop` veto' "$readme" 2>/dev/null || unbacked="$unbacked"$'plugins/pstack/README.md must disclose that no session_stop veto ships'$'\n'
+	# The external veto is inert unless its own env var is set, so naming it without that
+	# precondition is the same inaccuracy one level down.
+	grep -q 'OMP_PROOF_FILE' "$porting" 2>/dev/null || unbacked="$unbacked"$'PORTING.md must record that the external veto is dormant unless $OMP_PROOF_FILE is set'$'\n'
+	if grep -q 'session_stop' skills/poteto-mode/SKILL.md 2>/dev/null; then
+		unbacked="$unbacked"$'poteto-mode must not claim a session_stop veto it does not ship'$'\n'
+	fi
+	if [ -n "$unbacked" ]; then
+		report "external capability provenance" "FAIL"
+		while read -r c; do [ -n "$c" ] && violate "$c"; done <<<"$unbacked"
+	else
+		report "external capability provenance" "PASS  the external veto is named and marked unshipped"
+	fi
 	bad=""
 	for f in skills/poteto-mode/playbooks/autopilot-full.md skills/poteto-mode/playbooks/autopilot-stack.md; do
 		grep -qF 'exact discovered owner agent' "$f" && grep -qF 'default worker with the owner role' "$f" || bad="$bad$f lacks exact owner fallback"$'\n'
@@ -374,6 +441,7 @@ if [ -n "$unclaimed" ]; then
 else
 	report "guide claims" "PASS  verification skill, Feature Map, swarm, pin"
 fi
+
 
 bad=""
 for d in skills/*/; do

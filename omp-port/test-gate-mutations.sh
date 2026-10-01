@@ -142,6 +142,29 @@ expect_failure 'install root in the port docs' 'install root' mutate_install_roo
 expect_failure 'cursor tool name' 'cursor tool names' mutate_cursor_tool_name
 expect_failure 'bare skill command' 'skill command form' mutate_bare_skill_command
 
+mutate_typed_verdict() {
+	sed -i '/^Pass this explicit `outputSchema` so the scores arrive typed/d' "$FIXTURE/skills/arena/SKILL.md"
+}
+
+mutate_checkpoint_claim() {
+	printf '\nCheckpoint snapshots the working tree and filesystem before pausing.\n' >>"$FIXTURE/skills/poteto-mode/playbooks/pause-safely.md"
+}
+
+expect_failure 'typed verdict' 'capability wiring' mutate_typed_verdict
+expect_failure 'checkpoint filesystem claim' 'capability wiring' mutate_checkpoint_claim
+
+mutate_veto_provenance() {
+	sed -i 's/ships no `session_stop` veto/ships a session_stop veto/' "$FIXTURE/README.md"
+}
+
+expect_failure 'external veto provenance' 'external capability provenance' mutate_veto_provenance
+
+mutate_babysit_device() {
+	sed -i '/^   Reading a thread is a separate surface/d' "$FIXTURE/skills/poteto-mode/playbooks/babysit.md"
+}
+
+expect_failure 'babysit device read surface' 'capability wiring' mutate_babysit_device
+
 if [ "$fail" -ne 0 ]; then
 	printf 'mutation tests: FAIL\n'
 	exit 1

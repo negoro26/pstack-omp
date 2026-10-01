@@ -15,7 +15,10 @@
 
 const ENTRY = "poteto-mode";
 
-// Mirrors the `reminder:` field in pstack's skills/poteto-mode/SKILL.md frontmatter.
+// Longer than the `reminder:` field this mirrors (113 chars upstream). Upstream's one-liner only
+// says "apply /poteto-mode"; the extra length buys two things the terse field cannot carry, the
+// playbook-table match and the verbatim-todo rule, which are what make the pin actionable rather
+// than advisory. It is per-turn cost, so it is paid deliberately.
 const REMINDER =
   "poteto-mode is PINNED for this session.\n" +
   "Before acting on a new task: read `skill://poteto-mode` in full (including its Principles index), " +

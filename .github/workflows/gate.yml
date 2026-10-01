@@ -2,6 +2,7 @@ name: gate
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -14,7 +15,7 @@ jobs:
         with:
           bun-version: 1.4.2
       - name: Shell syntax
-        run: bash -n omp-port/check-port.sh omp-port/test-gate-mutations.sh
+        run: bash -n omp-port/lib.sh omp-port/check-port.sh omp-port/sync-upstream.sh omp-port/test-gate-mutations.sh
       - name: Port gate
         run: bash omp-port/check-port.sh
       - name: Install script test dependencies

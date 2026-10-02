@@ -2,6 +2,11 @@ name: gate
 
 on:
   pull_request:
+    # `edited` is load-bearing for a stacked port: merging by retargeting each PR's base to main
+    # fires that activity type, and with the default set the one change that invalidates a gate run
+    # is the change that leaves the gate unrun, so the pre-retarget green reads as evidence for the
+    # post-retarget state. Folded in from the CI-guards change so both land in one file hunk.
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -14,7 +19,15 @@ jobs:
         with:
           bun-version: 1.4.2
       - name: Shell syntax
-        run: bash -n omp-port/check-port.sh omp-port/test-gate-mutations.sh
+        # One bash -n per file, in a loop. `bash -n a.sh b.sh` parses a.sh and passes b.sh through as
+        # a positional parameter, so the single-command form checks exactly one file and reports
+        # success for the rest, which is worse than no step: it looks like four scripts are covered.
+        run: |
+          for f in omp-port/*.sh; do
+            echo "::group::$f"
+            bash -n "$f"
+            echo "::endgroup::"
+          done
       - name: Port gate
         run: bash omp-port/check-port.sh
       - name: Install script test dependencies
@@ -28,4 +41,4 @@ jobs:
         run: bun run typecheck
       - name: Extension tests
         working-directory: plugins/pstack
-        run: bun test ./extensions/potetomode/index.test.js
+        run: bun test ./extensions/potetomode/index.test.js ./extensions/pstackpolicy/index.test.js

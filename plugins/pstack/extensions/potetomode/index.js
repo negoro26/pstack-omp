@@ -3,8 +3,10 @@
 // Cursor pins a skill via `mode: true` + `reminder:` in SKILL.md frontmatter, so the agent gets
 // re-reminded on every new turn. omp does not model either key (grep of src/capability/skill.ts and
 // src/extensibility/skills.ts: no hits), so the pin is the ONE mechanically missing piece of pstack
-// on omp. Everything else in pstack is portable prose, installed by symlink into
-// ~/.omp/agent/skills/ (verified: skill://<name> resolves with no --plugin-dir).
+// on omp. Everything else in pstack is portable prose, loaded from the plugin root at
+// ~/.omp/plugins/node_modules/pstack/ (verified: skill://<name> resolves with no --plugin-dir).
+// This install creates agent symlinks, not skill ones, so do not go looking in
+// ~/.omp/agent/skills/ for a copy of the tree.
 //
 // Pattern copied from the working reference ~/.omp/agent/extensions/ponytail/index.js:
 //   pi.appendEntry(...)                persist across turns without spending context

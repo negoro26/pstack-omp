@@ -1,0 +1,50 @@
+# Rules in omp-port/rules.sed that match no upstream text at the pin, kept on purpose, one per
+# line as `left-hand-fragment<TAB>reason`. The fragment is matched as a literal substring of the
+# rule's own line, never as a line number, because a line number moves the moment anyone edits a
+# rule above it and an exemption that silently stops applying turns the gate red for a reason
+# nobody can reconstruct.
+#
+# Every entry here has been checked against upstream at the pin named in omp-port/UPSTREAM, and the
+# reason says which of the three cases it is:
+#
+#   forward-compat net  the left-hand side is a vendor slug family or an exact Cursor phrase that
+#                       upstream does not emit today but would have to be translated if it did. The
+#                       rule is the only thing standing between that text and a Cursor API in the
+#                       tree, so it earns its place by not firing.
+#   superseded          upstream reworded the sentence and a different rule now covers the current
+#                       phrasing. Kept because the reword is cheap for upstream to undo.
+#   orphaned normaliser the rule normalised whitespace in a sentence no rule produces any more. It
+#                       can never do harm and cannot do good either; delete it when its subject
+#                       comes back.
+#
+# Anything stale and not listed here fails `rule staleness`. That is the point: a rule upstream has
+# outrun should cost a deliberate decision, not a silent no-op, and the way to make that decision
+# cheap is to see the list at every sync instead of finding the residue in a generated skill six
+# weeks later.
+#
+# Re-checked at: 12d587df (pin). Every rule below was applied in isolation to the raw upstream
+# extract and confirmed to change nothing, and was also confirmed to produce no marker in a full
+# marked build, which is the intersection that distinguishes stale from merely shadowed.
+
+# forward-compat net. The tier table in section 2 maps every vendor slug family to a capability, so
+# that no slug can reach the tree untranslated. `claude-fable-*` and `cursor-grok-*-fast` are the two
+# rows upstream does not exercise at this pin, having moved to `claude-opus-*` and bare `grok-*`.
+# Dropping a row silently removes a tier, and `untiered slugs` would only notice once upstream
+# actually used the slug, at which point the text is already in the tree.
+`claude-fable-[0-9.-]+(-(thinking-)?[a-z]+)?`	forward-compat net: judgment tier for a slug family upstream no longer emits at the pin
+`cursor-grok-[0-9.]+-([a-z]+-)?fast`	forward-compat net: fast-code tier for Cursor's provider-prefixed grok form, unused at the pin
+
+# forward-compat net. Both name the exact phrase `cursor-team-kit` documentation uses when it tells
+# an agent to pick a control surface. Upstream at the pin says "`control-ui` or `control-cli` from
+# `cursor-team-kit`" without the "as the change demands" tail, and another rule covers that wording.
+# These two cover the other ordering and the trailing clause, and the control-surface rules are what
+# keep an omp agent from reaching for a Cursor-only skill name.
+\(`control-cli` or `control-ui` from `cursor-team-kit` as the change demands\)	forward-compat net: one word order of the control-surface sentence, the other ordering has its own rule
+\(`control-ui` or `control-cli` from `cursor-team-kit` as the change demands\)	forward-compat net: the other word order of the same sentence
+
+# orphaned normaliser. Both collapse runs of whitespace in a sentence about the absent `readonly`
+# field. No rule produces that sentence any more and upstream carries no `readonly` text in this
+# form, so neither can fire. Kept only because deleting a rule shifts every line below it and this
+# file keys on fragments, not numbers, precisely so that shift stays free.
+there is no task `readonly` field\.  Use	orphaned normaliser: whitespace in a sentence no rule produces and upstream no longer emits
+there is no task `readonly` field\.[[:space:]]*$	orphaned normaliser: same sentence, trailing-whitespace variant

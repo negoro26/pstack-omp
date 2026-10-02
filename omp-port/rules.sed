@@ -10,8 +10,13 @@
 
 ## 1. Whole-sentence rewrites, which must read raw upstream text before any token rule edits it.
 
-# Cursor's reasoning-effort ladder over its own slug names -> a selector omp models reports.
-s#So `small` turns `claude-[a-z0-9.-]+` into `claude-[a-z0-9.-]+`, and `grok-[a-z0-9.-]+` into `[a-z0-9.-]+` when only that form is detected\.#So `small` takes the lowest-effort selector in the same family that `omp models` reports, and marks the role as needing a choice when that family offers none.#
+# Cursor's reasoning-effort ladder over its own slug names -> a selector omp models reports. The
+# left-hand side is upstream's sentence as it stands at the pin, nothing more: it used to end "when
+# only that form is detected.", a clause upstream dropped, and the rule then matched nothing at all
+# while sed still exited 0. That is the whole failure this gate exists to catch, caught here by
+# rewriting the left-hand side rather than by adding an exemption, because the translation it
+# carries is still wanted and the replacement text was already sitting unused below.
+s#So `small` turns `claude-[a-z0-9.-]+` into `claude-[a-z0-9.-]+`, and `grok-[a-z0-9.-]+` into `grok-[a-z0-9.-]+`\.#So `small` takes the lowest-effort selector in the same family that `omp models` reports, and marks the role as needing a choice when that family offers none.#
 # Cursor names the judgment slug twice in one clause; omp names the capability once.
 s#go to your strongest judgment model \(`claude-[a-z0-9.-]+`\)#go to your strongest judgment model#
 # Cursor reads the playbook from trunk because it is vendored there; omp reads the install.
@@ -171,7 +176,24 @@ s#Pick the wake mechanism using Cursor's `/loop` command \(a built-in, not a pst
 s#A local root arms each tick as a real terminal `/loop`\. The loop uses a monitored-shell 30-minute sleep and emits an output-notification sentinel\.#A root in session arms each tick with omp's `/loop`, which re-submits the tick prompt after every yield.#
 s#A cloud root uses the existing cloud-sleeper wake chain instead\.#A wake that has to land out of session runs as a named bash process observed through `proc://`, or under a systemd user timer instead.#
 s#In a local session, a real terminal `/loop`\. In a cloud root, a cloud-sleeper wake chain\.#In session, omp's `/loop`. For a wake that must land out of session, use a named bash process observed through `proc://`, or a systemd user timer.#
-s#Run `drive` and `background` under `/loop` in dynamic mode\.#Run `drive` and `background` under omp's `/loop` while `loop.mode` is `prompt`, or under a named bash process observed through `proc://` when the wake must land out of session.#
+# Cursor's Babysit mode vocabulary. `drive`, `background`, `threads-only`, and `check` are Cursor
+# commands with no omp counterpart: omp's CLI has neither `drive` nor `background`, and the port's
+# own watcher declares WatchMode "single" | "stack" | "queued-stack" with no mode argument at all.
+# These sentences used to name all four, so an agent following this playbook was told to run
+# something that does not exist. Each now names an invocation of scripts/watch-pr/watch-pr, which
+# is what the playbook already points at for the verdict.
+s#Run `drive` and `background` under `/loop` in dynamic mode\.#Run the merge-ready loop, or the non-blocking triage, under omp's `/loop` while `loop.mode` is `prompt`, or under a named bash process observed through `proc://` when the wake must land out of session.#
+s#\*\*Declare the mode and resolve the forge before any poll\.\*\*#**Name the watcher invocation and resolve the forge before any poll.**#
+s#`drive` runs the loop to merge-ready, for "babysit this", "get it green", "merge-ready"\.#`drive`, `background`, `threads-only`, and `check` name no command on this runtime: omp's CLI has neither `drive` nor `background`, and the port's own watcher declares WatchMode "single" | "stack" | "queued-stack" and takes no mode argument at all. They are four ways to invoke `scripts/watch-pr/watch-pr`, which is what this playbook already points at for the verdict. To run the loop to merge-ready, for "babysit this", "get it green", "merge-ready", invoke the watcher bare and let it poll to a terminal verdict.#
+s#`background` triages without blocking, which is the mode for a plan still executing\.#To triage without blocking, which is what a plan still executing wants, invoke that same watcher as one supervised `bash` call carrying a unique `name` and a `ready` condition, then read it at `proc://<name>`; a `name` selects service mode and cannot be combined with `async: true`, which is the separate finite-command path that hands back a job id. Either way this is a scheduling choice, not a mode the watcher knows.#
+s#`threads-only` answers review comments and touches nothing else, for "address the bugbot comments"\.#To answer review comments and touch nothing else, for "address the bugbot comments", stop on the watcher's `BLOCKER` verdict with reason `review-threads` and work only those threads.#
+s#`check` is one status pass and a report, for "check on X" and "is it green"\.#For one status pass and a report, for "check on X" and "is it green", pass `--status-only`.#
+s#Undeclared defaults to `drive`\.#Undeclared defaults to the bare watcher.#
+s#Small or docs-only PRs get `check`, not `drive`\.#Small or docs-only PRs get `--status-only`, not the bare command.#
+s#In `check` mode pass `--status-only`\.#For a single status pass, pass `--status-only`.#
+s#The bare command polls until a terminal verdict, which is `drive` behavior\.#The bare command polls until a terminal verdict, which is the merge-ready loop.#
+s#On Origin, stop `drive` when the frontier is merge-ready:#On Origin, stop the polling loop when the frontier is merge-ready:#
+s#\*\*Reply:\*\* the mode, the frontier and its active-forge state#**Reply:** the watcher invocation, the frontier and its active-forge state#
 s#Hold the watch under `/loop` in dynamic mode\.#Hold the watch under omp's `/loop` while `loop.mode` is `prompt`, or under a named bash process observed through `proc://` when the wake must land out of session.#
 s#`/loop` per component until the diff is zero\.#Hold a named bash process observed through `proc://`, or a systemd timer, per component until the diff is zero.#
 s#a frontier watcher wake \(arm it via the loop skill, with a long heartbeat fallback\)#a frontier watcher wake (hold a named bash process observed through `proc://`, or a systemd timer, with a long fallback heartbeat)#
@@ -291,3 +313,131 @@ s#`/technical-writing`#`skill://technical-writing`#g
 # and checked by another could not satisfy both.
 s#Each returns `PASS`, `PASS\+NOTES` or `FAIL` and posts that verdict on its own PR\.#Each returns `PASS`, `ISSUES` or `BLOCKED`, the three verdicts `skill://pstack-omp` and **swarm** use, and posts that verdict on its own PR. Notes ride on a `PASS` rather than forming a fourth verdict, so a passing run with observations is still a pass.#
 s#stop at the first one without a passing verdict, where both `PASS` and `PASS\+NOTES` pass\.#stop at the first one whose verdict is not `PASS`.#
+
+## 10. Irreversible actions, and what the runtime actually enforces. Every replacement below
+## exists because the original either contradicted another sentence in the same tree, named a
+## surface omp does not have, or told an agent to do something the harness cannot stop. The
+## machine half is plugins/pstack/extensions/pstackpolicy, which refuses the forge mutations
+## unless the operator set PSTACK_LANDING_GRANT; prose alone cannot, because yolo auto-approves
+## the exec tier and every pstack owner is a headless subagent.
+
+# Landing is the one action the port routes a human toward and then never gated. The --auto branch
+# of this same step already carries "and the user asked"; the immediate branch did not, so an agent
+# reading step 5 alone had licence to merge under yolo with nothing to stop it.
+s#If the bottom PR is mergeable now, squash it with#Merge only on an explicit request. If the bottom PR is mergeable now and the user asked to land, ship, or merge it, squash it with#
+
+# The pause list is the port's only global gate and it omitted every forge action its own
+# autopilots perform, so those actions fell through it entirely.
+s#^\*\*Always pause\*\* for irreversible writes: force-push to shared branches, deploys, data deletion, customer messages\.$#**Always pause** for irreversible writes: pushing to trunk, merging a pull request, retargeting a pull request base, force-pushing a shared or trunk branch, closing a pull request, an issue, or a review thread, posting a review or review comment, resolving a review thread, deleting a branch on the forge, deploys, data deletion, customer messages.#
+
+# Two lines below an unqualified "keep going" reads as "do not pause". It is not; it is the
+# autonomy switch for reversible work.
+s#^\*\*Session overrides:\*\* "Don't stop" / "going to bed" / "run until done" / "be fully autonomous" → keep going\.$#**Session overrides:** "Don't stop" / "going to bed" / "run until done" / "be fully autonomous" → keep going on reversible work. They never waive the pause list above; a request to be autonomous is not authorisation to land.#
+
+# Granted an ungated push to trunk by the Roles section while the escalation list two pages later
+# omitted landing, so by the playbook's own rule the push never surfaced.
+s#Mechanically landing a verified unit \(fast-forward or clean cherry-pick of a worker's commit, then push\) is bookkeeping the coordinator may do itself on repos where local git is cheap\.#Mechanically landing a verified unit (fast-forward or clean cherry-pick of a worker's commit, then push to that unit's own branch) is bookkeeping the coordinator may do itself on repos where local git is cheap. Merging, or pushing to trunk, needs an operator landing grant recorded in the standing orders, exactly like any other irreversible write.#
+
+s#irreversible actions \(force-push to shared branches, deploys, deletions, closing someone else's PR\)#irreversible actions (pushing to trunk, merging, force-pushing a shared branch, retargeting a base, closing someone else's PR, issue, or review thread, posting a review, deploys, deletions)#
+
+# Seven columns, because that is what the runtime enforces. The thirteen below were prose the
+# store never wrote, so every `orch` command after following it failed on the header line.
+s#`units.tsv` has one row per unit: id, track, state, branch, PR, head SHA, brief path\.#`units.tsv` has one row per unit and exactly seven tab-separated columns, which is what `orch` enforces on the header and on every row: id, track, state, branch, pr, sha, brief. A ninth column is rejected, so do not add one.#
+
+# Mandatory, and the playbook never said so, so the first runtime step of any program aborted.
+s#2\. \*\*Install the runtime\.\*\* Run `orch init`\.#2. **Install the runtime.** Run `orch init --store <repo-dir>`; `--store`, or `ORCH_STORE`, is required and the command aborts without it.#
+
+# Routing through one writer is a constraint on who writes, not authorisation that they may.
+s#PR closes and retargets go through the stacker only\.#PR closes and retargets go through the stacker only, and only once the operator has approved that specific change; one writer is not consent.#
+
+# Leftover mode vocabulary. The four Cursor modes are gone, so naming one here contradicts the
+# playbook this index points at.
+s#\*\*You own the merge frontier\. Declare a mode, clear one PR at a time, stop where the human's call begins\.\*\*#**You own the merge frontier. Name the watcher invocation, clear one PR at a time, stop where the human's call begins.**#
+s#Declare its mode before polling\.#Name its watcher invocation before polling.#
+
+## 11. Residual accuracy fixes. Each of these is a sentence that was wrong, incomplete, or
+## contradicted another sentence in the same tree. None is a Cursor residue; they are the port's
+## own claims about itself, which is the class nothing upstream can fix for us.
+
+# autopilot-stack grants --force-with-lease and base retarget but omits the one line its sibling
+# carries verbatim, so an agent reading only this playbook has licence to rewrite any branch in the
+# chain, including one a human pushed to.
+s#push with `--force-with-lease` only after an `ls-remote` check, and set the PR base to the parent branch\.#push with `--force-with-lease` only after an `ls-remote` check, and set the PR base to the parent branch. Never force-push a shared branch.#
+
+# shipping step 4 retargets a base with no consent clause, and step 7 re-runs steps 3-6 for every PR
+# in the stack, so an unguarded retarget here reaches the whole chain.
+s#4\. \*\*Prepare only the bottom PR\.\*\* Fetch current trunk\.#4. **Prepare only the bottom PR**, and retarget only on the operator's explicit go: an operator approval to land a PR is not approval to rewrite the base of every PR above it. Fetch current trunk.#
+
+# The autonomy sentence contradicted the pause-list scope added in section 10, and the index routes
+# "full autopilot" straight here, so the trigger phrase the operator types is the phrase that clause
+# disqualified.
+s#The operator's full-autonomy grant plus the root's clean verdict is the merge authorization that babysitting alone never has\.#A full-autonomy grant authorises the owner to keep working without checking in; the root's clean verdict authorises a merge only inside that grant. Neither is implied by "go faster", and both still require the operator to have armed PSTACK_LANDING_GRANT for the merge itself.#
+
+# `trash` is macOS, so the step could not be followed on this host, and the sentence forbade the one
+# fallback that would work. Handled in zz-live-runtime-routing.patch instead, because that line is
+# the patch's own output and a sed rule cannot see it.
+
+# The `or` put a hard reset on the same footing as a worktree, and the very next clause handled a
+# dirty branch safely. So the file knew the hazard and still offered the destructive branch first,
+# with no check between the two.
+s#or `git fetch && git reset --hard origin/<branch>` between them\.#or `git fetch && git reset --hard origin/<branch>` between them -- and only after `git status --porcelain` comes back empty, since the next clause is what you do when it does not.#
+
+## 12. Graphite. Four playbooks said "Never require Graphite (`gt`)" while orchestrate made `gt`
+## the authoritative stack oracle and the store hard-errors without it. Only one of those can be
+## true, and the code is the one that decides what an agent experiences: `orch frontier` resolves
+## the stack through Graphite when it is installed and refuses to guess when it is not, and nothing
+## else in the port touches it. So `gt` is optional and never authoritative. These sentences now
+## say that, and no longer imply the port breaks without Graphite.
+
+s#Recompute `frontier.json` from `gt` after every merge and stack mutation because GitHub base refs drift mid-restack while gt tracking is authoritative: ordered PR list, branch names, head SHAs, a generation number, the lowest unmerged PR\.#Recompute `frontier.json` after every merge and stack mutation, because base refs drift mid-restack. `orch frontier` resolves the order from the forge's own PR base refs when it can, and refuses to guess rather than inventing an order when it cannot; record what it could not resolve instead. A pull request that is not reachable from trunk is reported as unattached rather than assumed to be in the stack.#
+
+
+s#- Workers never rebase and never run `gt`\.#- Workers never rebase and never touch stack topology.#
+
+
+## 12. Findings from a 71-agent per-file audit. Each rule here is a sentence that survived the
+## rewrite and is wrong on omp. They cluster into two classes worth remembering: a document
+## rewritten on one side of a page and not the other, and a paraphrase of a harness rule that
+## dropped half of it. Both are invisible to a diff that only looks for Cursor vocabulary.
+
+# Bare `/<name>` is not an omp command. Skills register as `/skill:<name>`; unhandled slash input
+# falls through as literal prompt text, and with `disable-model-invocation: true` the skill is
+# hidden from the index, so the model cannot recover it either. Two skills in this port already
+# use the right form and the gate only greps the backticked one, which is why these survived.
+s#Use for /arena,#Use for /skill:arena,#
+s#Use for /swarm,#Use for /skill:swarm,#
+s#Use for /architect,#Use for /skill:architect,#
+s#Use for /figure-it-out,#Use for /skill:figure-it-out,#
+s#Use for /show-me-your-work,#Use for /skill:show-me-your-work,#
+s#"/architect with checkpoint,"#"/skill:architect with checkpoint,"#
+
+# `cursor location` is a Cursor composer affordance: the editor injects the caret position. omp is
+# a terminal harness with no editor-state primitive, so an agent following the hint looks for a
+# signal that does not exist.
+s#(open files, recent edits, cursor location, what was just discussed)#(open files, recent edits, what was just discussed)#
+
+# False: a subagent's `tools:` list does not remove MCP tools or server instructions
+# (omp://system-prompt-customization.md). The real restriction on `scout` is the tool set, not MCP.
+s#The strict `scout` definition has no MCP grant, so never assign MCP work to it\.#The strict `scout` definition has no write tools, so keep it off any lane that must edit. Its MCP tools are inherited: a task agent's `tools:` list does not remove them.#
+s#an exact discovered full-access worker for citation spot-checks that call MCP\. The strict `scout` definition cannot serve that lane\.#an exact discovered full-access worker for citation spot-checks that call MCP. `scout` inherits MCP tools and can serve that lane, but it cannot write.#
+
+# `spawn on a fast, cheap model` asks for a per-spawn knob the task tool does not have. Every
+# sibling fan-out skill states the real mechanism; this one kept the Cursor-era phrasing.
+
+# `subagents/` is a Cursor transcript layout level. On omp the third level is
+# `<session-stem>/<AgentId>/<AgentId>.<Step>.jsonl`, and the prescribed glob matched 0 files against
+# 181 that exist. The prose one line below was corrected; the command was not.
+s#/\*/subagents/\*\.jsonl#/*/*/*.jsonl#
+
+# No omp system prompt names the session transcript tree; `history://<id>` is the documented
+# surface. The path is correct, the justification for trusting it was not.
+s#(the system prompt names the path)#(`history://<id>` is the documented surface)#
+
+# omp discovers skills one level under the root; the nested shape this prescribes is explicitly
+# not discovered, so the skill it produces silently never registers.
+
+# The `how` skill has no modes. It branches on Step 2a Explore / Step 2b Direct Explain.
+
+# Unqualified force-push blocks the port's own rebase flow, which `pstackpolicy` explicitly permits
+# and `autopilot-stack` prescribes. Scope the pause the way the rest of the port scopes it.
+s#(force-push, delete production data, send external messages)#(force-push to a shared or trunk branch, delete production data, send external messages)#

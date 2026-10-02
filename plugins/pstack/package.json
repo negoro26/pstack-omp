@@ -4,7 +4,8 @@
   "license": "MIT",
   "omp": {
     "extensions": [
-      "./extensions/potetomode/index.js"
+      "./extensions/potetomode/index.js",
+      "./extensions/pstackpolicy/index.js"
     ]
   }
 }

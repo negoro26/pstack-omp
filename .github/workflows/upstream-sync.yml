@@ -61,6 +61,15 @@ jobs:
       - if: steps.plan.outputs.go == 'yes'
         run: bash omp-port/check-port.sh
 
+      # The commit list says upstream moved. This asks whether the port survives the move, before
+      # anything is rewritten. Without it the first signal that a rules.sed rule has been outrun is
+      # a Cursor API sitting in a generated skill, which is after the pin moved and the tree was
+      # rebuilt and therefore after the evidence is mixed into the port's own history.
+      - if: steps.plan.outputs.go == 'yes'
+        env:
+          TARGET: ${{ steps.plan.outputs.target }}
+        run: bash omp-port/check-port.sh "" "$TARGET"
+
       - if: steps.plan.outputs.go == 'yes'
         env:
           TARGET: ${{ steps.plan.outputs.target }}

@@ -19,6 +19,7 @@
     {
       "name": "fan-out",
       "description": "Run many subagents in parallel on one machine. Concurrency ceiling, isolation, aggregation, and the model-reliability floor, all measured.",
+      "version": "0.1.0",
       "category": "development",
       "license": "MIT",
       "source": "./plugins/fan-out"

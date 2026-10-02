@@ -20,7 +20,7 @@ Operate as a **careful, cautious, and precise investigator**. Be honest about wh
 
 Parse what the user is asking. The **target** is usually a chunk of code, a pattern, a feature, or a named design decision. The **question** is usually a design rationale, a tradeoff, a motivating edge case, an external constraint, dead code, or a broad history sweep.
 
-If the target is vague ("why do we do it this way?" with no clear referent), make your best guess from conversation context (open files, recent edits, cursor location, what was just discussed). State your interpretation briefly so the user can redirect if you're off, then proceed.
+If the target is vague ("why do we do it this way?" with no clear referent), make your best guess from conversation context ((open files, recent edits, what was just discussed)). State your interpretation briefly so the user can redirect if you're off, then proceed.
 
 ## Step 2. Establish the Code Anchor
 
@@ -80,7 +80,7 @@ Aim for a complete **coverage map**, not a minimal one. Document the null, don't
 Launch all matching investigators in one `task` call with the required shared `context` and all items in `tasks[]` so they run concurrently. Don't ask one agent to cover multiple MCPs.
 
 Subagent config (each):
-- `agent`: an exact discovered full-access worker for every MCP-backed lane. The strict `scout` definition has no MCP grant, so never assign MCP work to it. A repository-only lane may use `scout` only when its file-only grant covers the evidence. Use another discovered worker when the lane needs `git`, `gh`, or other shell tools.
+- `agent`: an exact discovered full-access worker for every MCP-backed lane. The strict `scout` definition has no write tools, so keep it off any lane that must edit. Its MCP tools are inherited: a task agent's `tools:` list does not remove them. A repository-only lane may use `scout` only when its file-only grant covers the evidence. Use another discovered worker when the lane needs `git`, `gh`, or other shell tools.
 - read-only posture. The brief grants only the tools the discovered agent actually has and forbids file writes, git state changes, commits, pushes, pull requests, and external mutations
 
 Each investigator gets:
@@ -123,7 +123,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 
 Start one synthesizer in one `task` call with one item in `tasks[]`, the required shared `context`, and an exact discovered full-access worker:
 
-- `agent`: an exact discovered full-access worker for citation spot-checks that call MCP. The strict `scout` definition cannot serve that lane.
+- `agent`: an exact discovered full-access worker for citation spot-checks that call MCP. `scout` inherits MCP tools and can serve that lane, but it cannot write.
 
 
 The synthesizer gets:

@@ -56,6 +56,50 @@ There is nothing to resolve. The build never edits an upstream file in place, so
 port text cannot collide. A patch that no longer applies exits 1, and that or a gate FAIL leaves the
 PR open for a human with both outputs in the body and the reason printed in the job log.
 
+### What catches upstream moving
+
+`rules.sed` is a table of exact rewrites, and a `sed` rule whose left-hand side stops matching
+changes nothing while still exiting 0. That is the one failure mode in this port that is silent by
+construction, so the gate treats it as the thing to prove rather than as an absence of errors. It
+asks two questions and needs both, because each has a large healthy population:
+
+- `rule liveness` runs one marked build and lists the rules that substituted nothing. Most of that
+  list is the point: the token rules sit underneath the whole-sentence rules and fire nothing
+  precisely because an earlier rule already consumed their input, and that redundancy is the net
+  that catches a whole-sentence rule when it misses.
+- `target builds` is the only upstream assertion that runs the whole build rather than probing
+  text. Every other one reads upstream directly, and none of them runs `omp-port/patches`, so
+  without it an upstream commit that rewords a line a patch matches on passes the gate and the sync
+  it clears cannot be applied. It is skipped when the target is the pin, because `reproducible` has
+  already built exactly that tree.
+- `rule staleness` applies each rule on its own to upstream as it stands, with the same `sed` and
+  the same `-E` the build uses, and intersects the result with the liveness list. Dead in isolation
+  *and* dead in the build is stale. Dead only in isolation is a rule fed by an earlier rule's
+  output and is ordinary. The intersection is why most rules need no exemption at all.
+
+A stale rule that upstream has outrun **fails** the gate. It is not a report, because the
+consequence is a Cursor API reaching a generated skill while every other check stays green. The
+fix is to correct the left-hand side against what upstream actually says now, or to record the rule
+in `omp-port/stale-exempt.tsv` with a reason. That file is keyed on a literal fragment of the rule
+and never on a line number, because a line number moves the moment anyone edits a rule above it and
+an exemption that silently stops applying is worse than no exemption.
+
+The probe's own exit status is part of the assertion for both. A probe that cannot run reports
+failure, not a clean result: an empty list from a failed build is not evidence that nothing is
+stale.
+
+`bash omp-port/check-port.sh [canonical-clone] [sha]` takes the sha to gate, defaulting to the pin.
+The tree assertions follow the pin, because they are about the checked-in tree; the upstream
+assertions follow the target, because they are about upstream text. That split is what makes an
+upstream change reviewable *before* it is synced: `upstream-sync` runs the gate a second time
+against the candidate sha, so a commit that outruns a rule stops the run with the rule named,
+rather than landing and being noticed later in a generated file. The same command answers the
+question locally:
+
+```bash
+bash omp-port/check-port.sh "" "$(gh api 'repos/cursor/plugins/commits?path=pstack&sha=main&per_page=1' --jq '.[0].sha')"
+```
+
 The gate runs as its own workflow, `gate.yml`, on every pull request and on every push to `main`. A
 PR opened with `github.token` does not trigger `pull_request` workflows, so the sync PR carries the
 gate output in its body and the `push` to `main` run after the merge is the backstop.
@@ -107,9 +151,10 @@ The marketplace install is the user shape.
 
 That caches the plugin at `~/.omp/plugins/cache/plugins/pstack-omp___pstack___<version>` and links
 it at the same `~/.omp/plugins/node_modules/pstack` path. Verified on omp 18.1.13, 2026-09-07. The
-skills load, `fan-out` and `setup-pstack` enter the `<skills>` block and the rest hide, and the
-`potetomode` extension loads from `package.json` `omp.extensions`, so `--poteto` injects the
-reminder in `-p` mode.
+skills load, `setup-pstack` is among them and the rest hide, and both extensions register from
+`package.json` `omp.extensions`, so `--poteto` injects the reminder in `-p` mode. `fan-out` is not
+one of this plugin's 49: it ships as a second plugin in the same marketplace and takes its own
+`/marketplace install fan-out@pstack-omp`.
 
 The agents do not load from a marketplace root. omp scans a marketplace plugin's `agents/` directory
 only through the `claude-plugins` discovery provider, which is off by default
@@ -186,7 +231,10 @@ The injected reminder is a pointer, not the playbook. It tells the agent to read
   missing capability.
 - **The control CLI's driving surface.** `browser` (CDP, `tab.observe`/`screenshot`/`evaluate`) and
   `computer` (native desktop plus a11y tree) are eval preludes, not tools. Long-running processes
-  are a `bash` call with a unique async `name`, a `ready` block, and `read proc://<id>` for state.
+  are a `bash` call with a unique `name`, a `ready` block, and `read proc://<name>` for state. The
+  `name` selects supervised service mode and is incompatible with `async: true` or a supplied
+  `timeout`; `async` is the other backgrounding path, for a finite command, and it hands back a job
+  id read at `proc://<id>`. Two mechanisms, not two flags on one call.
   Agent Hub is a human-facing TUI, not a programmatic interface, so nothing addresses workers
   through it. `debug` is full DAP with breakpoints, eval, and stack. A generated `control-<app>`
   script only needs app-specific semantics, `doctor`, `new-session`, `seed`/auth, `feature-flag`,
@@ -194,10 +242,14 @@ The injected reminder is a pointer, not the playbook. It tells the agent to read
 - **`swarm` / `arena` / `interrogate`.** One `task` call with a `tasks[]` batch,
   `task.maxConcurrency=100`, `isolated: true` per candidate, `outputSchema` for judged verdicts.
 - **Never-block.** Subagents run `approvalMode: yolo`, so a worker cannot stop to ask. **Nothing
-  here vetoes a malformed subagent result.** The one extension this plugin ships is the mode pin,
-  and it registers no `session_stop`. What pstack relies on is the root's own acceptance discipline:
-  `skill://pstack-omp` requires the root to read each result and accept or reject it, and a
-  `judge`/`verifier` role is the independent check on a worker's claim. That is the whole backstop.
+  here vetoes a malformed subagent result.** The plugin ships two extensions, `potetomode` and
+  `pstackpolicy`, and neither one registers a `session_stop`; `pstackpolicy` vetoes at `tool_call`
+  and only for the forge mutations, so a result that is merely wrong still gets through. What
+  pstack relies on for that is the root's own acceptance discipline: `skill://pstack-omp` requires
+  the root to read each result and accept or reject it, and a `judge`/`verifier` role is the
+  independent check on a worker's claim. That is the whole backstop for a malformed result. Landing
+  is a separate gate and it is enforced in process rather than in prose; see
+  [What omp can actually stop](#what-omp-can-actually-stop) below.
   Returning `{"decision":"block"}` from `session_stop` is the one native veto contract, and
   `~/.omp/agent/extensions/proofgate/` implements it, dormant unless `$OMP_PROOF_FILE` is set, so
   treat the veto as absent unless you have verified that variable yourself. Its own `VERDICT.md`
@@ -273,3 +325,31 @@ thinking id for judgment work.
   natively, both injectors will fire and collide, and the extension should be deleted or gated at
   that point. The same rule applies to every capability in this document. State the probe, not the
   version.
+
+### What omp can actually stop
+
+The playbooks say "stop where the human's call begins", and until recently that was advice with
+nothing behind it. Three facts from `omp://approval-mode.md`, on omp 18.4.10, decide what an
+instruction is worth here:
+
+- `yolo` auto-approves the `read`, `write`, **and `exec`** tiers. A `gh pr merge` inside a bash
+  call is an `exec` call, so it runs with no prompt.
+- Subagents run headless with `tools.approvalMode: yolo`, and "the parent `task` approval is the
+  authorization boundary". Every pstack owner is a subagent, so the boundary is the spawn, not the
+  instruction.
+- A call that resolves to `prompt` is **rejected** in a headless subagent, because there is no one
+  to answer it. A backstop therefore has to *refuse*, not prompt.
+
+bash's built-in critical-pattern list covers `rm -rf /`, fork bombs, remote-fetch-then-execute,
+`/etc/passwd`, and host shutdown. **A merge is not on it.** So is not a force-push to trunk, a base
+retarget, a PR close, or a review comment.
+
+That is why the port now ships `plugins/pstack/extensions/pstackpolicy`, a second extension beside
+the mode pin. It registers `tool_call` and refuses the forge mutations outright unless the operator
+set `PSTACK_LANDING_GRANT=1`. The grant is an environment variable rather than a flag or a slash
+command because a flag an agent can pass is not a grant a human made, and an agent cannot set its
+own process environment. Refusals name the variable, so the operator is told exactly what to set.
+
+A force push to a **feature** branch stays allowed: that is the port's own rebase flow, and blocking
+it would fail every stack owner mid-rebase and make the extension unusable without a grant. A force
+push that names a trunk ref is refused, which is the case the playbooks keep escalating.

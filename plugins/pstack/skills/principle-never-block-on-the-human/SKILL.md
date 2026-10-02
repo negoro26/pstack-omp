@@ -15,6 +15,6 @@ The human supervises asynchronously. Agents must stay unblocked. Make reasonable
 - **Make the system self-healing.** When you notice a problem, log it and fix it in the next round.
 
 **Boundaries:**
-- **Irreversible actions** (force-push, delete production data, send external messages) still require confirmation.
+- **Irreversible actions** ((force-push to a shared or trunk branch, delete production data, send external messages)) still require confirmation.
 - **Reversible actions** (write code, edit notes, split tasks) should proceed without blocking.
 - **Product direction** comes from the human. *Execution* should not block.

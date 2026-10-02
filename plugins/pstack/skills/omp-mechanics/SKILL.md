@@ -49,5 +49,5 @@ Before `recall`, `reflect`, `eval`, `session-pickup`, `show-me-your-work`, or `a
 - `poteto-mode` and `babysit` warn against Cursor's built-in `babysit` skill. OMP has no such skill, so the warning is inert.
 - `bugbot-triage` still applies to OMP's security reviewer and other review comments.
 - `make-bot-ui` names `api2.cursor.sh` and the Grok Bot routine panel. Neither maps to OMP.
-- `worktree-cleanup` names macOS application-support paths. Keep the OMP-neutral cleanup steps and skip that platform-only step.
+- `worktree-cleanup` used to name a macOS `trash` step this host does not have. It now moves each approved worktree somewhere recoverable, using `trash` where it exists and `mv` where it does not, and still forbids `rm -rf`. Nothing in it is platform-specific any more, so there is no step to skip.
 - `orchestrate` names Graphite (`gt`). Prefer the active forge client and do not require `gt`.

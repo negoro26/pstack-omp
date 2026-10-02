@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import type { Dirent } from "node:fs";
 import {
@@ -249,6 +249,24 @@ function errorCode(error: unknown): string | null {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+// The frontier is read from `gt`, Cursor's stacked-branch CLI. Nothing else in this runtime shells
+// out to it, and the playbooks say twice that Graphite is never required, so an absent binary is a
+// normal state rather than a broken install. execFileSync reports it as a bare ENOENT
+// ("spawnSync gt ENOENT"), which reads like a corrupt checkout rather than "this mode needs a tool
+// you do not have". Say which it is, and say what still works without it.
+function requireGt(): void {
+  const probe = spawnSync("gt", ["--version"], { stdio: "ignore" });
+  if (probe.error !== undefined) {
+    throw new UserError(
+      "gt was not found on PATH. The stacked frontier (orch frontier, and any command that reads " +
+        "frontier.json from live PRs) resolves stack order through `gt log short --stack` and " +
+        "`gt info`, so it cannot run here. Single-PR watching, brief authoring, draining, and " +
+        "anything reading frontier.json as written all still work. Install Graphite, or use " +
+        "watch-pr, whose modes are single/stack/queued-stack and depend on gh alone."
+    );
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1070,6 +1088,7 @@ function graphitePullRequest({
   branch: string;
   repo: string;
 }): GtPullRequest {
+  requireGt();
   let raw: string;
   try {
     raw = execFileSync("gt", ["--no-interactive", "info", branch], {

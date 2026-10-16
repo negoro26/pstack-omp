@@ -27,7 +27,7 @@ Remaining triggers:
 - Nontrivial multi-step → write the throughput checkpoint (Feature step 3).
 - Any prose surface, your reply to the user included → the **unslop** skill. Write the reply per **Writing the reply**. Agent-facing prose also follows the **authoring-a-skill** playbook (`skill://poteto-mode/playbooks/authoring-a-skill.md`).
 - Docs, RFCs, readmes, PR descriptions, or commit messages → the **technical-writing** skill (`/skill:technical-writing`).
-- Before commit → the `unslop` skill (`skill://unslop`) plus `omp cleanse --all` for diagnostics.
+- Before commit → the `unslop` skill (`skill://unslop`) plus non-mutating repository diagnostics scoped to the diff.
 - Before review → the **no-comments** skill (`/skill:no-comments`).
 - Shipping UI / IDE / CLI → the matching control skill. omp provides the levers directly. Bash with a unique `name`, `ready` checks, and `proc://` state drives CLIs and TUIs, the `browser` eval prelude drives browser, Electron, and web UIs over CDP, and the `computer` prelude drives native desktop. Both preludes are code in an `eval` cell and neither is a tool with its own schema. For bug fixes, reproduce first on the same surface yourself. Hand to the user only under the narrow Bug fix step 1 exception.
 - Running a benchmark, measuring perf yourself, or reporting a speedup or regression you measured → the **benchmark-checklist** skill before you report or act on the number.

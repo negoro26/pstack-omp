@@ -78,6 +78,10 @@ mutate_install_root() {
 	sed -i 's#~/\.omp/plugins/node_modules/pstack/skills#~/.agents/skills#' "$FIXTURE/skills/poteto-mode/playbooks/multi-phase-plan.md"
 }
 
+mutate_unscoped_cleanup() {
+	printf '\nRun `omp cleanse --all` before commit.\n' >>"$FIXTURE/skills/poteto-mode/SKILL.md"
+}
+
 expect_failure 'unrelated ownership' 'setup config contract' mutate_preserve_ownership
 expect_failure 'per-agent ownership' 'setup config contract' mutate_override_ownership
 expect_failure 'alias shape' 'setup config contract' mutate_alias_shape
@@ -87,6 +91,7 @@ expect_failure 'setup model lever' 'omp model levers' mutate_setup_lever
 expect_failure 'router model lever' 'omp model levers' mutate_router_lever
 expect_failure 'agent hub api' 'agent hub api' mutate_hub_api
 expect_failure 'install root' 'install root' mutate_install_root
+expect_failure 'unscoped cleanup' 'runtime unscoped-cleanup' mutate_unscoped_cleanup
 
 mutate_veto_provenance() {
 	sed -i 's/ships no `session_stop` veto/ships a session_stop veto/' "$FIXTURE/README.md"

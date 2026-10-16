@@ -150,11 +150,12 @@ fi
 
 runtime_contract() {
 	local bad label pattern
-	for label in per-call-model pstack-rule-file task-environment; do
+	for label in per-call-model pstack-rule-file task-environment unscoped-cleanup; do
 		case "$label" in
 		per-call-model) pattern='subagent_type|run_in_background|`model`:\s*[^f]|Set `model`|set `model` to|with `model` from|omit `model` so' ;;
 		pstack-rule-file) pattern='pstack-models\.mdc' ;;
 		task-environment) pattern='environment:[[:space:]]*"?((local)|(cloud))\b|cloud_base_branch' ;;
+		unscoped-cleanup) pattern='omp[[:space:]]+cleanse[[:space:]]+--all' ;;
 		esac
 		bad=$(grep -rInE "$pattern" --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null || true)
 		if [ -n "$bad" ]; then

@@ -229,10 +229,9 @@ s#arm a `/goal` with this exact text\.#arm a `/goal` with this exact text. Use `
 
 ## 6. cursor-team-kit. Cursor's companion plugin -> omp's built-in tools.
 
-# `/deslop` -> the `unslop` skill plus `omp cleanse` for diagnostics.
-s#the `deslop` skill from the `cursor-team-kit` plugin \(`/deslop`\)#the `unslop` skill (`skill://unslop`) plus `omp cleanse --all` for diagnostics#g
-s#Run `/deslop` from `cursor-team-kit` over the diff before commit\.#Run the `unslop` skill (`skill://unslop`) plus `omp cleanse --all` over the diff before commit. A bare `omp cleanse` opens an interactive picker and blocks.#
-s#`/deslop`#the `unslop` skill (`skill://unslop`) plus `omp cleanse --all`#g
+s#the `deslop` skill from the `cursor-team-kit` plugin \(`/deslop`\)#the `unslop` skill (`skill://unslop`) plus non-mutating repository diagnostics scoped to the diff#g
+s#Run `/deslop` from `cursor-team-kit` over the diff before commit\.#Run the `unslop` skill (`skill://unslop`) and non-mutating repository diagnostics scoped to the diff before commit.#
+s#`/deslop`#the `unslop` skill (`skill://unslop`)#g
 # `control-ui` / `control-cli` -> browser, computer, and named bash processes.
 s#`control-ui` or `control-cli` runtime verification \(from `cursor-team-kit`\)#`browser` or `computer` for UIs, or bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs#
 s#\(`control-cli` or `control-ui` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs, as the change demands)#

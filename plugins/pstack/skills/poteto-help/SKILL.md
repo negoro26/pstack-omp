@@ -106,7 +106,7 @@ Close calls:
 
 Not in pstack:
 
-- the `unslop` skill (`skill://unslop`) plus `omp cleanse --all`, bash with a unique `name`, a `ready` check, and `proc://` state, and the `browser` eval prelude ship in the omp's built-in tools plugin.
+- the `unslop` skill (`skill://unslop`), bash with a unique `name`, a `ready` check, and `proc://` state, and the `browser` eval prelude ship in the omp's built-in tools plugin.
 - `/loop` and `/create-skill` are Cursor built-ins.
 - pstack has no `/orchestrate` skill. Orchestrate is a `/skill:poteto-mode` playbook. If the slash menu shows `/orchestrate`, another plugin provides it.
 

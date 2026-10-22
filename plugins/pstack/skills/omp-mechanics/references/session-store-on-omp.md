@@ -6,20 +6,31 @@ before trusting this file after an upgrade.
 
 ## The root
 
-Resolved, not fixed. The default is `~/.omp/agent/sessions/`. `PI_CODING_AGENT_SESSION_DIR` and an
-explicit session-directory argument win, then `PI_CODING_AGENT_DIR` for the default profile, then
-the profile root under `PI_CONFIG_DIR`, then `XDG_DATA_HOME`, which redirects only when its `omp`
-root already exists. Resolve it once instead of hardcoding it.
+Resolved, not fixed. The default is `~/.omp/agent/sessions/`, one bucket per cwd under it. Resolve
+it once instead of hardcoding it.
+
+- `PI_CODING_AGENT_SESSION_DIR` or an explicit `--session-dir` wins, and that directory holds the
+  transcripts themselves, `<dir>/*.jsonl`, with no cwd bucket under it. Never append a bucket to it.
+- Otherwise a profile, `OMP_PROFILE` and then `PI_PROFILE`, moves the root to
+  `~/${PI_CONFIG_DIR:-.omp}/profiles/<name>/agent/sessions/` and `PI_CODING_AGENT_DIR` is ignored.
+  With no profile, `PI_CODING_AGENT_DIR` replaces the agent directory and `sessions/` sits under it.
+- While the agent directory is the default one, an existing `$XDG_DATA_HOME/omp`, or
+  `$XDG_DATA_HOME/omp/profiles/<name>` under a profile, replaces it as the data root, and the
+  sessions sit directly under that, `$XDG_DATA_HOME/omp/sessions/`, with no `agent/` segment.
 
 ## The bucket name
 
-One bucket per canonicalized cwd, so two symlinked spellings of one directory share a bucket.
+One bucket per canonicalized cwd, so two symlinked spellings of one directory share a bucket. The
+home and temp roots are canonicalized too, and `/`, `\`, and `:` all become `-` in every form.
 
-- A cwd under `$HOME` becomes the home-relative path with each `/` rewritten to `-`. The leading
-  separator survives as a leading hyphen, so `/home/you/Desktop/proj` is `-Desktop-proj` and
+- A cwd under the temp root, `$TMPDIR`, then `$TMP`, `$TEMP`, `/tmp`, becomes `-tmp-<rest>`, the
+  root itself `-tmp`. The temp root is checked first, so a temp directory inside `$HOME` still
+  yields `-tmp-`.
+- A cwd under `$HOME` becomes the home-relative path with each separator rewritten to `-`. The
+  leading separator survives as a leading hyphen, so `/home/you/Desktop/proj` is `-Desktop-proj` and
   `/home/you/.omp/pstack` is `-.omp-pstack`.
-- A cwd under the temp root becomes `-tmp-<rest>`.
-- Anything else becomes `--<encoded-absolute>--`.
+- Anything else drops its leading `/` and becomes `--<encoded-absolute>--`, so `/srv/a:b` is
+  `--srv-a-b--`.
 
 Two distinct paths that encode identically share one bucket unless the live runtime separates them.
 Probe the current store after an upgrade. Older stores may contain a short-lived hashed form,

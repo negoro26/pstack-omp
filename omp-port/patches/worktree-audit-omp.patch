@@ -2,41 +2,40 @@
 # rather than prose, so a unified diff is the right layer for all of it.
 #
 # The changes, all of them code:
-#   - read the omp session store, keyed by cwd the way omp keys it, instead of Cursor's
-#     slugified per-project directory, and move stat and date onto their GNU spellings
+#   - read the omp session store instead of Cursor's per-project transcript directory, resolved
+#     the way omp resolves it: an explicit PI_CODING_AGENT_SESSION_DIR is the transcript
+#     directory itself with no cwd bucket; otherwise the profile (OMP_PROFILE, PI_PROFILE),
+#     PI_CONFIG_DIR, PI_CODING_AGENT_DIR and an existing XDG_DATA_HOME/omp pick the root, and
+#     each worktree's bucket is omp's encoding of its canonical path (-tmp-<rel> under the temp
+#     root, checked first, -<rel> under home, --<abs>-- otherwise, / \ : mapped to -)
+#   - scan only the buckets of this repo's worktrees, never the whole store, with grep -F, so
+#     ripgrep is not required and a path with [ or spaces matches literally
+#   - fail closed: a store that cannot be found or read makes LAST_CHAT "?" and holds the row at
+#     verify-recent-chat, the bucket playbooks/worktree-cleanup.md already names, never `safe`
+#   - probe GNU or BSD stat and date once, so the audit runs on Linux and macOS alike
+#   - keep the PR list in memory, so the audit writes no scratch file at all, inside the repo or
+#     out of it
 #   - parse `git worktree list` records by stripping the record prefix, so a path containing
 #     spaces survives, and report a lock reason in its own LOCKED column
-#   - take the scratch file from a per-run directory under a trap, so two concurrent audits
-#     cannot collide and the file is removed on every exit path
 #   - record an unreadable worktree in a new INSPECT column and bucket it hold-error, rather
-#     than letting a failed rev-parse read as a clean tree
-#   - never mark a locked or unreadable worktree `safe`
+#     than letting a failed rev-parse read as a clean tree, and never mark a locked worktree
+#     `safe`
+#   - print all eleven header columns on every row
+#   - lowercase the Origin PR state too, so upstream's */open|*/draft match holds for both CLIs
+#   - carry upstream PR cursor/plugins#770 (#459 on #492) ahead of its merge: untracked and
+#     ignored files count as wip, a closed but unmerged PR is no longer `safe`, the PR whose
+#     headRefOid is HEAD wins over another PR on the same branch name, and commits that exist
+#     nowhere else bucket as hold-unpushed
 #
 # Upstream's -b/--base flag, its origin/HEAD default, its Origin-first PR fetch with the gh
 # fallback, its LAST_CHAT column, and its verify-recent-chat bucket are all kept exactly as
-# written. playbooks/worktree-cleanup.md names that bucket by name, so replacing it would put the
-# port's prose and upstream's out of step.
+# written.
 #
 # Authored against post-rules text. rules.sed runs first and rewrites the Cursor path in the
 # comment this patch deletes, so a hunk quoting the raw upstream comment would not apply.
+# omp-port/test-worktree-audit.sh is the offline regression test for every change above.
 --- a/skills/poteto-mode/scripts/worktree-audit.sh
 +++ b/skills/poteto-mode/scripts/worktree-audit.sh
---- a/skills/poteto-mode/scripts/worktree-audit.sh
-+++ b/skills/poteto-mode/scripts/worktree-audit.sh
---- a/skills/poteto-mode/scripts/worktree-audit.sh
-+++ b/skills/poteto-mode/scripts/worktree-audit.sh
-@@ -1,8 +1,8 @@
- #!/usr/bin/env bash
- # Read-only worktree prune audit. Classifies every git worktree by size, merge
--# state, uncommitted work, remote/PR state, and the most recent chat that
--# operated in it. Emits a table sorted by size with a suggested bucket. Never
--# deletes anything; deletion stays a human-gated step in the playbook.
-+# state, uncommitted work, and remote/PR state. Emits a table sorted by size
-+# with a suggested bucket. Never deletes anything; deletion stays a
-+# human-gated step in the playbook.
- #
- # Usage: worktree-audit.sh [-b|--base <ref>] [repo-path]
- #   repo-path defaults to the current repo.
 @@ -28,7 +28,12 @@
  git rev-parse --git-dir >/dev/null 2>&1 || { echo "error: not a git repo: $repo" >&2; exit 1; }
  
@@ -51,31 +50,92 @@
  
  if [ -z "$base" ]; then
  	for cand in "$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)" origin/main origin/master; do
-@@ -50,7 +55,10 @@
- # PR state by branch, fetched once as [{number, state, head}] with a lowercase
- # state. Origin when its CLI can read this repo's PRs, otherwise gh. Empty when
- # neither can.
+@@ -47,33 +52,94 @@
+ esac
+ git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1 || { echo "error: base ref not found: $base" >&2; exit 1; }
+ 
+-# PR state by branch, fetched once as [{number, state, head}] with a lowercase
+-# state. Origin when its CLI can read this repo's PRs, otherwise gh. Empty when
+-# neither can.
 -prs=$(mktemp)
-+scratch_dir="${TMPDIR:-$repo/.pstack-scratch}/worktree-audit"
-+mkdir -p "$scratch_dir"
-+prs=$(mktemp "$scratch_dir/prs.XXXXXX")
-+trap 'rm -f "$prs"' EXIT INT TERM
++# PR state by branch, fetched once as [{number, state, head, head_oid}] with a
++# lowercase state. Origin when its CLI can read this repo's PRs, otherwise gh.
++# Empty when neither can. Held in memory, so the audit writes no scratch file.
++prs=""
  if command -v origin >/dev/null 2>&1 \
  	&& raw=$(origin pr list --author "@me" --state all --limit 1000 \
  		--json number,status,headRef 2>/dev/null); then
-@@ -61,19 +69,39 @@
+-	printf '%s' "$raw" | jq '[.[] | {number, state: .status, head: .headRef}]' > "$prs" 2>/dev/null
++	prs=$(printf '%s' "$raw" | jq -c '[.[] | {number, state: (.status // "" | ascii_downcase), head: .headRef, head_oid: ""}]' 2>/dev/null)
+ elif raw=$(gh pr list --author "@me" --state all --limit 1000 \
+-	--json number,state,headRefName 2>/dev/null); then
+-	printf '%s' "$raw" | jq '[.[] | {number, state: (.state | ascii_downcase), head: .headRefName}]' > "$prs" 2>/dev/null
++	--json number,state,headRefName,headRefOid 2>/dev/null); then
++	prs=$(printf '%s' "$raw" | jq -c '[.[] | {number, state: (.state // "" | ascii_downcase), head: .headRefName, head_oid: (.headRefOid // "")}]' 2>/dev/null)
  fi
- [ -s "$prs" ] || echo "[]" > "$prs"
+-[ -s "$prs" ] || echo "[]" > "$prs"
++[ -n "$prs" ] || prs="[]"
  
 -# Transcripts dir: ~/.omp/projects/<slugified-repo-path>/agent-transcripts.
 -slug=$(printf '%s' "$main_wt" | sed 's#^/##; s#/#-#g')
 -transcripts="$HOME/.cursor/projects/$slug/agent-transcripts"
-+# omp keys each session tree by cwd. Scan this worktree's bucket and the repo's; walking every
-+# bucket would scale with total session history.
-+sessions="${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}/sessions"
-+bucket() { printf '%s/%s' "$sessions" "$(printf '%s' "${1#"$HOME"}" | sed 's#/#-#g')"; }
-+repo_bucket=$(bucket "$main_wt")
-+[ -d "$repo_bucket" ] || repo_bucket="$sessions"
++# omp's session store, resolved the way omp resolves it. An explicit
++# PI_CODING_AGENT_SESSION_DIR is the transcript directory itself, with no cwd
++# bucket under it. Otherwise the root is the profile's (OMP_PROFILE, else
++# PI_PROFILE) under ~/${PI_CONFIG_DIR:-.omp}, PI_CODING_AGENT_DIR when no
++# profile is set, or an existing XDG_DATA_HOME/omp when the agent dir is the
++# default, and it holds one bucket per canonical cwd. Only the buckets of this
++# repo's worktrees are scanned; walking every bucket would scale with total
++# session history. A store that cannot be read makes LAST_CHAT "?" and holds
++# the row at verify-recent-chat instead of reading as no chat at all.
++canon() { (CDPATH='' cd -- "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"; }
++dash() { printf '%s' "$1" | tr '/\\:' '---'; }
++# Path of $2 relative to $1, failing when $2 is outside it. Like omp, a
++# relative path starting with ".." counts as outside.
++rel_under() {
++	local root="${1%/}"
++	case "$2" in
++	"$root") return 0 ;;
++	"$root"/*) case "${2#"$root"/}" in ..*) return 1 ;; esac; printf '%s' "${2#"$root"/}" ;;
++	*) return 1 ;;
++	esac
++}
++# omp's bucket name for a canonical cwd. The temp root is checked before home.
++bucket_name() {
++	local rel
++	if rel=$(rel_under "$temp_root" "$1"); then printf '%s' "-tmp${rel:+-$(dash "$rel")}"
++	elif rel=$(rel_under "$home_root" "$1"); then printf '%s' "-$(dash "$rel")"
++	else printf '%s' "--$(dash "${1#/}")--"; fi
++}
++session_dirs=()
++if [ -n "${PI_CODING_AGENT_SESSION_DIR:-}" ]; then
++	sessions=$PI_CODING_AGENT_SESSION_DIR
++	session_dirs=("$sessions/")
++else
++	profile=$(printf '%s' "${OMP_PROFILE-${PI_PROFILE-}}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
++	[ "$profile" = default ] && profile=""
++	config="$HOME/${PI_CONFIG_DIR:-.omp}${profile:+/profiles/$profile}"
++	agent="$config/agent"
++	[ -z "$profile" ] && [ -n "${PI_CODING_AGENT_DIR:-}" ] && agent=$PI_CODING_AGENT_DIR
++	data=$agent
++	xdg="${XDG_DATA_HOME:-}/omp${profile:+/profiles/$profile}"
++	[ "$agent" = "$config/agent" ] && [ -n "${XDG_DATA_HOME:-}" ] && [ -e "$xdg" ] && data=$xdg
++	sessions="$data/sessions"
++	home_root=$(canon "$HOME")
++	temp_root=$(canon "${TMPDIR:-${TMP:-${TEMP:-/tmp}}}")
++	while IFS= read -r path; do
++		dir="$sessions/$(bucket_name "$(canon "$path")")"
++		[ -d "$dir" ] && session_dirs+=("$dir/")
++	done < <(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}')
++fi
++chat_lookup=ok
++if [ ! -d "$sessions" ]; then
++	chat_lookup=failed
++	echo "warn: no omp session store at $sessions; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
++fi
++# GNU and BSD spell file mtime and epoch formatting differently; probe once.
++if stat -c %Y / >/dev/null 2>&1; then mtime() { stat -c %Y "$1"; }; else mtime() { stat -f %m "$1"; }; fi
++if date -d @0 +%s >/dev/null 2>&1; then day() { date -d "@$1" '+%Y-%m-%d'; }; else day() { date -r "$1" '+%Y-%m-%d'; }; fi
  now=$(date +%s)
  
  echo "# base: $base"
@@ -83,23 +143,13 @@
 +printf "SIZE\tAGE\tMERGED\tDIRTY\tLOCKED\tINSPECT\tREMOTE\tPR\tLAST_CHAT\tBUCKET\tWORKTREE\n"
  
 -git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
-+printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}' | while IFS= read -r wt; do
-+
-+	inspect=ok
-+	lock=$(printf '%s\n' "$worktree_records" | awk -v target="$wt" '
-+		BEGIN { RS=""; FS="\n" }
-+		$1 == "worktree " target {
-+			for (i = 1; i <= NF; i++) {
-+				if ($i ~ /^locked/) {
-+					reason = substr($i, 8)
-+					print reason == "" ? "yes" : reason
-+					exit
-+				}
-+			}
-+		}')
-+	[ -z "$lock" ] && lock="-"
++printf '%s\n' "$worktree_records" | awk '
++	/^worktree / { if (wt != "") print wt "\t" lock; wt = substr($0, 10); lock = "-" }
++	/^locked/ { lock = substr($0, 8); if (lock == "") lock = "yes" }
++	END { if (wt != "") print wt "\t" lock }' | while IFS=$'\t' read -r wt lock; do
  	[ "$wt" = "$main_wt" ] && continue
  
++	inspect=ok
  	size=$(du -sh "$wt" 2>/dev/null | awk '{print $1}')
 -	head=$(git -C "$wt" rev-parse HEAD 2>/dev/null)
 +	if ! head=$(git -C "$wt" rev-parse HEAD 2>/dev/null); then
@@ -109,62 +159,95 @@
  	head_ts=$(git -C "$wt" log -1 --format='%ct' HEAD 2>/dev/null || echo 0)
  	age=$([ "$head_ts" -gt 0 ] 2>/dev/null && echo "$(( (now - head_ts) / 86400 ))d" || echo "?")
  
-@@ -82,8 +110,10 @@
+@@ -81,12 +147,12 @@
+ 	# real signal; merge-base only catches fast-forward/rebase merges.
  	git merge-base --is-ancestor "$head" "$base" 2>/dev/null && merged=YES || merged=no
  
- 	# Distinguish real WIP (tracked edits) from disposable untracked scratch.
+-	# Distinguish real WIP (tracked edits) from disposable untracked scratch.
 -	porcelain=$(git -C "$wt" status --porcelain 2>/dev/null)
 -	if [ -z "$porcelain" ]; then dirty=clean
-+	if ! porcelain=$(git -C "$wt" status --porcelain 2>/dev/null); then
+-	elif printf '%s\n' "$porcelain" | grep -qv '^??'; then
+-		dirty="wip:$(printf '%s\n' "$porcelain" | grep -cv '^??')"
+-	else dirty="scratch:$(printf '%s\n' "$porcelain" | grep -c '^??')"; fi
++	# Treat tracked, untracked, and ignored paths as work that must be held.
++	if ! porcelain=$(git -C "$wt" status --porcelain --untracked-files=all --ignored=matching 2>/dev/null); then
 +		dirty=error
 +		inspect="status-error"
 +	elif [ -z "$porcelain" ]; then dirty=clean
- 	elif printf '%s\n' "$porcelain" | grep -qv '^??'; then
- 		dirty="wip:$(printf '%s\n' "$porcelain" | grep -cv '^??')"
- 	else dirty="scratch:$(printf '%s\n' "$porcelain" | grep -c '^??')"; fi
-@@ -103,24 +133,33 @@
- 	# Most recent chat whose transcript operated in this worktree. Match path
- 	# followed by "/" or a quote so glint-482 does not match glint-482-r37.
- 	last="-"; last_ts=0
++	else dirty="wip:$(printf '%s\n' "$porcelain" | wc -l | tr -d '[:space:]')"; fi
+ 
+ 	branch=$(git -C "$wt" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "")
+ 	if [ -z "$branch" ]; then remote=detached
+@@ -94,33 +160,56 @@
+ 		[ "$(git -C "$wt" rev-parse "origin/$branch" 2>/dev/null)" = "$head" ] \
+ 			&& remote=pushed \
+ 			|| remote="ahead$(git -C "$wt" rev-list --count "origin/$branch..HEAD" 2>/dev/null)"
++		[ "$remote" = ahead0 ] && remote=behind
+ 	else remote=no-remote; fi
+ 
+-	pr=$([ -n "$branch" ] && jq -r --arg b "$branch" \
+-		'.[] | select(.head==$b) | "#\(.number)/\(.state)"' "$prs" 2>/dev/null | head -1)
++	# Several PRs can share a branch name; prefer the one whose head is HEAD.
++	pr_record=$([ -n "$branch" ] && printf '%s' "$prs" | jq -r --arg b "$branch" --arg h "$head" \
++		'[.[] | select(.head==$b)] | (map(select(.head_oid==$h)) + .)[0]
++		| select(.) | "#\(.number)/\(.state)\t\(.head_oid // "")"' 2>/dev/null)
++	pr=${pr_record%%$'\t'*}
++	pr_head=${pr_record#*$'\t'}
+ 	[ -z "$pr" ] && pr="-"
+ 
+-	# Most recent chat whose transcript operated in this worktree. Match path
+-	# followed by "/" or a quote so glint-482 does not match glint-482-r37.
+-	last="-"; last_ts=0
 -	if [ -d "$transcripts" ]; then
 -		f=$(rg -l -e "${wt}/" -e "${wt}\"" "$transcripts" 2>/dev/null \
 -			| xargs stat -f '%m %N' 2>/dev/null | sort -rn | head -1)
-+	wt_bucket=$(bucket "$wt"); [ -d "$wt_bucket" ] || wt_bucket="$repo_bucket"
-+	if [ -d "$repo_bucket" ]; then
-+		f=$(rg -l -e "${wt}/" -e "${wt}\"" "$repo_bucket" "$wt_bucket" 2>/dev/null \
-+			| xargs -r stat -c '%Y %n' 2>/dev/null | sort -rn | head -1)
- 		if [ -n "$f" ]; then last_ts=$(echo "$f" | awk '{print $1}')
+-		if [ -n "$f" ]; then last_ts=$(echo "$f" | awk '{print $1}')
 -			last=$(date -r "$last_ts" '+%Y-%m-%d' 2>/dev/null); fi
-+			last=$(date -d @"$last_ts" '+%Y-%m-%d' 2>/dev/null); fi
++	# Most recent chat whose transcript operated in this worktree, under the
++	# path git lists or its canonical spelling. Match path followed by "/" or a
++	# quote so glint-482 does not match glint-482-r37.
++	last="-"; last_ts=0; chat=$chat_lookup
++	if [ "$chat" = ok ] && [ "${#session_dirs[@]}" -gt 0 ]; then
++		cwt=$(canon "$wt")
++		matched=$(grep -RlsF --include='*.jsonl' -e "${wt}/" -e "${wt}\"" -e "${cwt}/" -e "${cwt}\"" \
++			-- "${session_dirs[@]}")
++		[ $? -le 1 ] || chat=failed
++		while IFS= read -r f; do
++			[ -n "$f" ] || continue
++			ts=$(mtime "$f") || { chat=failed; break; }
++			[ "$ts" -gt "$last_ts" ] && last_ts=$ts
++		done <<<"$matched"
  	fi
++	if [ "$chat" != ok ]; then last="?"
++	elif [ "$last_ts" -gt 0 ]; then last=$(day "$last_ts" 2>/dev/null) || last="?"; fi
  	recent=$([ "$last_ts" -gt 0 ] 2>/dev/null && [ $(( (now - last_ts) / 86400 )) -le 4 ] && echo yes || echo no)
  
--	case "$dirty" in wip:*) bucket=hold-wip ;; *)
--		case "$pr" in */open|*/draft) bucket=hold-open-pr ;; *)
++	# An exact PR head proves the commits were pushed even if origin has no
++	# branch (deleted after merging, or hosted on a fork). A closed PR still
++	# proves nothing about whether those commits were merged.
++	case "$pr" in */merged) pr_merged=yes ;; *) pr_merged=no ;; esac
++	case "$remote" in ahead*|no-remote|detached) unpushed=yes ;; *) unpushed=no ;; esac
++	[ "$merged" = YES ] && unpushed=no
++	[ -n "$pr_head" ] && [ "$head" = "$pr_head" ] && unpushed=no
++
+ 	case "$dirty" in wip:*) bucket=hold-wip ;; *)
+ 		case "$pr" in */open|*/draft) bucket=hold-open-pr ;; *)
 -			if [ "$recent" = yes ]; then bucket=verify-recent-chat
 -			elif [ "$merged" = YES ] || [ "$pr" != "-" ]; then bucket=safe
--			else bucket=review; fi ;;
--		esac ;;
--	esac
-+	if [ "$inspect" != ok ]; then bucket=hold-error
-+	elif [ "$lock" != "-" ]; then bucket=hold-locked
-+	else
-+		case "$dirty" in
-+		error) bucket=hold-error ;;
-+		wip:*) bucket=hold-wip ;;
-+		*)
-+			case "$pr" in
-+			*OPEN*) bucket=hold-open-pr ;;
-+			*)
-+				if [ "$recent" = yes ]; then bucket=verify-recent-chat
-+				elif [ "$merged" = YES ] || [ "$pr" != "-" ]; then bucket=safe
-+				else bucket=review; fi ;;
-+			esac ;;
-+		esac
-+	fi
++			if [ "$unpushed" = yes ]; then bucket=hold-unpushed
++			elif [ "$recent" = yes ] || [ "$chat" != ok ]; then bucket=verify-recent-chat
++			elif [ "$merged" = YES ] || [ "$pr_merged" = yes ]; then bucket=safe
+ 			else bucket=review; fi ;;
+ 		esac ;;
+ 	esac
++	# A locked or unreadable worktree is never a candidate, whatever else holds.
++	[ "$lock" != "-" ] && bucket=hold-locked
++	[ "$inspect" != ok ] && bucket=hold-error
  
- 	printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
- 		"$size" "$age" "$merged" "$dirty" "$remote" "$pr" "$last" "$bucket" "$wt"
+-	printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+-		"$size" "$age" "$merged" "$dirty" "$remote" "$pr" "$last" "$bucket" "$wt"
++	printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
++		"$size" "$age" "$merged" "$dirty" "$lock" "$inspect" "$remote" "$pr" "$last" "$bucket" "$wt"
  done | sort -t$'\t' -k1,1 -rh
- 
+-
 -rm -f "$prs"

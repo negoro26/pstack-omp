@@ -56,12 +56,15 @@ mutate_alias_shape() {
 }
 
 mutate_supported_suffixes() {
-	sed -i 's/`:low`, or `:minimal`/`:low`/' "$FIXTURE/skills/setup-pstack/SKILL.md"
 	sed -i 's/, and `minimal`//' "$FIXTURE/skills/omp-mechanics/references/setup-pstack-config.md"
 }
 
 mutate_base_selector() {
-	sed -i 's/require the remaining base to equal a selector from `omp models --json`/accept any remaining base/' "$FIXTURE/skills/setup-pstack/SKILL.md"
+	sed -i 's/require the remaining base to equal a selector from `omp models --json`/accept any remaining base/' "$FIXTURE/skills/omp-mechanics/references/setup-pstack-config.md"
+}
+
+mutate_setup_apply_script() {
+	sed -i '/^APPLY=/d' "$FIXTURE/skills/setup-pstack/SKILL.md"
 }
 
 mutate_setup_lever() {
@@ -109,6 +112,7 @@ expect_failure 'per-agent ownership' 'setup config contract' mutate_override_own
 expect_failure 'alias shape' 'setup config contract' mutate_alias_shape
 expect_failure 'supported suffix list' 'setup config contract' mutate_supported_suffixes
 expect_failure 'base selector validation' 'setup config contract' mutate_base_selector
+expect_failure 'setup apply script' 'setup config contract' mutate_setup_apply_script
 expect_failure 'setup model lever' 'omp model levers' mutate_setup_lever
 expect_failure 'router model lever' 'omp model levers' mutate_router_lever
 expect_failure 'agent hub api' 'agent hub api' mutate_hub_api

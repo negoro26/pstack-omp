@@ -42,3 +42,32 @@ jobs:
       - name: Extension tests
         working-directory: plugins/pstack
         run: bun test ./extensions/potetomode/index.test.js ./extensions/pstackpolicy/index.test.js
+
+  smoke:
+    # A real omp loads plugins/pstack: every skill directory must register as a command, and the
+    # pin extension must record and reload its state. omp-port/smoke-plugin.mjs names each check.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Install pinned omp
+        # can1357/oh-my-pi release v18.12.6, asset omp-linux-x64, sha256
+        # 85d9daf3a05fc76e8cd425ae1904eb576af8d21cc85fcf4690742626e07ccfa4. That is the digest
+        # `gh api repos/can1357/oh-my-pi/releases/latest` reports for the asset and the sha256 of the
+        # downloaded file, checked 2026-10-22. A bump changes the tag and the digest together.
+        env:
+          OMP_TAG: v18.12.6
+          OMP_SHA256: 85d9daf3a05fc76e8cd425ae1904eb576af8d21cc85fcf4690742626e07ccfa4
+        run: |
+          dir="$RUNNER_TEMP/omp"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/omp" \
+            "https://github.com/can1357/oh-my-pi/releases/download/$OMP_TAG/omp-linux-x64"
+          echo "$OMP_SHA256  $dir/omp" | sha256sum --check -
+          chmod +x "$dir/omp"
+          echo "$dir" >> "$GITHUB_PATH"
+      - name: Plugin smoke
+        run: OMP_SMOKE_REQUIRED=1 bun omp-port/smoke-plugin.mjs

@@ -10,7 +10,7 @@
 //
 // Pattern copied from the working reference ~/.omp/agent/extensions/ponytail/index.js:
 //   pi.appendEntry(...)                persist across turns without spending context
-//   session_start + getBranch()        restore the pin when a session resumes
+//   session_* + getBranch()            restore the pin from whichever branch the session lands on
 //   before_agent_start -> systemPrompt inject the reminder every run
 //   pi.registerCommand(...)            /poteto-mode as a slash command
 //   c.ui.setStatus(...)                live status bar pill/indicator
@@ -114,12 +114,16 @@ export default function potetomode(pi) {
     handler: (ctx) => setPinned(!pinned, ctx),
   });
 
-  pi.on("session_start", async (_event, ctx) => {
-    const entries = ctx.sessionManager.getBranch();
-    pinned = restore(entries) ?? pi.getFlag?.("poteto") === true;
+  const reload = async (_event, ctx) => {
+    pinned = restore(ctx.sessionManager.getBranch()) ?? pi.getFlag?.("poteto") === true;
     isActive = false;
     syncStatus(ctx);
-  });
+  };
+  // omp://extensions.md names start, branch and tree; /new, /fork and /resume arrive as
+  // session_switch, and each lands on another branch whose entries decide the pin.
+  for (const event of ["session_start", "session_switch", "session_branch", "session_tree"]) {
+    pi.on(event, reload);
+  }
 
   pi.on("agent_start", async (_event, ctx) => {
     isActive = true;

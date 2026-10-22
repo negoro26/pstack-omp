@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
-Every spawn is a Task subagent with `agent: generalPurpose` and read-only posture carried in the brief. Explorers use an exact discovered explorer agent in `~/.omp/agent/config.yml` in the `task.agentModelOverrides` entries in `~/.omp/agent/config.yml` (default your fast code model), and every explainer uses an exact discovered explainer agent in `~/.omp/agent/config.yml` (default your strongest judgment model). Each discovered agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects its model; the item has no `model` field. An `auto` or `inherit-parent` entry means the parent chat model, so omit that role from the map. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+Every delegation uses one `task` call with the required shared `context` and all independent items in `tasks[]`. Resolve exact agent names against the live roster, not configuration keys. Repository explorers use a discovered `scout`; explainers use a discovered explainer or omit `agent` for the default worker with the explainer brief. Each item's `task` is standalone and carries its angle and prompt template. All work is read-only. Models, reasoning, and speed come from agent frontmatter or `task.agentModelOverrides[<exact-name>]`, never per-call model fields or family fallbacks. Overrides cannot create agents.
 
 ## 1. Assess complexity
 
@@ -21,7 +21,7 @@ When in doubt, take the simple path.
 
 ## 2. Explore (complex only)
 
-Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in a single message, each with `references/explorer-prompt.md` and its angle filled in.
+Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Start all explorers in one `task` call with the required shared `context` and all independent items in `tasks[]`, each with `references/explorer-prompt.md` and its angle filled in.
 
 ## 3. Synthesize (complex only)
 

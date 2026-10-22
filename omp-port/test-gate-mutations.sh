@@ -33,7 +33,9 @@ expect_failure() {
 	if [ "$status" -eq 0 ]; then
 		printf 'mutation tests: %s unexpectedly passed\n' "$name"
 		fail=1
-	elif ! printf '%s\n' "$output" | grep -qF "$marker"; then
+	# The marker has to be the label of a line that reports FAIL. Every label prints on a PASS run
+	# too, so a bare substring match accepted a mutation that some other check had rejected.
+	elif ! printf '%s\n' "$output" | awk -v m="$marker" 'substr($0, 1, length(m)) == m && $NF == "FAIL" { hit = 1 } END { exit !hit }'; then
 		printf 'mutation tests: %s failed for the wrong reason\n%s\n' "$name" "$output"
 		fail=1
 	else
@@ -70,12 +72,36 @@ mutate_router_lever() {
 	sed -i 's/task\.agentModelOverrides/task.model/g' "$FIXTURE/skills/poteto-mode/SKILL.md"
 }
 
+# The claim an earlier tree shipped. omp has no `hub` tool, so naming one must fail on its own check,
+# not only on the retired `op:` wording.
 mutate_hub_api() {
-	printf '\nUse `hub` `op: "list"` to enumerate workers.\n' >>"$FIXTURE/skills/pstack-omp/SKILL.md"
+	printf '\n`hub` is a real built-in tool on this harness, with ops `list`, `send`, and `wait`.\n' >>"$FIXTURE/skills/pstack-omp/SKILL.md"
 }
 
 mutate_install_root() {
 	sed -i 's#~/\.omp/plugins/node_modules/pstack/skills#~/.agents/skills#' "$FIXTURE/skills/poteto-mode/playbooks/multi-phase-plan.md"
+}
+
+# negoro26/pstack-omp#20: `omp cleanse --all` detects and fixes repo-wide, so it is no diagnostic.
+mutate_unscoped_cleanup() {
+	printf '\nRun `omp cleanse --all` before commit.\n' >>"$FIXTURE/skills/poteto-mode/SKILL.md"
+}
+
+mutate_general_purpose() {
+	printf '\nSpawn every explorer as a `generalPurpose` worker.\n' >>"$FIXTURE/skills/how/SKILL.md"
+}
+
+# Restores the upstream wording rules.sed rewrites in the reflect reviewer templates.
+mutate_task_tool() {
+	sed -i 's/a `task` item whose brief names its path/a `Task` prompt naming its path/' "$FIXTURE/skills/reflect/references/judgment-reviewer.md"
+}
+
+mutate_transcript_layout() {
+	printf '\nFind this conversation in the `agent-transcripts/` directory the system prompt names.\n' >>"$FIXTURE/skills/reflect/SKILL.md"
+}
+
+mutate_guide_playbook() {
+	rm "$FIXTURE/skills/poteto-mode/playbooks/prototype.md"
 }
 
 expect_failure 'unrelated ownership' 'setup config contract' mutate_preserve_ownership
@@ -87,6 +113,11 @@ expect_failure 'setup model lever' 'omp model levers' mutate_setup_lever
 expect_failure 'router model lever' 'omp model levers' mutate_router_lever
 expect_failure 'agent hub api' 'agent hub api' mutate_hub_api
 expect_failure 'install root' 'install root' mutate_install_root
+expect_failure 'unscoped cleanup' 'runtime unscoped-cleanup' mutate_unscoped_cleanup
+expect_failure 'generalPurpose agent' 'runtime per-call-model' mutate_general_purpose
+expect_failure 'capitalised Task tool' 'cursor tool names' mutate_task_tool
+expect_failure 'cursor transcript layout' 'runtime history-layout' mutate_transcript_layout
+expect_failure 'guide prototype playbook' 'guide claims' mutate_guide_playbook
 
 mutate_veto_provenance() {
 	sed -i 's/ships no `session_stop` veto/ships a session_stop veto/' "$FIXTURE/README.md"

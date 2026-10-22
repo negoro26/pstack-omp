@@ -251,6 +251,13 @@ you how much upstream moved underneath you. A non-zero count on `skills/setup-ps
 the selection procedure by hand before trusting the skill; the two other owned paths have no
 upstream counterpart and always report as port-only.
 
+`skills/setup-pstack/scripts/apply-models.mjs` makes the config write. `omp config set` stores a
+selector the catalog does not have and an alias no role defines without complaint, so a bad value
+used to surface only at spawn. The script checks every alias, effort, and agent value against
+`omp models --json` and the merged `modelRoles` before its first write, preserves every entry pstack
+does not own, and converges on a rerun. Its tests run in the gate against a stub `omp` on `PATH`,
+and the `setup config contract` check asserts the skill still routes through it.
+
 Known deltas the port mirrors faithfully and will not diverge on. The guide says the verification feature map lives at `references/features` while both trees write `features/`. The guide recommends a daily `/maintain-verification-skill` run while both trees state no cadence.
 
 ## The one thing that needed new code

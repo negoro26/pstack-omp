@@ -12,22 +12,22 @@ Invoke when the user says "reflect" or "/reflect". Skip when the conversation is
 
 ## 1. Locate the active transcript
 
-Before fanning out, find this conversation's transcript in the `agent-transcripts/` directory the system prompt names. Do not glob across sibling `~/.omp/agent/sessions/<other-cwd>/` buckets. That crosses workspace boundaries and reads private chats from unrelated projects.
+Before fanning out, read `skill://omp-mechanics/references/session-store-on-omp.md`. Prefer `history://<id>` for an agent registered in this process. Resolve this conversation's transcript directory using that reference. An explicit session-directory override is already the transcript directory; otherwise select the canonical-cwd bucket under the selected profile root. Search only that directory, never unrelated workspace chats.
 
-```bash
-ls -t ~/.omp/agent/sessions/<encoded-cwd>/*.jsonl ~/.omp/agent/sessions/<encoded-cwd>/*/*.jsonl ~/.omp/agent/sessions/<encoded-cwd>/*/*/*.jsonl 2>/dev/null | head -10
+```text
+Use glob on <resolved-transcript-directory>/*.jsonl and the selected session's <session-stem>/**/*.jsonl sidecars. Resolve placeholders first, then inspect candidates with read.
 ```
 
-That covers the legacy flat (`<id>.jsonl`), current nested (`<id>/<id>.jsonl`), and subagent (`<parent>/subagents/<child>.jsonl`) layouts. For each candidate, read the first JSONL line. Take the file whose `message.content[0].text` contains the conversation's opening user prompt. If none matches, pass a tight digest of the session instead.
+OMP stores flat `<timestamp>_<session-id>.jsonl` root sessions and `<session-stem>/<AgentId>.jsonl` child sidecars; nested child directories carry full dotted IDs. A current file starts with a fixed-width `type:title` slot, then a `type:session` header. Legacy files may start at the header. Neither is a user message. Match the opening user prompt against the first `type:message` entry whose `message.role` is `user`, reading its `message.content` text. If no candidate matches, pass a tight digest of this session instead. When a transcript has `reset_boundary` entries, review only the active context after the latest boundary unless the user explicitly asks to review earlier history.
 
 ## 2. Spawn three reviewers in parallel
 
-One message, three `Task` calls, `agent: generalPurpose`, agent mode (full tools per spawn). Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and nothing strips MCPs here.
+Start the three lenses in one `task` call with three items in `tasks[]` and the required shared `context`. Resolve exact discovered judgment, tooling, and divergent agents; omit `agent` for the default worker with the corresponding lens brief when a specialist is absent. Keep independent contexts. Prefer different configured model families, especially for Divergent versus Judgment, only when the roster supplies them; report weaker diversity otherwise. Reviewers may use inherited MCP tools for read-only citation checks. The brief forbids mutations; there is no task `readonly` field.
 
-Resolve exact discovered agent names for the three lenses and the synthesizer. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; the task item has no `model` field. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+Resolve exact discovered agent names for the three lenses and the synthesizer. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; the task item has no `model` field. Use the reasoning and speed already selected by agent frontmatter or exact `task.agentModelOverrides` entries. Do not change operator configuration to satisfy a skill example.
 
 | Lens | Exact agent | Prompt template |
-|---|---|---|---|
+|---|---|---|
 | Judgment | discovered judgment agent | `references/judgment-reviewer.md` |
 | Tooling | discovered tooling agent | `references/tooling-reviewer.md` |
 | Divergent | discovered divergent agent | `references/divergent-reviewer.md` |
@@ -36,7 +36,7 @@ Pass each template verbatim, substituting the transcript path or digest where ma
 
 ## 3. Synthesize
 
-One `Task` call, `agent: generalPurpose`, `agent` from the `task.agentModelOverrides` entry for an exact discovered agent filling that role (default your strongest judgment model), agent mode (full tools per spawn). It spot-verifies citations through MCP, and nothing strips MCPs here. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
+Start the synthesizer in one `task` call with one item in `tasks[]` and the required shared `context`. Use an exact discovered synthesizer, or omit `agent` for the default worker with the synthesizer brief. Agent frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. Permit read-only MCP citation checks and forbid mutations in the brief. It returns an Accepted / Rejected / Backlog list.
 
 ## 4. Structural enforcement check
 

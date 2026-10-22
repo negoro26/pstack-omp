@@ -27,7 +27,7 @@ Remaining triggers:
 - Nontrivial multi-step → write the throughput checkpoint (Feature step 3).
 - Any prose surface, your reply to the user included → the **unslop** skill. Write the reply per **Writing the reply**. Agent-facing prose also follows the **authoring-a-skill** playbook (`skill://poteto-mode/playbooks/authoring-a-skill.md`).
 - Docs, RFCs, readmes, PR descriptions, or commit messages → the **technical-writing** skill (`/skill:technical-writing`).
-- Before commit → the `unslop` skill (`skill://unslop`) plus `omp cleanse --all` for diagnostics.
+- Before commit → the `unslop` skill (`skill://unslop`) plus non-mutating repository diagnostics scoped to the diff.
 - Before review → the **no-comments** skill (`/skill:no-comments`).
 - Shipping UI / IDE / CLI → the matching control skill. omp provides the levers directly. Bash with a unique `name`, `ready` checks, and `proc://` state drives CLIs and TUIs, the `browser` eval prelude drives browser, Electron, and web UIs over CDP, and the `computer` prelude drives native desktop. Both preludes are code in an `eval` cell and neither is a tool with its own schema. For bug fixes, reproduce first on the same surface yourself. Hand to the user only under the narrow Bug fix step 1 exception.
 - Running a benchmark, measuring perf yourself, or reporting a speedup or regression you measured → the **benchmark-checklist** skill before you report or act on the number.
@@ -98,7 +98,7 @@ Batch genuinely independent work when supported. Give each participant a standal
 
 Model selection belongs to `task.agentModelOverrides` and agent frontmatter, not to routed-skill task fields.
 
-**Match the model to the job.** Before each spawn, start from the role's entry in `~/.omp/agent/config.yml`, or its default and pick the reasoning level and speed the job needs. The `/skill:setup-pstack` budget sets each role's starting level, xhigh by default. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more steps for routine work. Use fast mode only when the job is urgent, meaning CI or trunk is red or a person is blocked on the result right now. Otherwise use standard speed, the same slug without `-fast`. Verification is the exception and stays on the swarm role's own entry and speed. Change only the effort level and whether the slug is fast, and keep the family the role names, so a diverse panel stays diverse. If the family has no slug at that level and speed, use its nearest slug. A role on `auto` or `inherit-parent` stays on the parent model. If the Task tool rejects the adjusted slug, do not try another adjusted slug. Use the role's entry in `~/.omp/agent/config.yml`, or its default and say so.
+**Match the role to the job.** Resolve the required capability against the live agent roster and use that agent's configured reasoning and speed. Pass a per-spawn `effort` only when the live task schema exposes it. Agent frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model. Do not adjust a per-call slug, retry a family default, or change operator configuration to satisfy an example. Report unavailable diversity honestly.
 
 You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. A second opinion is the same prompt against a different model. Agreement is high-signal.
 

@@ -24,18 +24,18 @@ Before spawning reviewers, state the intent in one clear paragraph from the user
 
 ## Step 3, Spawn Reviewers
 
-Launch all reviewers in a single message with the Task tool, one per configured entry in `~/.omp/agent/config.yml`, labeled Reviewer A, B, and so on to match the entry count. If the rule or that line is missing, use the table defaults.
+Launch all reviewers in one `task` call with the required shared `context` and all items in `tasks[]`. Resolve exact discovered reviewer agents from the live roster, one per configured slot, labeled Reviewer A, B, and so on. Omit `agent` for the default worker with the reviewer brief when a specialist is absent. Report unavailable model-family diversity; never invent an agent from an override key.
 
-| Subagent | Default model |
+| Reviewer slot | Runtime agent |
 |----------|---------------|
-| Reviewer A | your strongest judgment model |
-| Reviewer B | your fast code model |
+| Reviewer A | discovered reviewer agent or default worker |
+| Reviewer B | independently configured reviewer agent or default worker; report unavailable diversity |
 
-Each reviewer gets `agent: generalPurpose`, read-only posture carried in the brief, and `model` set to its configured entry, or its table default when there is no configured line. Omit `model` for an `auto` or `inherit-parent` entry, so that reviewer runs on the parent model.
+Each task item uses an exact discovered reviewer agent or omits `agent` for the default worker with the same reviewer brief. Carry read-only posture in the brief, not a `readonly` field. Agent frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; do not pass `model`. Shared `context` carries the intent and rubric, while each item carries the standalone review task.
 
 If the requested exact reviewer is absent, use another discovered reviewer with the same brief and report the missing model diversity. A model override cannot create an agent.
 
-Read `references/reviewer-prompt.md` and fill in the same template for every reviewer with the stated intent, the diff or file contents, the rubric from `references/rubric.md`, and the code-quality lens from `references/code-quality-review.md`. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+Read `references/reviewer-prompt.md` and fill in the same template for every reviewer with the stated intent, the diff or file contents, the rubric from `references/rubric.md`, and the code-quality lens from `references/code-quality-review.md`. Use the reasoning and speed already selected by agent frontmatter or exact `task.agentModelOverrides` entries. Do not change operator configuration to satisfy a skill example.
 
 ## Step 4, Synthesize
 

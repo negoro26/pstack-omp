@@ -132,6 +132,12 @@ Everything below `pstack/skills` and `pstack/agents` is outside this port. The b
 `.cursor-plugin/plugin.json` is not vendored and never was in the current build: it sits outside the
 two subtrees `omp-port/lib.sh` archives, and omp never read it. Nothing in the tree parses it.
 
+`pstack/plugin.json`, upstream's Agent Plugins manifest, is not carried either. At the plugin root it
+makes omp's `agent-plugins` provider claim the package, and that provider checks skill frontmatter
+against a closed field set. It skipped every skill with `disable-model-invocation`, `icon`, `color`,
+or `globs`, 54 of 56 at 0.15.25 on omp 18.12.2. Without it, the `omp-plugins` provider reads the
+plugin root's `skills/` directory and loads all of them. The `plugin manifest` gate asserts the absence.
+
 ## Install, the two live shapes
 
 `omp plugin link <checkout>/plugins/pstack` is the maintainer shape. It registers the checkout as an

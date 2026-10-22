@@ -55,7 +55,7 @@ ensure_canon() {
 # Step 1, upstream text as it is, with pstack/ stripped so skills and agents land at the root.
 extract_upstream() {
 	local sha="$1" work="$2"
-	git -C "$CANON" archive "$sha" pstack/skills pstack/agents pstack/plugin.json |
+	git -C "$CANON" archive "$sha" pstack/skills pstack/agents |
 		tar -x --strip-components=1 -C "$work" || return 1
 	[ -d "$work/skills" ] && [ -d "$work/agents" ]
 }
@@ -139,11 +139,6 @@ install_tree() {
 	done < <(owned_paths)
 	rm -rf "$REPO_ROOT/plugins/pstack/skills" "$REPO_ROOT/plugins/pstack/agents" || return 1
 	mv "$work/skills" "$work/agents" "$REPO_ROOT/plugins/pstack/" || return 1
-	# Copied verbatim: upstream added this so the plugin loads in any harness, and it is pure
-	# metadata, so there is nothing in it to substitute.
-	if [ -f "$work/plugin.json" ]; then
-		cp -a "$work/plugin.json" "$REPO_ROOT/plugins/pstack/plugin.json" || return 1
-	fi
 	while IFS= read -r p; do
 		src="$REPO_ROOT/plugins/pstack/$p"
 		if [ -e "$keep/$p" ]; then

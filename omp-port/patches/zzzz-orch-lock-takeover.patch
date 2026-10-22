@@ -1,0 +1,312 @@
+# orch stale-lock takeover, after upstream #733 (fixes #730), with the leftover-marker defect
+# that PR introduces removed.
+#
+# Replacing a dead holder's lock was unlink-then-create, so two takers that read the same dead
+# pid could both end up holding the store. #733 serialises the takeover through a `wx` marker,
+# .orch.lock.takeover, but a taker that dies holding it leaves it behind and every later
+# takeover then reports the dead pid forever. Here:
+#   - a marker older than TAKEOVER_MARKER_STALE_MS (10 s) is stepped past, not trusted. It is
+#     never unlinked to make room, since two takers that both judged it stale could each unlink
+#     it and the second would remove the first one's fresh marker; the next marker is named
+#     after the stale one's inode and mtime so exactly one taker can create it, and the stale
+#     markers are removed on release only while they are still the files judged stale
+#   - holding the marker, the taker re-reads the lock and replaces it only if it still names the
+#     holder it judged dead (or forced), so a taker that finished first keeps its lock
+#   - heldBy is awaited inside the try whose finally awaits, so its rejection is never unhandled
+#
+diff --git a/skills/poteto-mode/scripts/orch/orch.test.ts b/skills/poteto-mode/scripts/orch/orch.test.ts
+--- a/skills/poteto-mode/scripts/orch/orch.test.ts
++++ b/skills/poteto-mode/scripts/orch/orch.test.ts
+@@ -6,9 +6,13 @@ import {
+   readFile,
+   readdir,
+   rm,
++  stat,
++  unlink,
++  utimes,
+   writeFile,
+ } from "node:fs/promises";
+-import { realpathSync } from "node:fs";
++import { randomUUID } from "node:crypto";
++import { realpathSync, writeFileSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import {
+@@ -436,6 +440,104 @@ describe("Store", () => {
+     expect(await readdir(directory)).not.toContain(".orch.lock");
+   });
+ 
++  it("lets exactly one of two concurrent takers replace a stale lock", async () => {
++    const { directory } = await initializedStore();
++    const exited = Bun.spawn(["true"]);
++    await exited.exited;
++    await writeFile(join(directory, ".orch.lock"), `${exited.pid}\n`);
++
++    // Both stores stay open until both attempts settle, so the winner still
++    // holds the lock while the loser retries.
++    const stores = [useStore(directory, {}), useStore(directory, {})];
++    const results = await Promise.allSettled(
++      stores.map((store) =>
++        store.units.add({ id: `u-${randomUUID()}`, track: "build" })
++      )
++    );
++    const fulfilled = results.filter((r) => r.status === "fulfilled");
++    const rejected = results.filter(
++      (r): r is PromiseRejectedResult => r.status === "rejected"
++    );
++    expect(fulfilled).toHaveLength(1);
++    expect(rejected).toHaveLength(1);
++    expect(String(rejected[0].reason)).toMatch(/store lock held by pid/);
++    expect(await readdir(directory)).not.toContain(".orch.lock.takeover");
++    await Promise.all(stores.map((store) => store.close()));
++  });
++
++  it("does not unlink a stale lock while another process is mid-takeover", async () => {
++    const { directory } = await initializedStore();
++    const exited = Bun.spawn(["true"]);
++    await exited.exited;
++    await writeFile(join(directory, ".orch.lock"), `${exited.pid}\n`);
++    // Simulate a competing process that has claimed the takeover but not yet
++    // installed its lock.
++    await writeFile(join(directory, ".orch.lock.takeover"), "");
++
++    const store = useStore(directory, {});
++    await expect(
++      store.units.add({ id: "u1", track: "build" })
++    ).rejects.toThrow(/store lock held by pid/);
++    expect(await readFile(join(directory, ".orch.lock"), "utf8")).toBe(
++      `${exited.pid}\n`
++    );
++    await unlink(join(directory, ".orch.lock.takeover"));
++  });
++
++  it("steps past takeover markers left by crashed takers once they are past the age limit", async () => {
++    // One crash leaves the marker; a second leaves the marker that succeeded it.
++    for (const crashes of [1, 2]) {
++      const { directory } = await initializedStore();
++      const exited = Bun.spawn(["true"]);
++      await exited.exited;
++      await writeFile(join(directory, ".orch.lock"), `${exited.pid}\n`);
++      const takeover = join(directory, ".orch.lock.takeover");
++      const longAgo = new Date(Date.now() - 60_000);
++      let marker = takeover;
++      for (let crash = 0; crash < crashes; crash++) {
++        await writeFile(marker, "");
++        await utimes(marker, longAgo, longAgo);
++        const seen = await stat(marker);
++        marker = `${takeover}.${seen.ino}-${Math.trunc(seen.mtimeMs)}`;
++      }
++
++      const store = useStore(directory, {});
++      expect(
++        await store.units.add({ id: "u1", track: "build" })
++      ).toMatchObject({ id: "u1" });
++      expect(await readFile(join(directory, ".orch.lock"), "utf8")).toBe(
++        `${process.pid}\n`
++      );
++      expect(
++        (await readdir(directory)).filter((name) =>
++          name.startsWith(".orch.lock.takeover")
++        )
++      ).toEqual([]);
++    }
++  });
++
++  it("does not replace a lock another taker installed after the holder was judged dead", async () => {
++    const { directory } = await initializedStore();
++    const exited = Bun.spawn(["true"]);
++    await exited.exited;
++    const lock = join(directory, ".orch.lock");
++    await writeFile(lock, `${exited.pid}\n`);
++    // Between this process reading the dead holder and claiming the takeover,
++    // another taker finished its own takeover and now holds the lock.
++    const winner = Bun.spawn(["sleep", "30"]);
++    try {
++      const store = useStore(directory, {
++        onStaleLock: () => writeFileSync(lock, `${winner.pid}\n`),
++      });
++      await expect(
++        store.units.add({ id: "u1", track: "build" })
++      ).rejects.toThrow(`store lock held by pid ${winner.pid}`);
++      expect(await readFile(lock, "utf8")).toBe(`${winner.pid}\n`);
++    } finally {
++      winner.kill();
++    }
++  });
++
+   it("blocks a writer and steals the pid lock only with force", async () => {
+     const { directory, store } = await initializedStore();
+     await store.close();
+diff --git a/skills/poteto-mode/scripts/orch/store.ts b/skills/poteto-mode/scripts/orch/store.ts
+--- a/skills/poteto-mode/scripts/orch/store.ts
++++ b/skills/poteto-mode/scripts/orch/store.ts
+@@ -9,14 +9,19 @@ import {
+   readdir,
+   rename,
+   rm,
++  stat,
+   unlink,
+   writeFile,
+ } from "node:fs/promises";
+ import { basename, dirname, join, resolve } from "node:path";
++import { setTimeout as delay } from "node:timers/promises";
+ 
+ const UNIT_HEADER = "id\ttrack\tstate\tbranch\tpr\tsha\tbrief";
+ const LEDGER_HEADER = "pr\tsha\tverdict\tevidence\tverifier\tts";
+ const LOCK_FILE = ".orch.lock";
++// A live takeover is a handful of file operations, so a takeover marker this
++// old was left by a taker that died mid-takeover and must not block the next.
++const TAKEOVER_MARKER_STALE_MS = 10_000;
+ 
+ export type Verdict =
+   | "live-ui-verified"
+@@ -384,6 +389,7 @@ async function acquireLock(
+   options: OpenStoreOptions
+ ): Promise<() => Promise<void>> {
+   const path = join(store, LOCK_FILE);
++  const takeoverPath = `${path}.takeover`;
+   const pid = String(process.pid);
+   const create = async (): Promise<void> => {
+     const handle = await open(path, "wx");
+@@ -391,17 +397,119 @@ async function acquireLock(
+     await handle.close();
+   };
+ 
+-  const takeOver = async (): Promise<void> => {
+-    await unlink(path);
++  const heldBy = async (): Promise<never> => {
++    let retryHolder = "unknown";
+     try {
+-      await create();
+-    } catch (retryError) {
+-      if (errorCode(retryError) === "EEXIST") {
+-        const retryHolder =
+-          (await readFile(path, "utf8")).trim() || "unknown";
+-        throw new UserError(`store lock held by pid ${retryHolder}`);
++      retryHolder = (await readFile(path, "utf8")).trim() || "unknown";
++    } catch {
++      retryHolder = "unknown";
++    }
++    throw new UserError(`store lock held by pid ${retryHolder}`);
++  };
++
++  // Claims the right to replace the lock by `wx`-creating a takeover marker,
++  // or returns null while another process holds a fresh one. A marker past the
++  // age limit is never unlinked to make room, because two processes that both
++  // judged it stale could each unlink it and the second would remove the
++  // first one's fresh marker. The next marker is named after the stale one's
++  // identity instead, so exactly one process can create it. The stale markers
++  // a claim stood on are removed on release, each only while it is still the
++  // file that was judged stale.
++  const claimTakeover = async (): Promise<(() => Promise<void>) | null> => {
++    const stale: {
++      readonly path: string;
++      readonly ino: number;
++      readonly mtimeMs: number;
++    }[] = [];
++    let marker = takeoverPath;
++    for (;;) {
++      try {
++        await (await open(marker, "wx")).close();
++        break;
++      } catch (claimError) {
++        if (errorCode(claimError) !== "EEXIST") {
++          throw claimError;
++        }
++      }
++      let seen;
++      try {
++        seen = await stat(marker);
++      } catch (statError) {
++        if (errorCode(statError) === "ENOENT") {
++          continue;
++        }
++        throw statError;
++      }
++      if (Date.now() - seen.mtimeMs < TAKEOVER_MARKER_STALE_MS) {
++        return null;
++      }
++      stale.push({ path: marker, ino: seen.ino, mtimeMs: seen.mtimeMs });
++      marker = `${takeoverPath}.${seen.ino}-${Math.trunc(seen.mtimeMs)}`;
++    }
++    const claimed = marker;
++    return async () => {
++      for (const judged of stale) {
++        const current = await stat(judged.path).catch(() => null);
++        if (current?.ino === judged.ino && current.mtimeMs === judged.mtimeMs) {
++          await unlink(judged.path).catch(() => {});
++        }
++      }
++      await unlink(claimed).catch(() => {});
++    };
++  };
++
++  // Replacing a stale lock is unlink-then-create, which is not atomic: two
++  // processes that both read the same dead holder could each unlink and the
++  // second unlink would remove the first one's fresh lock. Serialise the
++  // takeover itself through a second `wx` file so only one process performs
++  // the unlink; the other falls back to a plain create and, on EEXIST, reports
++  // the winner's pid.
++  const takeOver = async (holder: string): Promise<void> => {
++    const release = await claimTakeover();
++    if (release === null) {
++      // Another process is mid-takeover. Give it a moment to install its
++      // lock, then try the normal path once.
++      await delay(20);
++      try {
++        await create();
++        return;
++      } catch (retryError) {
++        if (errorCode(retryError) === "EEXIST") {
++          return heldBy();
++        }
++        throw retryError;
++      }
++    }
++    try {
++      // The marker serialises takers, so this read is current. A lock that no
++      // longer names the holder this process judged replaceable was installed
++      // by a taker that finished first, and is not this process's to remove.
++      let current: string | null = null;
++      try {
++        current = (await readFile(path, "utf8")).trim() || "unknown";
++      } catch (readError) {
++        if (errorCode(readError) !== "ENOENT") {
++          throw readError;
++        }
++      }
++      // `return await`, not `return`: the finally below awaits, and a returned
++      // rejection nobody has awaited yet surfaces as an unhandled rejection.
++      if (current !== null) {
++        if (current !== holder) {
++          return await heldBy();
++        }
++        await unlink(path);
++      }
++      try {
++        await create();
++      } catch (retryError) {
++        if (errorCode(retryError) === "EEXIST") {
++          return await heldBy();
++        }
++        throw retryError;
+       }
+-      throw retryError;
++    } finally {
++      await release();
+     }
+   };
+ 
+@@ -419,10 +527,10 @@ async function acquireLock(
+     }
+     if (holderIsDead(holder)) {
+       options.onStaleLock?.(holder);
+-      await takeOver();
++      await takeOver(holder);
+     } else if (options.force) {
+       options.onLockStolen?.(holder);
+-      await takeOver();
++      await takeOver(holder);
+     } else {
+       throw new UserError(`store lock held by pid ${holder}`);
+     }

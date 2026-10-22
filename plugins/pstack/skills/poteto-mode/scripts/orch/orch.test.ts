@@ -6,9 +6,13 @@ import {
   readFile,
   readdir,
   rm,
+  stat,
+  unlink,
+  utimes,
   writeFile,
 } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -436,6 +440,104 @@ describe("Store", () => {
     expect(await readdir(directory)).not.toContain(".orch.lock");
   });
 
+  it("lets exactly one of two concurrent takers replace a stale lock", async () => {
+    const { directory } = await initializedStore();
+    const exited = Bun.spawn(["true"]);
+    await exited.exited;
+    await writeFile(join(directory, ".orch.lock"), `${exited.pid}\n`);
+
+    // Both stores stay open until both attempts settle, so the winner still
+    // holds the lock while the loser retries.
+    const stores = [useStore(directory, {}), useStore(directory, {})];
+    const results = await Promise.allSettled(
+      stores.map((store) =>
+        store.units.add({ id: `u-${randomUUID()}`, track: "build" })
+      )
+    );
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter(
+      (r): r is PromiseRejectedResult => r.status === "rejected"
+    );
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(String(rejected[0].reason)).toMatch(/store lock held by pid/);
+    expect(await readdir(directory)).not.toContain(".orch.lock.takeover");
+    await Promise.all(stores.map((store) => store.close()));
+  });
+
+  it("does not unlink a stale lock while another process is mid-takeover", async () => {
+    const { directory } = await initializedStore();
+    const exited = Bun.spawn(["true"]);
+    await exited.exited;
+    await writeFile(join(directory, ".orch.lock"), `${exited.pid}\n`);
+    // Simulate a competing process that has claimed the takeover but not yet
+    // installed its lock.
+    await writeFile(join(directory, ".orch.lock.takeover"), "");
+
+    const store = useStore(directory, {});
+    await expect(
+      store.units.add({ id: "u1", track: "build" })
+    ).rejects.toThrow(/store lock held by pid/);
+    expect(await readFile(join(directory, ".orch.lock"), "utf8")).toBe(
+      `${exited.pid}\n`
+    );
+    await unlink(join(directory, ".orch.lock.takeover"));
+  });
+
+  it("steps past takeover markers left by crashed takers once they are past the age limit", async () => {
+    // One crash leaves the marker; a second leaves the marker that succeeded it.
+    for (const crashes of [1, 2]) {
+      const { directory } = await initializedStore();
+      const exited = Bun.spawn(["true"]);
+      await exited.exited;
+      await writeFile(join(directory, ".orch.lock"), `${exited.pid}\n`);
+      const takeover = join(directory, ".orch.lock.takeover");
+      const longAgo = new Date(Date.now() - 60_000);
+      let marker = takeover;
+      for (let crash = 0; crash < crashes; crash++) {
+        await writeFile(marker, "");
+        await utimes(marker, longAgo, longAgo);
+        const seen = await stat(marker);
+        marker = `${takeover}.${seen.ino}-${Math.trunc(seen.mtimeMs)}`;
+      }
+
+      const store = useStore(directory, {});
+      expect(
+        await store.units.add({ id: "u1", track: "build" })
+      ).toMatchObject({ id: "u1" });
+      expect(await readFile(join(directory, ".orch.lock"), "utf8")).toBe(
+        `${process.pid}\n`
+      );
+      expect(
+        (await readdir(directory)).filter((name) =>
+          name.startsWith(".orch.lock.takeover")
+        )
+      ).toEqual([]);
+    }
+  });
+
+  it("does not replace a lock another taker installed after the holder was judged dead", async () => {
+    const { directory } = await initializedStore();
+    const exited = Bun.spawn(["true"]);
+    await exited.exited;
+    const lock = join(directory, ".orch.lock");
+    await writeFile(lock, `${exited.pid}\n`);
+    // Between this process reading the dead holder and claiming the takeover,
+    // another taker finished its own takeover and now holds the lock.
+    const winner = Bun.spawn(["sleep", "30"]);
+    try {
+      const store = useStore(directory, {
+        onStaleLock: () => writeFileSync(lock, `${winner.pid}\n`),
+      });
+      await expect(
+        store.units.add({ id: "u1", track: "build" })
+      ).rejects.toThrow(`store lock held by pid ${winner.pid}`);
+      expect(await readFile(lock, "utf8")).toBe(`${winner.pid}\n`);
+    } finally {
+      winner.kill();
+    }
+  });
+
   it("blocks a writer and steals the pid lock only with force", async () => {
     const { directory, store } = await initializedStore();
     await store.close();
@@ -569,6 +671,40 @@ describe("Store", () => {
               prs: [10, 10],
             })
           ).rejects.toThrow("--prs must not contain duplicates");
+        },
+      });
+    });
+
+    it(`resolves a replacement ${forge} PR alongside closed branch history`, async () => {
+      for (const historicalState of ["closed", "merged"] as const) {
+        const { directory, store } = await initializedStore();
+        const stack = await makeGitStack(directory);
+        await withFakeForge({
+          directory, forge,
+          currentRows: forgeRows(forge, [
+            { number: 9, state: historicalState, head: "stack/open", base: "main" },
+            { number: 11, state: "open", head: "stack/open", base: "stack/closed" },
+          ]),
+          operation: async () => {
+            const frontier = await store.frontier.set({ repo: stack.repo, forge });
+            expect(frontier.prs.map((row) => row.pr)).toEqual([10, 13, 11, 14]);
+            expect(frontier.lowestUnmerged).toBe(11);
+          },
+        });
+      }
+    });
+
+    it(`still rejects multiple active ${forge} PRs on one branch`, async () => {
+      const { directory, store } = await initializedStore();
+      const stack = await makeGitStack(directory);
+      await withFakeForge({
+        directory, forge,
+        currentRows: forgeRows(forge, [
+          { number: 11, state: "open", head: "stack/open", base: "stack/closed" },
+          { number: 12, state: "open", head: "stack/open", base: "main" },
+        ]),
+        operation: async () => {
+          await expect(store.frontier.set({ repo: stack.repo, forge })).rejects.toThrow("multiple pull requests");
         },
       });
     });

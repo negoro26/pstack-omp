@@ -2,12 +2,6 @@ diff --git a/skills/make-bot-ui/SKILL.md b/skills/make-bot-ui/SKILL.md
 index 285df75..1c71684 100644
 --- a/skills/make-bot-ui/SKILL.md
 +++ b/skills/make-bot-ui/SKILL.md
-@@ -1,4 +1,4 @@
- ---
--name: Make Bot UI
-+name: make-bot-ui
- description: >-
-   Use when building a custom UI (page, dashboard, buttons) that should wake a
 @@ -9,4 +9,11 @@ disable-model-invocation: true
  # How to make a bot UI
  

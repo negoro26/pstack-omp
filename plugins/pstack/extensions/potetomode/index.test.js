@@ -20,6 +20,7 @@ function host(flag = true) {
   });
   return {
     start: async (branch = []) => { entries = branch; await events.get("session_start")({}, ctx); },
+    emit: async (name, branch = []) => { entries = branch; await events.get(name)?.({}, ctx); },
     before: (systemPrompt = ["original"]) => events.get("before_agent_start")({ systemPrompt }),
     command: (args) => command(args, ctx),
     shortcut: () => shortcut(ctx),
@@ -79,4 +80,16 @@ test("prompt block boundaries and input blocks remain intact", async () => {
   expect(result.systemPrompt.slice(0, 2)).toEqual(blocks);
   expect(blocks).toEqual(["first", "second"]);
   expect(result.systemPrompt).toHaveLength(3);
+});
+
+test("switch, branch and tree navigation reload the pin from the branch they land on", async () => {
+  for (const event of ["session_switch", "session_branch", "session_tree"]) {
+    const session = host(false);
+    await session.start([entry(true)]);
+    await session.emit(event);
+    expect(await session.before()).toBeUndefined();
+    expect(session.status()).toBe("");
+    await session.emit(event, [entry(true)]);
+    expect((await session.before()).systemPrompt[1]).toContain("poteto-mode is PINNED");
+  }
 });

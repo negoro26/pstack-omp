@@ -216,9 +216,11 @@ The split is by kind, not by size.
   line, a patch that stops matching costs a merge.
 - Port prose goes in the owned skills, which `install_tree` restores from `HEAD` and which
   therefore cannot conflict with upstream at all.
-- A patch is for code: control flow, a data shape, a file upstream does not have. Both remaining
-  patches touch a script, and one of them replaced two interlocking patches that had to be read
-  together to apply, because one wrote a transcript lookup the other deleted.
+- A patch is for code: control flow, a data shape, a file upstream does not have. The patches
+  touch scripts only. `worktree-audit-omp.patch` is the port's own change. The three `zzz*`
+  patches carry open upstream PRs (#746 and #769, the check-plan half of #745, and #733 with an
+  age-limited marker). When upstream merges one, its patch stops applying; delete the patch rather
+  than resolving it.
 
 Author a patch against **post-rules** text. `rules.sed` runs first, so a hunk quoting the raw
 upstream line fails whenever an earlier rule rewrote it. `worktree-audit-omp.patch` deletes a
@@ -234,8 +236,9 @@ correct tree. They now derive the name the way the preamble tells the agent to.
 
 The gate used to assert that port-authored prose sat *inside* upstream's playbooks, which is the
 opposite of mirroring upstream and made every one of those assertions a rule that went stale. Those
-checks are gone. What remains is residue detection: Cursor wire fields, model slugs, retired role
-keys, install paths, and build integrity.
+checks are gone. What remains is residue detection: Cursor wire fields and tool names, Cursor's
+transcript layout, model slugs, retired role keys, install paths, a claimed `hub` tool, an unscoped
+`omp cleanse --all` recommended as a diagnostic, and build integrity.
 
 `skills/setup-pstack` is port-owned, so the build restores it from `HEAD` and never rebuilds it from
 upstream. Upstream's version writes a Cursor rules file with no omp meaning, so the fork is
@@ -255,8 +258,9 @@ Known deltas the port mirrors faithfully and will not diverge on. The guide says
 omp ignores the skill frontmatter keys `mode:` and `reminder:`, which is how Cursor pins
 `/poteto-mode` as a Custom Mode (`Opt+Enter`). That is reproduced natively in
 `~/.omp/agent/extensions/potetomode/index.js` using the pattern proven by the installed `ponytail`
-extension, `appendEntry` to persist, `session_start` plus `getBranch()` to restore,
-`before_agent_start` to inject, and `registerCommand` for `/poteto-mode`.
+extension, `appendEntry` to persist, `session_start`, `session_switch`, `session_branch`, and
+`session_tree` plus `getBranch()` to restore, `before_agent_start` to inject, and `registerCommand`
+for `/poteto-mode`.
 
 The injected reminder is a pointer, not the playbook. It tells the agent to read
 `skill://poteto-mode` on demand instead of inlining the whole SKILL.md every turn.
@@ -298,11 +302,17 @@ The injected reminder is a pointer, not the playbook. It tells the agent to read
   experiment rather than the answer. This repository neither ships nor requires it.
 - **Sibling coordination.** `write agent://<id>` steers or follows up with a running, idle, or parked
   worker, `agent://all` broadcasts to visible live peers, `read history://` lists registered agents
-  with status and parent, and `read proc://` lists background jobs and project services. These are
-  the sanctioned primitives when workers must coordinate instead of running independent. The
-  orchestrator uses its own TSV store and `orch inbox` for the queue instead, so sibling messaging
-  stays unused there. Cross-session messaging does not exist locally and gets no workaround here. It
-  is tracked upstream and stays open.
+  with status and parent, `read proc://` lists background jobs and project services, and the `wait`
+  tool blocks until the next settled job or peer message. These are the sanctioned primitives when
+  workers must coordinate instead of running independent. There is no `hub` tool. Probe it rather
+  than trusting this line: `grep -a -A40 'src/tools/builtin-names.ts' "$(readlink -f "$(command -v omp)")"`
+  prints the binary's builtin tool list, which on 18.12.6 carries `wait` and no `hub`; the binary's
+  only other `hub` is the `/hub` slash command that opens Agent Hub. An earlier tree read a `hub`
+  tool with list/send/inbox/wait ops off a stale pi-coding-agent 17.x package, and the gate now
+  fails any shipped sentence that names one. The orchestrator uses its own TSV store and
+  `orch inbox` for the queue instead, so sibling messaging stays unused there. Cross-session
+  messaging does not exist locally and gets no workaround here. It is tracked upstream and stays
+  open.
 
 ## Still missing in omp
 

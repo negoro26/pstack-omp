@@ -28,7 +28,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
 
 Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
 
-Take the runners from the exact discovered runner agents.. If the rule or that line is missing, use your strongest judgment model and your fast code model. Alias and rejected entries follow the runner rules in the **arena** skill's Phase A.
+Use the same exact discovered runner agents as Arena, with the architect role in each brief. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects its model; the task item has no `model` field.
 
 Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
 

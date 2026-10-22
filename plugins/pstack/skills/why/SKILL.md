@@ -8,9 +8,9 @@ disable-model-invocation: true
 
 Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
 
-Resolve agents against the live roster. Use an exact preferred agent only when it is present; otherwise follow the workflow's default-worker fallback. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects its model; the task item has no `model` field. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+Resolve agents against the live roster. Use an exact preferred agent only when it is present; otherwise follow the workflow's default-worker fallback. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects its model; the task item has no `model` field. Use the reasoning and speed already selected by agent frontmatter or exact `task.agentModelOverrides` entries. Do not change operator configuration to satisfy a skill example.
 
-Every spawn is `generalPurpose` with full tools per spawn (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables the MCP-backed investigators and the synthesizer's citation spot-checks. Investigators still shouldn't write anything.
+Use exact discovered investigators and a synthesizer from the live roster. Omit `agent` for the default worker when no matching specialist is loaded. MCP tools are inherited, including by `scout`; choose a worker whose exposed tools cover the assigned evidence source. Carry read-only posture in each brief: no file writes, git mutations, commits, pushes, PRs, or external mutations. There is no task `readonly` field.
 
 ## Operating Posture
 
@@ -46,7 +46,7 @@ Map each available MCP to one evidence category:
 
 Source control is always available through git and `gh`. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
 
-Assign one investigator to each category that has a matching MCP, in one `task` call with all items in `tasks[]` and the required shared `context` so they run concurrently, each owning exactly one tool or MCP. Don't ask one agent to cover multiple MCPs. `agent`: an exact discovered agent filling that role, default your fast code model.
+Assign one investigator to each category that has a matching MCP, in one `task` call with all items in `tasks[]` and the required shared `context` so they run concurrently, each owning exactly one tool or MCP. Don't ask one agent to cover multiple MCPs. Use an exact discovered investigator agent; its frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model.
 
 Each investigator's prompt is `references/investigator-prompt.md` filled in, plus:
 - the category playbook `references/sources/<source>.md` for the selected MCP, adapted from the examples in `references/source-playbook.md`
@@ -76,7 +76,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 
 ## Step 4. Synthesize
 
-Start one synthesizer in one `task` call with one item in `tasks[]` and the required shared `context`. `agent`: an exact discovered agent filling that role, default your strongest judgment model. It gets:
+Start one synthesizer in one `task` call with one item in `tasks[]` and the required shared `context`. Use an exact discovered synthesizer or omit `agent` for the default worker with the synthesizer brief. Its frontmatter or exact override selects the model. It gets:
 1. The investigator findings, including any null results and any categories skipped with justification
 2. The code anchor
 3. The user's original question

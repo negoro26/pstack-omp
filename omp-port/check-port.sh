@@ -150,11 +150,17 @@ fi
 
 runtime_contract() {
 	local bad label pattern
-	for label in per-call-model pstack-rule-file task-environment; do
+	for label in per-call-model pstack-rule-file task-environment unscoped-cleanup history-layout; do
 		case "$label" in
-		per-call-model) pattern='subagent_type|run_in_background|`model`:\s*[^f]|Set `model`|set `model` to|with `model` from|omit `model` so' ;;
+		per-call-model) pattern='subagent_type|run_in_background|generalPurpose|`model`:\s*[^f]|Set `model`|set `model` to|with `model` from|omit `model` so' ;;
 		pstack-rule-file) pattern='pstack-models\.mdc' ;;
 		task-environment) pattern='environment:[[:space:]]*"?((local)|(cloud))\b|cloud_base_branch' ;;
+		# `omp cleanse` detects AND fixes with parallel subagents, and `--all` runs every checker
+		# repo-wide, so recommending it as a precommit diagnostic edits files outside the diff.
+		unscoped-cleanup) pattern='omp[[:space:]]+cleanse[[:space:]]+(--all|-a)([[:space:]]|`|$)' ;;
+		# Cursor's per-project transcript directory and its three layouts. omp writes one layout,
+		# described in omp-mechanics/references/session-store-on-omp.md.
+		history-layout) pattern='agent-transcripts|/subagents/|read the first JSONL line|legacy flat|message\.content\[0\]' ;;
 		esac
 		bad=$(grep -rInE "$pattern" --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null || true)
 		if [ -n "$bad" ]; then
@@ -174,24 +180,20 @@ runtime_contract() {
 		report "retired runtime labels" "PASS  no abstract role labels, placeholders, or stale process wording"
 	fi
 
-	# `hub` IS a real built-in tool on this harness: sibling messaging, settled-job inspection, and
-	# supervised services, with ops list/send/inbox/wait/cancel/jobs/start/logs/stop. Verified in the
-	# installed package -- it is in pi-coding-agent's canonical tool set, and the binary carries the
-	# HubTool string. It is registered only when tool names are not restricted and IRC is enabled.
-	#
-	# This assertion used to be the opposite: it failed any backticked `hub`, enforcing a denial that
-	# was not true, with a mutation pinning the wrong behaviour. A line that claims hub does not
-	# exist is now the defect, because that is the sentence that sends an agent away from a live
-	# primitive. What is required instead is that where the port routes sibling coordination or a
-	# supervised service, it names the surface that is actually there.
-	if grep -rqE 'no (programmatic )?`?hub`? tool' --include='*.md' --include='*.mjs' --include='*.ts' \
-		--include='*.sh' "${SCOPE[@]}" 2>/dev/null; then
+	# There is no `hub` tool. omp's own builtin tool list, packages/coding-agent/src/tools/builtin-names.ts
+	# inside the binary, carries `wait` and no `hub`; the binary's only other `hub` is the `/hub`
+	# slash command that opens Agent Hub, a human-facing TUI. The probe is in PORTING.md under
+	# "Sibling coordination". An earlier tree claimed a `hub` tool with list/send/inbox/wait/cancel/
+	# jobs/start/logs/stop ops, read off a stale pi-coding-agent 17.x package, and this assertion
+	# enforced that claim. A sentence that names `hub` as a tool sends an agent to a primitive that
+	# is not there; `wait`, `proc://`, `write agent://<id>`, and named `bash` services are.
+	hub_claim='`hub`|\bhub[` ]+(tool|tools|op|ops|operation|operations)\b'
+	bad=$(grep -rInE "$hub_claim" --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null || true)
+	if [ -n "$bad" ]; then
 		report "agent hub api" "FAIL"
-		while read -r line; do violate "denies a live primitive: $line"; done <<<"$(grep -rnE 'no (programmatic )?`?hub`? tool' --include='*.md' --include='*.mjs' --include='*.ts' --include='*.sh' "${SCOPE[@]}" 2>/dev/null)"
-	elif grep -rqF 'hub' --include='*.md' "${SCOPE[@]}" 2>/dev/null; then
-		report "agent hub api" "PASS  hub is documented as a real conditional built-in"
+		while read -r line; do violate "claims a hub tool omp does not ship: $line"; done <<<"$bad"
 	else
-		report "agent hub api" "SKIP  no hub reference in the tree to check"
+		report "agent hub api" "PASS  no hub tool claimed; coordination names wait, proc://, and agent://"
 	fi
 
 	# One install root. A path under any other agent store resolves to nothing on this machine,
@@ -238,12 +240,14 @@ runtime_contract() {
 		report "external capability provenance" "PASS  the external veto is named and marked unshipped"
 	fi
 
-	bad=$(grep -rInE '`(Read|Grep|Glob|Shell|Task)` (tool calls|prompts|response body)|Tool calls \(Shell,|Use Glob to find|Use Read, Grep|Subagents inherit it' --include='*.md' "${SCOPE[@]}" 2>/dev/null || true)
+	# omp's tools are lowercase. A capitalised `Task` names Cursor's spawn tool, and in a reviewer
+	# template it makes the lens grep a transcript for a tool that was never called.
+	bad=$(grep -rInE '`(Read|Grep|Glob|Shell)` (tool calls|prompts|response body|of)|`Task`|\bTask (tool|subagent|spawn|call|schema)s?\b|[Tt]ool calls? \(Shell,|Use Glob to find|Use Read, Grep|Subagents inherit it' --include='*.md' "${SCOPE[@]}" 2>/dev/null || true)
 	if [ -n "$bad" ]; then
 		report "cursor tool names" "FAIL"
 		while read -r line; do violate "$line"; done <<<"$bad"
 	else
-		report "cursor tool names" "PASS  no prompt template names a Cursor tool"
+		report "cursor tool names" "PASS  no Cursor tool name, capitalised Task included"
 	fi
 
 	# Derived from the tree, not from a list: a hand-kept list of names is a list that forgets.
@@ -332,6 +336,31 @@ runtime_contract() {
 }
 runtime_contract
 
+# Claims the published guide (Pt.1 and Pt.2) makes about pstack, verified as present. Tree-local,
+# so it runs before the contracts-only exit and the fixture mutations can reach it. The playbook
+# count the guide states is asserted by `playbook parity`, from the index, not restated here.
+unclaimed=""
+guide_skills=(create-verification-skill maintain-verification-skill swarm poteto-mode teach how why recall technical-writing unslop architect)
+guide_files=(skills/poteto-mode/playbooks/prototype.md skills/poteto-mode/playbooks/multi-phase-plan.md skills/poteto-mode/scripts/check-plan.mjs)
+for s in "${guide_skills[@]}"; do
+	[ -f "skills/$s/SKILL.md" ] || unclaimed="$unclaimed""guide names /$s, not installed"$'\n'
+done
+for f in "${guide_files[@]}"; do
+	[ -f "$f" ] || unclaimed="$unclaimed""guide names $f, not shipped"$'\n'
+done
+grep -qi 'features' skills/create-verification-skill/SKILL.md 2>/dev/null ||
+	unclaimed="$unclaimed""create-verification-skill must build the Feature Map (references/features)"$'\n'
+# Upstream removed `mode: true` on purpose (b93e811) and omp never modelled it, so asserting that
+# key only asserted a deleted line. The extension is what registers the command.
+grep -q 'registerCommand("poteto-mode"' extensions/potetomode/index.js 2>/dev/null ||
+	unclaimed="$unclaimed""the potetomode extension must register /poteto-mode"$'\n'
+if [ -n "$unclaimed" ]; then
+	report "guide claims" "FAIL"
+	while read -r c; do [ -n "$c" ] && violate "$c"; done <<<"$unclaimed"
+else
+	report "guide claims" "PASS  ${#guide_skills[@]} skills, prototype and multi-phase-plan playbooks, check-plan.mjs, Feature Map, pin"
+fi
+
 if [ "${CHECK_PORT_CONTRACTS_ONLY:-}" = 1 ]; then
 	echo
 	if [ "$fail" -eq 0 ]; then echo "check-port contracts: PASS"; else echo "check-port contracts: FAIL"; fi
@@ -347,12 +376,27 @@ if [ "${CHECK_PORT_SKIP_MUTATIONS:-}" = 1 ]; then
 else
 	mutation_log=$(mktemp)
 	if bash "$PORT_DIR/test-gate-mutations.sh" >"$mutation_log" 2>&1; then
-		report "gate mutations" "PASS  ownership, alias, effort, and per-file lever mutations rejected"
+		report "gate mutations" "PASS  $(grep -c 'rejected$' "$mutation_log") fixture mutations rejected, each by its own check"
 	else
 		report "gate mutations" "FAIL"
 		while read -r line; do [ -n "$line" ] && violate "$line"; done <"$mutation_log"
 	fi
 	rm -f "$mutation_log"
+fi
+
+# The patched worktree-audit.sh is a script, so its behaviour needs a run, not a grep. Its test
+# lives beside this gate and is cwd-independent.
+if [ -f "$PORT_DIR/test-worktree-audit.sh" ]; then
+	audit_log=$(mktemp)
+	if bash "$PORT_DIR/test-worktree-audit.sh" >"$audit_log" 2>&1; then
+		report "worktree audit" "PASS  omp-port/test-worktree-audit.sh"
+	else
+		report "worktree audit" "FAIL"
+		while read -r line; do [ -n "$line" ] && violate "$line"; done <"$audit_log"
+	fi
+	rm -f "$audit_log"
+else
+	report "worktree audit" "SKIP  omp-port/test-worktree-audit.sh not present"
 fi
 
 missing=""
@@ -450,25 +494,6 @@ if [ -f "$ALLOW" ]; then
 		report "allowlist" "PASS  $(grep -cv '^#' "$ALLOW") entries still match their own pattern"
 	fi
 fi
-
-# Claims the published guide makes about pstack, verified as present.
-unclaimed=""
-for s in create-verification-skill maintain-verification-skill swarm poteto-mode; do
-	[ -f "skills/$s/SKILL.md" ] || unclaimed="$unclaimed""guide names /$s, not installed"$'\n'
-done
-grep -qi 'features' skills/create-verification-skill/SKILL.md ||
-	unclaimed="$unclaimed""create-verification-skill must build the Feature Map (references/features)"$'\n'
-# Upstream removed `mode: true` on purpose (b93e811) and omp never modelled it, so asserting that
-# key only asserted a deleted line. The extension is what registers the command.
-grep -q 'registerCommand("poteto-mode"' extensions/potetomode/index.js ||
-	unclaimed="$unclaimed""the potetomode extension must register /poteto-mode"$'\n'
-if [ -n "$unclaimed" ]; then
-	report "guide claims" "FAIL"
-	while read -r c; do [ -n "$c" ] && violate "$c"; done <<<"$unclaimed"
-else
-	report "guide claims" "PASS  verification skill, Feature Map, swarm, pin"
-fi
-
 
 bad=""
 for d in skills/*/; do

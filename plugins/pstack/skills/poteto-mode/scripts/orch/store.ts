@@ -9,14 +9,19 @@ import {
   readdir,
   rename,
   rm,
+  stat,
   unlink,
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 const UNIT_HEADER = "id\ttrack\tstate\tbranch\tpr\tsha\tbrief";
 const LEDGER_HEADER = "pr\tsha\tverdict\tevidence\tverifier\tts";
 const LOCK_FILE = ".orch.lock";
+// A live takeover is a handful of file operations, so a takeover marker this
+// old was left by a taker that died mid-takeover and must not block the next.
+const TAKEOVER_MARKER_STALE_MS = 10_000;
 
 export type Verdict =
   | "live-ui-verified"
@@ -384,6 +389,7 @@ async function acquireLock(
   options: OpenStoreOptions
 ): Promise<() => Promise<void>> {
   const path = join(store, LOCK_FILE);
+  const takeoverPath = `${path}.takeover`;
   const pid = String(process.pid);
   const create = async (): Promise<void> => {
     const handle = await open(path, "wx");
@@ -391,17 +397,119 @@ async function acquireLock(
     await handle.close();
   };
 
-  const takeOver = async (): Promise<void> => {
-    await unlink(path);
+  const heldBy = async (): Promise<never> => {
+    let retryHolder = "unknown";
     try {
-      await create();
-    } catch (retryError) {
-      if (errorCode(retryError) === "EEXIST") {
-        const retryHolder =
-          (await readFile(path, "utf8")).trim() || "unknown";
-        throw new UserError(`store lock held by pid ${retryHolder}`);
+      retryHolder = (await readFile(path, "utf8")).trim() || "unknown";
+    } catch {
+      retryHolder = "unknown";
+    }
+    throw new UserError(`store lock held by pid ${retryHolder}`);
+  };
+
+  // Claims the right to replace the lock by `wx`-creating a takeover marker,
+  // or returns null while another process holds a fresh one. A marker past the
+  // age limit is never unlinked to make room, because two processes that both
+  // judged it stale could each unlink it and the second would remove the
+  // first one's fresh marker. The next marker is named after the stale one's
+  // identity instead, so exactly one process can create it. The stale markers
+  // a claim stood on are removed on release, each only while it is still the
+  // file that was judged stale.
+  const claimTakeover = async (): Promise<(() => Promise<void>) | null> => {
+    const stale: {
+      readonly path: string;
+      readonly ino: number;
+      readonly mtimeMs: number;
+    }[] = [];
+    let marker = takeoverPath;
+    for (;;) {
+      try {
+        await (await open(marker, "wx")).close();
+        break;
+      } catch (claimError) {
+        if (errorCode(claimError) !== "EEXIST") {
+          throw claimError;
+        }
       }
-      throw retryError;
+      let seen;
+      try {
+        seen = await stat(marker);
+      } catch (statError) {
+        if (errorCode(statError) === "ENOENT") {
+          continue;
+        }
+        throw statError;
+      }
+      if (Date.now() - seen.mtimeMs < TAKEOVER_MARKER_STALE_MS) {
+        return null;
+      }
+      stale.push({ path: marker, ino: seen.ino, mtimeMs: seen.mtimeMs });
+      marker = `${takeoverPath}.${seen.ino}-${Math.trunc(seen.mtimeMs)}`;
+    }
+    const claimed = marker;
+    return async () => {
+      for (const judged of stale) {
+        const current = await stat(judged.path).catch(() => null);
+        if (current?.ino === judged.ino && current.mtimeMs === judged.mtimeMs) {
+          await unlink(judged.path).catch(() => {});
+        }
+      }
+      await unlink(claimed).catch(() => {});
+    };
+  };
+
+  // Replacing a stale lock is unlink-then-create, which is not atomic: two
+  // processes that both read the same dead holder could each unlink and the
+  // second unlink would remove the first one's fresh lock. Serialise the
+  // takeover itself through a second `wx` file so only one process performs
+  // the unlink; the other falls back to a plain create and, on EEXIST, reports
+  // the winner's pid.
+  const takeOver = async (holder: string): Promise<void> => {
+    const release = await claimTakeover();
+    if (release === null) {
+      // Another process is mid-takeover. Give it a moment to install its
+      // lock, then try the normal path once.
+      await delay(20);
+      try {
+        await create();
+        return;
+      } catch (retryError) {
+        if (errorCode(retryError) === "EEXIST") {
+          return heldBy();
+        }
+        throw retryError;
+      }
+    }
+    try {
+      // The marker serialises takers, so this read is current. A lock that no
+      // longer names the holder this process judged replaceable was installed
+      // by a taker that finished first, and is not this process's to remove.
+      let current: string | null = null;
+      try {
+        current = (await readFile(path, "utf8")).trim() || "unknown";
+      } catch (readError) {
+        if (errorCode(readError) !== "ENOENT") {
+          throw readError;
+        }
+      }
+      // `return await`, not `return`: the finally below awaits, and a returned
+      // rejection nobody has awaited yet surfaces as an unhandled rejection.
+      if (current !== null) {
+        if (current !== holder) {
+          return await heldBy();
+        }
+        await unlink(path);
+      }
+      try {
+        await create();
+      } catch (retryError) {
+        if (errorCode(retryError) === "EEXIST") {
+          return await heldBy();
+        }
+        throw retryError;
+      }
+    } finally {
+      await release();
     }
   };
 
@@ -419,10 +527,10 @@ async function acquireLock(
     }
     if (holderIsDead(holder)) {
       options.onStaleLock?.(holder);
-      await takeOver();
+      await takeOver(holder);
     } else if (options.force) {
       options.onLockStolen?.(holder);
-      await takeOver();
+      await takeOver(holder);
     } else {
       throw new UserError(`store lock held by pid ${holder}`);
     }
@@ -1113,15 +1221,19 @@ function branchPullRequest({
   repo: string;
 }): ForgePullRequest {
   const rows = listPullRequests({ filter: "--head", branch, forge, repo });
-  const row = rows[0];
+  // A branch may have closed or merged historical PRs after stack surgery.
+  // Prefer its sole active PR, but retain historical anchors when none is open.
+  const active = rows.filter((row) => row.state === "OPEN");
+  const candidates = active.length > 0 ? active : rows;
+  const row = candidates[0];
   if (row === undefined) {
     throw new UserError(
       `branch ${branch} has no pull request; open one with ${forge} pr create, or resolve the frontier from a branch whose chain is fully submitted`
     );
   }
-  if (rows.length > 1) {
+  if (candidates.length > 1) {
     throw new UserError(
-      `branch ${branch} has multiple pull requests (${rows.map((item) => `#${item.pr}`).join(", ")}); close the stale ones first`
+      `branch ${branch} has multiple pull requests (${candidates.map((item) => `#${item.pr}`).join(", ")}); close the stale ones first`
     );
   }
   return row;

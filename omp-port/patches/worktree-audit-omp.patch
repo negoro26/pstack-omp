@@ -1,4 +1,4 @@
-# worktree-audit.sh, the one upstream script the port changes, and every change to it is code
+# worktree-audit.sh, the upstream script the port changes most, and every change to it is code
 # rather than prose, so a unified diff is the right layer for all of it.
 #
 # The changes, all of them code:

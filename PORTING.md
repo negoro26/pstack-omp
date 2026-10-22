@@ -216,9 +216,11 @@ The split is by kind, not by size.
   line, a patch that stops matching costs a merge.
 - Port prose goes in the owned skills, which `install_tree` restores from `HEAD` and which
   therefore cannot conflict with upstream at all.
-- A patch is for code: control flow, a data shape, a file upstream does not have. Both remaining
-  patches touch a script, and one of them replaced two interlocking patches that had to be read
-  together to apply, because one wrote a transcript lookup the other deleted.
+- A patch is for code: control flow, a data shape, a file upstream does not have. The patches
+  touch scripts only. `worktree-audit-omp.patch` is the port's own change. The three `zzz*`
+  patches carry open upstream PRs (#746 and #769, the check-plan half of #745, and #733 with an
+  age-limited marker). When upstream merges one, its patch stops applying; delete the patch rather
+  than resolving it.
 
 Author a patch against **post-rules** text. `rules.sed` runs first, so a hunk quoting the raw
 upstream line fails whenever an earlier rule rewrote it. `worktree-audit-omp.patch` deletes a

@@ -216,11 +216,15 @@ The split is by kind, not by size.
   line, a patch that stops matching costs a merge.
 - Port prose goes in the owned skills, which `install_tree` restores from `HEAD` and which
   therefore cannot conflict with upstream at all.
-- A patch is for code: control flow, a data shape, a file upstream does not have. The patches
-  touch scripts only. `worktree-audit-omp.patch` is the port's own change. The three `zzz*`
-  patches carry open upstream PRs (#746 and #769, the check-plan half of #745, and #733 with an
-  age-limited marker). When upstream merges one, its patch stops applying; delete the patch rather
-  than resolving it.
+- A patch is for code: control flow, a data shape, a file upstream does not have.
+  `worktree-audit-omp.patch` and `zzz-script-typecheck.patch` are the port's own changes; the
+  second typechecks `orch/` and `bootstrap.ts` as well as `watch-pr/`. `zzz-make-bot-ui-omp.patch`
+  is the one markdown patch, a notice that the skill's webhook mechanic does not exist on omp. Two
+  `zzz*` patches carry open upstream PRs. `zzz-watch-pr-fixes.patch` carries #769, and
+  `zzzz-orch-lock-takeover.patch` carries #733 with an age-limited marker. When upstream merges an
+  equivalent, delete the hunks it covers rather than resolving them, and do not wait for the patch
+  to fail first. A hunk that only adds lines can still find its context at an offset, which at
+  `e73df47` would have added #804's tests to `orch.test.ts` a second time.
 
 Author a patch against **post-rules** text. `rules.sed` runs first, so a hunk quoting the raw
 upstream line fails whenever an earlier rule rewrote it. `worktree-audit-omp.patch` deletes a

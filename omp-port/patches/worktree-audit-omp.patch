@@ -10,8 +10,20 @@
 #     root, checked first, -<rel> under home, --<abs>-- otherwise, / \ : mapped to -)
 #   - scan only the buckets of this repo's worktrees, never the whole store, with grep -F, so
 #     ripgrep is not required and a path with [ or spaces matches literally
-#   - fail closed: a store that cannot be found or read makes LAST_CHAT "?" and holds the row at
-#     verify-recent-chat, the bucket playbooks/worktree-cleanup.md already names, never `safe`
+#   - scan each linked worktree's subdirectory buckets too, found by the bucket-name prefix, since
+#     omp files a session started in <worktree>/src under that cwd's own bucket
+#   - scan those buckets in every store on disk, not only the one the audit's environment names:
+#     the default agent dir, each profile's, PI_CODING_AGENT_DIR, and the XDG data and state
+#     roots, so a session launched with --profile still counts
+#   - read each store's custom-session-files, where omp lists the absolute path of every
+#     transcript written outside the bucket store (--session-dir, PI_CODING_AGENT_SESSION_DIR,
+#     --resume of a moved file), and scan those transcripts and their subagent directories,
+#     skipping the bucket transcripts omp also lists under a symlinked home, which the bucket
+#     scan already bounds to this repo's worktrees
+#   - fail closed: a store that cannot be found or read, an index that cannot be read, or a
+#     listed transcript behind a directory the audit cannot search makes LAST_CHAT "?" and holds
+#     the row at verify-recent-chat, the bucket playbooks/worktree-cleanup.md already names,
+#     never `safe`
 #   - fail closed the same way when a .env file omp reads (each worktree's, the agent dir's, the
 #     config root's, home's) sets a key that moves the store, OMP_ spellings included, rather
 #     than replaying omp's .env loader
@@ -54,7 +66,7 @@
  
  if [ -z "$base" ]; then
  	for cand in "$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)" origin/main origin/master; do
-@@ -55,33 +60,105 @@
+@@ -55,33 +60,164 @@
  	stat_fmt=(-f '%m %N'); fmt_day() { date -r "$1" '+%Y-%m-%d'; }
  fi
  
@@ -89,9 +101,10 @@
 +# PI_PROFILE) under ~/${PI_CONFIG_DIR:-.omp}, PI_CODING_AGENT_DIR when no
 +# profile is set, or an existing XDG_DATA_HOME/omp when the agent dir is the
 +# default, and it holds one bucket per canonical cwd. Only the buckets of this
-+# repo's worktrees are scanned; walking every bucket would scale with total
-+# session history. A store that cannot be read makes LAST_CHAT "?" and holds
-+# the row at verify-recent-chat instead of reading as no chat at all.
++# repo's worktrees and their subdirectories are scanned; walking every bucket
++# would scale with total session history. A store that cannot be read makes
++# LAST_CHAT "?" and holds the row at verify-recent-chat instead of reading as
++# no chat at all.
 +# omp also fills each unset variable from the .env in the cwd it launched in,
 +# then the agent dir's, the config root's and home's, reading an OMP_ key there
 +# as its PI_ alias, while the profile comes from the environment alone. The
@@ -118,31 +131,83 @@
 +	else printf '%s' "--$(dash "${1#/}")--"; fi
 +}
 +session_dirs=()
-+moved=""
++dotenvs=()
++config_root="$HOME/${PI_CONFIG_DIR:-.omp}"
 +if [ -n "${PI_CODING_AGENT_SESSION_DIR:-}" ]; then
 +	sessions=$PI_CODING_AGENT_SESSION_DIR
 +	session_dirs=("$sessions/")
 +else
 +	profile=$(printf '%s' "${OMP_PROFILE-${PI_PROFILE-}}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 +	[ "$profile" = default ] && profile=""
-+	config="$HOME/${PI_CONFIG_DIR:-.omp}${profile:+/profiles/$profile}"
++	config="$config_root${profile:+/profiles/$profile}"
 +	agent="$config/agent"
 +	[ -z "$profile" ] && [ -n "${PI_CODING_AGENT_DIR:-}" ] && agent=$PI_CODING_AGENT_DIR
 +	data=$agent
 +	xdg="${XDG_DATA_HOME:-}/omp${profile:+/profiles/$profile}"
 +	[ "$agent" = "$config/agent" ] && [ -n "${XDG_DATA_HOME:-}" ] && [ -e "$xdg" ] && data=$xdg
 +	sessions="$data/sessions"
-+	home_root=$(canon "$HOME")
-+	temp_root=$(canon "${TMPDIR:-${TMP:-${TEMP:-/tmp}}}")
 +	dotenvs=("$agent/.env" "$config/.env" "$HOME/.env")
-+	while IFS= read -r path; do
-+		dir="$sessions/$(bucket_name "$(canon "$path")")"
-+		[ -d "$dir" ] && session_dirs+=("$dir/")
-+		dotenvs+=("$path/.env")
-+	done < <(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}')
++fi
++# A session launched with --profile, --session-dir or another environment is
++# not in that store. Every store under the config root and the XDG roots counts
++# too, and each one's custom-session-files lists the absolute path of every
++# transcript omp wrote outside the bucket store. Precedence does not matter
++# for these, since a transcript only counts when it names the worktree.
++home_root=$(canon "$HOME")
++temp_root=$(canon "${TMPDIR:-${TMP:-${TEMP:-/tmp}}}")
++roots=("$config_root/agent" "$config_root"/profiles/*/agent)
++for x in "${XDG_DATA_HOME:-}" "${XDG_STATE_HOME:-}"; do
++	[ -n "$x" ] && roots+=("$x/omp" "$x"/omp/profiles/*)
++done
++[ -n "${PI_CODING_AGENT_DIR:-}" ] && roots+=("$PI_CODING_AGENT_DIR")
++indexes=()
++stores=$'\n'
++for root in "${roots[@]}"; do
++	[ -d "$root/custom-session-files" ] && indexes+=("$root/custom-session-files")
++	[ -d "$root/sessions" ] && stores+="$(canon "$root/sessions")"$'\n'
++done
++while IFS= read -r path; do
++	cpath=$(canon "$path")
++	own=$(bucket_name "$cpath")
++	# A session started in a subdirectory has that subdirectory's bucket, the
++	# worktree's name plus "-<rest>" ahead of any closing "--". A transcript
++	# still has to name the worktree path, so a bucket that only shares the
++	# prefix costs time, never a match. The main worktree is skipped, since a
++	# repo at $HOME would make this the whole store.
++	sub=$(bucket_name "$cpath/*")
++	for root in "${roots[@]}"; do
++		[ -d "$root/sessions/$own" ] && session_dirs+=("$root/sessions/$own/")
++		[ "$path" = "$main_wt" ] && continue
++		for dir in "$root/sessions/${sub%\**}"*"${sub##*\*}"; do
++			[ -d "$dir" ] && session_dirs+=("$dir/")
++		done
++	done
++	dotenvs+=("$path/.env")
++done < <(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}')
++# Under a symlinked home omp lists every bucket transcript too, and the bucket
++# scan already covers those. They share one parent, so it is canonicalized
++# once rather than once per transcript. Any other listed transcript that is
++# gone holds no chat, but one behind a directory the audit cannot search may
++# still exist. Its subagents sit in the directory named after it.
++listed=$([ "${#indexes[@]}" -eq 0 ] || grep -rhs '' -- "${indexes[@]}")
++index_status=$?
++seen="" store="" closed=""
++while IFS= read -r f; do
++	[ "${f%/*/*}" = "$seen" ] || { seen=${f%/*/*}; store=$(canon "$seen"); }
++	case "$stores" in *$'\n'"$store"$'\n'*) continue ;; esac
++	if [ ! -f "$f" ]; then
++		dir=${f%/*}
++		while [ ! -e "$dir" ] && [ "$dir" != "${dir%/*}" ]; do dir=${dir%/*}; done
++		[ -d "$dir" ] && [ ! -x "$dir" ] && closed=$dir
++		continue
++	fi
++	session_dirs+=("$f")
++	[ -d "${f%.jsonl}" ] && session_dirs+=("${f%.jsonl}/")
++done <<<"$listed"
++moved=""
++[ -n "${PI_CODING_AGENT_SESSION_DIR:-}" ] ||
 +	moved=$(grep -lsE '^[[:space:]]*(export[[:space:]]+)?((PI|OMP)_(CODING_AGENT_SESSION_DIR|CODING_AGENT_DIR|CONFIG_DIR)|XDG_DATA_HOME)[[:space:]]*[=:]' \
 +		-- "${dotenvs[@]}")
-+fi
 +chat_lookup=ok
 +if [ -n "$moved" ]; then
 +	chat_lookup=failed
@@ -150,6 +215,12 @@
 +elif [ ! -d "$sessions" ]; then
 +	chat_lookup=failed
 +	echo "warn: no omp session store at $sessions; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
++elif [ "$index_status" -gt 1 ]; then
++	chat_lookup=failed
++	echo "warn: cannot read an omp custom-session-files index; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
++elif [ -n "$closed" ]; then
++	chat_lookup=failed
++	echo "warn: cannot search $closed for a listed omp transcript; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
 +fi
  now=$(date +%s)
  
@@ -174,7 +245,7 @@
  	head_ts=$(git -C "$wt" log -1 --format='%ct' HEAD 2>/dev/null || echo 0)
  	age=$([ "$head_ts" -gt 0 ] 2>/dev/null && echo "$(( (now - head_ts) / 86400 ))d" || echo "?")
  
-@@ -89,12 +166,12 @@
+@@ -89,12 +225,12 @@
  	# real signal; merge-base only catches fast-forward/rebase merges.
  	git merge-base --is-ancestor "$head" "$base" 2>/dev/null && merged=YES || merged=no
  
@@ -193,7 +264,7 @@
  
  	branch=$(git -C "$wt" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "")
  	if [ -z "$branch" ]; then remote=detached
-@@ -102,33 +179,57 @@
+@@ -102,33 +238,57 @@
  		[ "$(git -C "$wt" rev-parse "origin/$branch" 2>/dev/null)" = "$head" ] \
  			&& remote=pushed \
  			|| remote="ahead$(git -C "$wt" rev-list --count "origin/$branch..HEAD" 2>/dev/null)"

@@ -9,8 +9,8 @@
 # Builds a throwaway repo with a local bare origin, a fake gh and origin CLI, and fixture omp
 # session stores, then runs the audit under each store layout omp resolves. Needs git and jq. It
 # never reaches the network, the real gh, or the real session store. When omp is on PATH it also
-# asks that omp, under the fixture HOME and with no model turn, which transcript it would write;
-# without omp that probe prints SKIPPED.
+# asks that omp, under the fixture HOME and with no model turn, which transcript it would write.
+# Without omp that probe prints SKIPPED, or fails when OMP_AUDIT_LIVE_REQUIRED=1.
 set -euo pipefail
 
 PORT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -34,7 +34,8 @@ ln -s "real home" "$FIXTURE/home"
 export HOME="$FIXTURE/home" TMPDIR="$FIXTURE/home/scratch"
 CT="$CH/scratch"
 unset TMP TEMP CDPATH GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
-	PI_CODING_AGENT_SESSION_DIR PI_CODING_AGENT_DIR PI_CONFIG_DIR OMP_PROFILE PI_PROFILE XDG_DATA_HOME
+	PI_CODING_AGENT_SESSION_DIR PI_CODING_AGENT_DIR PI_CONFIG_DIR OMP_PROFILE PI_PROFILE XDG_DATA_HOME \
+	XDG_STATE_HOME
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0
 export GIT_AUTHOR_NAME=audit GIT_AUTHOR_EMAIL=audit@example.invalid
 export GIT_COMMITTER_NAME=audit GIT_COMMITTER_EMAIL=audit@example.invalid
@@ -64,7 +65,7 @@ commit() {
 	git -C "$1" rev-parse HEAD
 }
 for name in open draft closed-pushed closed-unpushed squash local-only untracked ignored tracked \
-	locked broken sibling unrelated plain; do
+	locked broken sibling unrelated plain subdir; do
 	wt "$name" "$CH/$name"
 done
 RECENT='recent [one].worktree'
@@ -72,6 +73,7 @@ wt recent "$CH/$RECENT"
 wt nested "$CH/nest/deep:wt"
 wt temp "$CT/temp:wt"
 wt absolute "$FIXTURE/abs:wt"
+wt sub-absolute "$FIXTURE/sub:abs"
 g "$REPO" worktree add -q --detach "$CH/detached" main
 
 OPEN_HEAD=$(git -C "$CH/open" rev-parse HEAD)
@@ -96,7 +98,7 @@ printf 'log\n' >"$CH/ignored/run.log"
 printf 'edit\n' >>"$CH/tracked/tracked"
 g "$REPO" worktree lock --reason 'keep this worktree' "$CH/locked"
 printf 'gitdir: %s/missing\n' "$FIXTURE" >"$CH/broken/.git"
-ROWS=19
+ROWS=21
 
 # A closed PR on a reused branch name sits first, so the audit has to prefer the PR whose head is
 # HEAD. gh reports uppercase states; the audit lowercases them.
@@ -153,6 +155,11 @@ printf '{"type":"message","path":"%s/notes.md"}\n' "$CH/sibling" >>"$SESSIONS/-r
 chat "$SESSIONS/-nest-deep-wt" own "$CH/nest/deep:wt"
 chat "$SESSIONS/-tmp-temp-wt" own "$CT/temp:wt"
 chat "$SESSIONS/$ABS_BUCKET" own "$FIXTURE/abs:wt"
+# A session started in a subdirectory sits in that subdirectory's bucket, for a home and an
+# absolute worktree alike. A bucket that only shares a name prefix with a worktree is no chat in it.
+chat "$SESSIONS/-subdir-src" sub "$CH/subdir/src"
+chat "$SESSIONS/--$(printf '%s' "${FIXTURE#/}" | tr '/' '-')-sub-abs-src--" sub "$FIXTURE/sub:abs/src"
+chat "$SESSIONS/-plain-old" old "$CH/plain-old"
 chat "$SESSIONS/-another-project" other "$CH/unrelated"
 TODAY=$(date '+%Y-%m-%d')
 
@@ -217,7 +224,7 @@ expect plain LOCKED -
 expect plain INSPECT ok
 expect plain LAST_CHAT -
 expect plain BUCKET safe
-for name in "$RECENT" sibling deep:wt temp:wt abs:wt; do
+for name in "$RECENT" sibling deep:wt temp:wt abs:wt subdir sub:abs; do
 	expect "$name" LAST_CHAT "$TODAY"
 	expect "$name" BUCKET verify-recent-chat
 done
@@ -238,25 +245,79 @@ for name in "$RECENT" deep:wt temp:wt abs:wt; do
 	expect "$name" BUCKET verify-recent-chat
 done
 
-# An explicit session directory holds transcripts directly, with no cwd bucket under it.
+# An explicit session directory holds transcripts directly, with no cwd bucket under it. The bucket
+# store still counts, since a session launched without the variable lands there.
 chat "$FIXTURE/direct sessions" direct "$CH/plain"
 audit explicit-dir PI_CODING_AGENT_SESSION_DIR="$FIXTURE/direct sessions"
 expect plain LAST_CHAT "$TODAY"
 expect plain BUCKET verify-recent-chat
-expect "$RECENT" LAST_CHAT -
+expect "$RECENT" LAST_CHAT "$TODAY"
 
-# A profile owns its own store and outranks PI_CODING_AGENT_DIR.
+# A session launched with --profile work sits in that profile's store, which an audit under any
+# profile reads. The audit's own profile names the store that has to exist, and under a profile
+# PI_CODING_AGENT_DIR does not name it.
 chat "$HOME/.omp/profiles/work/agent/sessions/-plain" profile "$CH/plain"
-mkdir -p "$FIXTURE/decoy/sessions"
+audit other-profile
+expect plain LAST_CHAT "$TODAY"
+expect plain BUCKET verify-recent-chat
 audit profile OMP_PROFILE=work PI_CODING_AGENT_DIR="$FIXTURE/decoy"
 expect plain LAST_CHAT "$TODAY"
-expect "$RECENT" LAST_CHAT -
+expect "$RECENT" LAST_CHAT "$TODAY"
+rm -r "$HOME/.omp/profiles"
 
-# An existing XDG_DATA_HOME/omp replaces the default data root, with no agent/ under it.
+# An existing XDG_DATA_HOME/omp replaces the default data root, with no agent/ under it. The store
+# it replaced still counts.
 chat "$FIXTURE/xdg/omp/sessions/-plain" xdg "$CH/plain"
 audit xdg XDG_DATA_HOME="$FIXTURE/xdg"
 expect plain LAST_CHAT "$TODAY"
-expect "$RECENT" LAST_CHAT -
+expect "$RECENT" LAST_CHAT "$TODAY"
+
+# omp lists each transcript it writes outside the bucket store, from --session-dir, an explicit
+# PI_CODING_AGENT_SESSION_DIR or a --resume of a moved file, as one absolute path per file in the
+# agent dir's custom-session-files, or XDG_STATE_HOME/omp's when that exists. A subagent transcript
+# sits in the directory named after its parent. A listed transcript that is gone is no chat. One
+# behind a directory the audit cannot search may still exist, so it is unknown, and so is an index
+# that cannot be read.
+INDEX="$HOME/.omp/agent/custom-session-files"
+chat "$FIXTURE/custom dir" custom "$FIXTURE"
+chat "$FIXTURE/custom dir/custom" Child "$CH/plain"
+mkdir -p "$INDEX"
+printf '%s' "$FIXTURE/custom dir/custom.jsonl" >"$INDEX/0a1b2c3"
+printf '%s' "$FIXTURE/gone/x.jsonl" >"$INDEX/4d5e6f7"
+audit custom-dir
+expect plain LAST_CHAT "$TODAY"
+expect plain BUCKET verify-recent-chat
+# Under a symlinked HOME omp lists every bucket transcript as well, under the HOME it was given.
+# The bucket scan already covers those, so one in another project's bucket stays out of the scan.
+printf '%s' "$SESSIONS/-another-project/other.jsonl" >"$INDEX/8a9b0c1"
+printf '%s' "$SESSIONS/-recent [one].worktree/own.jsonl" >"$INDEX/2d3e4f5"
+audit listed-buckets
+expect unrelated LAST_CHAT -
+expect unrelated BUCKET safe
+expect "$RECENT" LAST_CHAT "$TODAY"
+if [ "$(id -u)" != 0 ]; then
+	chmod 000 "$FIXTURE/custom dir"
+	audit closed-transcript-dir
+	expect plain LAST_CHAT '?'
+	expect plain BUCKET verify-recent-chat
+	chmod 755 "$FIXTURE/custom dir"
+	chat "$FIXTURE/vault/inner" s "$CH/plain"
+	printf '%s' "$FIXTURE/vault/inner/s.jsonl" >"$INDEX/6e7f809"
+	chmod 000 "$FIXTURE/vault"
+	audit closed-ancestor
+	expect plain LAST_CHAT '?'
+	chmod 755 "$FIXTURE/vault"
+	chmod 000 "$INDEX"
+	audit unreadable-index
+	expect plain LAST_CHAT '?'
+	chmod 755 "$INDEX"
+else
+	printf 'worktree audit: closed directory and index cases SKIPPED, root searches every directory\n'
+fi
+mkdir -p "$FIXTURE/state/omp"
+mv "$INDEX" "$FIXTURE/state/omp/"
+audit state-index XDG_STATE_HOME="$FIXTURE/state"
+expect plain LAST_CHAT "$TODAY"
 
 # omp fills each unset variable from four .env files, the launch directory's, the agent
 # directory's, the config root's and the home directory's, and reads an OMP_ key in one as its PI_
@@ -304,30 +365,51 @@ audit no-tmpdir -u TMPDIR
 [ ! -e "$REPO/.pstack-scratch" ] || fail "scratch written inside the repo: $REPO/.pstack-scratch"
 [ -z "$(git -C "$REPO" status --porcelain --ignored)" ] || fail "the audit left files in the repo"
 
-# omp names the transcript it would write for a worktree without a model turn. A chat written at
-# that path has to reach the audit for a home, a temp and an absolute worktree.
+# omp names the transcript it would write for a cwd without a model turn. A chat written at that
+# path has to reach the audit for a home, a temp and an absolute worktree, for a session started in
+# a subdirectory of one, and for one launched with --profile or --session-dir.
+probe() {
+	local file
+	wt "$1" "$2"
+	mkdir -p "$3"
+	if ! file=$(cd "$3" && printf '%s\n' '{"id":"s","type":"get_state"}' |
+		env -i HOME="$HOME" TMPDIR="$TMPDIR" PATH="$PATH" omp --mode rpc --no-title --no-lsp --no-tools \
+			--no-rules --no-extensions --no-skills --model probe/no-inference "${@:4}" 2>"$FIXTURE/live-omp.err" |
+		jq -r 'select(.type == "response" and .id == "s") | .data.sessionFile // empty') || [ -z "$file" ]; then
+		fail "omp reported no session file for $3: $(tr '\n' ' ' <"$FIXTURE/live-omp.err")"
+		return
+	fi
+	chat "$(dirname "$file")" "$(basename "$file" .jsonl)" "$3"
+}
 if ! command -v omp >/dev/null 2>&1; then
-	printf 'worktree audit: live omp probe SKIPPED, omp is not on PATH\n'
+	if [ "${OMP_AUDIT_LIVE_REQUIRED:-}" = 1 ]; then
+		LABEL=live-omp
+		fail "omp is not on PATH and OMP_AUDIT_LIVE_REQUIRED=1"
+	else
+		printf 'worktree audit: live omp probe SKIPPED, omp is not on PATH; set OMP_AUDIT_LIVE_REQUIRED=1 to fail instead\n'
+	fi
 else
 	LABEL=live-omp
 	printf '%s\n' providers: '  probe:' '    baseUrl: http://127.0.0.1:9/v1' '    auth: none' \
 		'    api: openai-completions' '    models:' '      - id: no-inference' >"$HOME/.omp/agent/models.yml"
-	for spec in "probe-home:$CH/probe home" "probe-temp:$CT/probe:temp" "probe-abs:$FIXTURE/probe:abs"; do
-		path=${spec#*:}
-		wt "${spec%%:*}" "$path"
-		if ! file=$(cd "$path" && printf '%s\n' '{"id":"s","type":"get_state"}' |
-			env -i HOME="$HOME" TMPDIR="$TMPDIR" PATH="$PATH" omp --mode rpc --no-title --no-lsp \
-				--no-tools --no-rules --no-extensions --no-skills --model probe/no-inference 2>"$FIXTURE/live-omp.err" |
-			jq -r 'select(.type == "response" and .id == "s") | .data.sessionFile // empty') || [ -z "$file" ]; then
-			fail "omp reported no session file for $path: $(tr '\n' ' ' <"$FIXTURE/live-omp.err")"
-			continue
-		fi
-		chat "$(dirname "$file")" "$(basename "$file" .jsonl)" "$path"
-	done
+	mkdir -p "$HOME/.omp/profiles/live/agent"
+	cp "$HOME/.omp/agent/models.yml" "$HOME/.omp/profiles/live/agent/"
+	probe probe-home "$CH/probe home" "$CH/probe home"
+	probe probe-temp "$CT/probe:temp" "$CT/probe:temp"
+	probe probe-abs "$FIXTURE/probe:abs" "$FIXTURE/probe:abs"
+	probe probe-sub "$CH/probe sub" "$CH/probe sub/src"
+	probe probe-sub-abs "$FIXTURE/probe:sub" "$FIXTURE/probe:sub/src"
+	probe probe-profile "$CH/probe profile" "$CH/probe profile" --profile live
+	# Under a symlinked HOME omp also lists each bucket transcript in custom-session-files, which would
+	# hide whether the audit finds the bucket itself.
+	rm -rf "$HOME/.omp/agent/custom-session-files" "$HOME/.omp/profiles/live/agent/custom-session-files"
 	audit live-omp
-	for name in "probe home" probe:temp probe:abs; do
+	for name in "probe home" probe:temp probe:abs "probe sub" probe:sub "probe profile"; do
 		expect "$name" LAST_CHAT "$TODAY"
 	done
+	probe probe-session-dir "$CH/probe sdir" "$CH/probe sdir" --session-dir "$FIXTURE/live sessions"
+	audit live-omp-session-dir
+	expect "probe sdir" LAST_CHAT "$TODAY"
 fi
 
 if [ "$FAILS" -gt 0 ]; then

@@ -56,9 +56,35 @@ home and temp roots are canonicalized too, and `/`, `\`, and `:` all become `-` 
 - Anything else drops its leading `/` and becomes `--<encoded-absolute>--`, so `/srv/a:b` is
   `--srv-a-b--`.
 
+The cwd is the launch directory, not its git root. A session started in `/home/you/proj/src` sits in
+`-proj-src`, and one in `/srv/a/src` in `--srv-a-src--`, beside the project's own bucket.
+
 Two distinct paths that encode identically share one bucket unless the live runtime separates them.
 Probe the current store after an upgrade. Older stores may contain a short-lived hashed form,
 `<scope>-<basename>-<sha256>`, which is migrated back to path-encoded names on access.
+
+## Transcripts outside the buckets
+
+`--session-dir`, `PI_CODING_AGENT_SESSION_DIR`, and a `--resume` of a transcript outside the store
+write wherever they point. omp lists each such transcript in `custom-session-files/` under the
+active agent directory, or under `$XDG_STATE_HOME/omp` when that exists, so each profile keeps its
+own list. One file per session holds one absolute transcript path with no newline. omp writes it
+when the session starts, before any message. Under a `$HOME` reached through a symlink it lists
+bucket transcripts there too. Measured in a throwaway `HOME`, so list a real one after an upgrade.
+
+To find every transcript of a project, read its buckets in every store, `~/.omp/agent` and each
+`~/.omp/profiles/<name>/agent`, then every path those lists name. A listed file that is gone was
+deleted or moved.
+
+A store moved at launch by the process environment has no list entry a reader can find. A session
+started with `PI_CODING_AGENT_DIR`, `PI_CONFIG_DIR`, `XDG_DATA_HOME`, or `XDG_STATE_HOME` set writes
+its transcript and its list entry under a root that a reader without the same variable never
+resolves. Under `PI_CODING_AGENT_DIR` only omp's per-process debug log in `~/.omp/logs` still names
+the file, and a log is not an index. A `sessionDir` key in `config.yml` or a `--config` overlay
+moves nothing. `--no-session` writes no transcript at all. The worktree audit cannot see these
+sessions either. Rerun it with the variables those sessions launched with, or read
+`get_state.sessionFile` from the live session, before you trust a `safe` row for a worktree you
+used that way.
 
 ## The files
 

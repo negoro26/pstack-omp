@@ -37,47 +37,34 @@ allow_count() { awk -F'\t' -v p="$2" '$0 !~ /^#/ && $2 == p' "$1" | wc -l; }
 # the gate then goes red for a reason nobody can reconstruct. A fragment survives every edit that
 # does not change the rule it names.
 STALE_ALLOW="${STALE_EXEMPT:-$PORT_DIR/stale-exempt.tsv}"
-exempt() {
-	[ -f "$STALE_ALLOW" ] || return 1
-	# The needle travels through the environment rather than -v, because awk applies escape
-	# processing to a -v assignment and a rules.sed left-hand side is full of backslashes: it would
-	# warn about every one of them and match the stripped text instead of the rule.
-	#
-	# Three ways a substring match can go wrong are closed here, because each one silently exempts
-	# more than the author intended and a wrong exemption turns the gate green, which is the exact
-	# failure this assertion exists to prevent:
-	#   a whitespace-only fragment, which index() matches against almost any rule, so a stray tab
-	#     or a double space in the file would exempt the entire table;
-	#   a fragment too short to be distinctive, which a later rule could match by accident;
-	#   a fragment that is only a prefix of a longer rule, which exempts that rule wholesale.
-	STALE_RULE="$1" awk -F'\t' '
-		BEGIN { rule = ENVIRON["STALE_RULE"] }
-		$0 !~ /^#/ {
-			f = $1
-			gsub(/^[[:space:]]+|[[:space:]]+$/, "", f)
-			# The length floor alone is not enough: a run of twenty spaces is twenty characters long
-			# and index() finds it in almost any rule, so a whitespace-only row exempts the table.
-			if (length(f) >= 20 && f ~ /[^[:space:]]/ && index(rule, f)) hit = 1
-		}
-		END { exit !hit }
-	' "$STALE_ALLOW"
-}
-# Every fragment has to clear the same bar the matcher enforces, so a typo is caught at review time
-# rather than discovered as an exemption that quietly stopped applying.
-stale_exempt_bad() {
+# Resolves each exemption to the one rule it names, printing `ok<TAB><rules.sed line>` or
+# `bad<TAB><why>` per entry, so the lint and the staleness check read one answer. Only a fragment
+# that names exactly one rule exempts anything. A blank or short fragment is found by index() in
+# almost any rule, and a fragment that matches two rules lets the one it was not written for go
+# stale in silence: a `run_in_background: true` fragment once hid a swarm Phase B rule that way.
+# Only a genuinely empty line is not an entry; a line holding whitespace is one, and fails.
+stale_exempt_resolve() {
 	[ -f "$STALE_ALLOW" ] || return 0
 	awk -F'\t' '
-		$0 !~ /^#/ {
-			# Only a genuinely empty line is not an entry. A line holding whitespace is one, and is
-			# caught below: that is the shape index() would match against every rule, so skipping it
-			# here would reinstate the exact hole this lint exists to close.
-			if ($0 == "") next
+		FILENAME == ARGV[1] {
+			if ($0 ~ /^[0-9]+\t/) { n++; at[n] = $1; rule[n] = substr($0, length($1) + 2) }
+			else rule[n] = rule[n] "\n" $0
+			next
+		}
+		$0 !~ /^#/ && $0 != "" {
 			f = $1
 			gsub(/^[[:space:]]+|[[:space:]]+$/, "", f)
-			if (f !~ /[^[:space:]]/ || length(f) < 20)
-				printf "  rules.sed exemption fragment is blank or under 20 chars: [%s]\n", f
+			if (f !~ /[^[:space:]]/ || length(f) < 20) {
+				printf "bad\tstale-exempt.tsv:%d fragment is blank or under 20 chars: [%s]\n", FNR, f
+				next
+			}
+			c = 0; hits = ""
+			for (i = 1; i <= n; i++) if (index(rule[i], f)) hits = hits (c++ ? ", " : "") at[i]
+			if (c == 1) printf "ok\t%s\n", hits
+			else if (c == 0) printf "bad\tstale-exempt.tsv:%d fragment matches no rule: [%s]\n", FNR, f
+			else printf "bad\tstale-exempt.tsv:%d fragment matches %d rules, rules.sed lines %s: [%s]\n", FNR, c, hits, f
 		}
-	' "$STALE_ALLOW"
+	' <(rule_records) "$STALE_ALLOW"
 }
 # The gate patterns live in omp-port/lib.sh, one source shared with the sync script.
 pattern_for() {
@@ -357,6 +344,19 @@ if [ -n "$unclaimed" ]; then
 	while read -r c; do [ -n "$c" ] && violate "$c"; done <<<"$unclaimed"
 else
 	report "guide claims" "PASS  ${#guide_skills[@]} skills, prototype and multi-phase-plan playbooks, check-plan.mjs, Feature Map, pin"
+fi
+
+# Linted on every run, before the contracts-only exit, so a bad exemption fails the day it is
+# written whether or not any rule is stale yet, and the fixture mutations can reach it.
+exemptions=$(stale_exempt_resolve)
+exempt_lines=$(awk -F'\t' '$1 == "ok" { print $2 }' <<<"$exemptions")
+bad_frag=$(awk -F'\t' '$1 == "bad" { print $2 }' <<<"$exemptions")
+if [ -n "$bad_frag" ]; then
+	report "stale exemptions" "FAIL"
+	while read -r l; do [ -n "$l" ] && violate "$l"; done <<<"$bad_frag"
+	violate "an exemption must name exactly one rules.sed rule by a fragment of 20 or more characters, and any other fragment exempts nothing; starting it with the rule's s# opener keeps it off other rules' replacement text"
+else
+	report "stale exemptions" "PASS  $(grep -c . <<<"$exempt_lines") fragment(s), each naming exactly one rule"
 fi
 
 if [ "${CHECK_PORT_CONTRACTS_ONLY:-}" = 1 ]; then
@@ -726,7 +726,7 @@ if [ "$canon_ok" = yes ]; then
 		unexempted=""
 		while IFS=$'\t' read -r n rule; do
 			[ -n "$n" ] || continue
-			exempt "$rule" || unexempted="${unexempted}rules.sed:${n}: ${rule}"$'\n'
+			grep -qxF "$n" <<<"$exempt_lines" || unexempted="${unexempted}rules.sed:${n}: ${rule}"$'\n'
 		done <<<"$stale"
 		total=$(grep -c . <<<"$stale" || true)
 		if [ -n "$unexempted" ]; then
@@ -746,17 +746,6 @@ else
 	report "rule staleness" "SKIP  needs the clone at $CANON"
 fi
 
-# A fragment that is blank or shorter than the matcher requires exempts nothing at all, which reads
-# like a working exemption and is not one. Linted separately so the mistake surfaces whether or not
-# any rule is currently stale.
-bad_frag=$(stale_exempt_bad)
-if [ -n "$bad_frag" ]; then
-	report "stale exemptions" "FAIL"
-	while read -r l; do [ -n "$l" ] && violate "$l"; done <<<"$bad_frag"
-	violate "an exemption fragment that is blank or under 20 characters exempts nothing, so the rule it was written for will fail for the wrong reason"
-else
-	report "stale exemptions" "PASS  $(grep -cvE '^[[:space:]]*(#|$)' "$STALE_ALLOW" 2>/dev/null || echo 0) fragment(s), all usable"
-fi
 rm -rf "$scratch" "$buildlog"
 
 echo

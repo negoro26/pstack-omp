@@ -4,17 +4,20 @@ set -uo pipefail
 PORT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 REPO_ROOT=$(cd "$PORT_DIR/.." && pwd -P)
 FIXTURE=$(mktemp -d)
-trap 'rm -rf "$FIXTURE"' EXIT
+PORT_FIXTURE=$(mktemp -d)
+trap 'rm -rf "$FIXTURE" "$PORT_FIXTURE"' EXIT
 fail=0
 
 reset_fixture() {
 	rm -rf "$FIXTURE"
 	mkdir -p "$FIXTURE"
 	cp -a "$REPO_ROOT/plugins/pstack/." "$FIXTURE/"
+	cp "$PORT_DIR/rules.sed" "$PORT_DIR/stale-exempt.tsv" "$PORT_FIXTURE/"
 }
 
 run_contracts() {
-	CHECK_PORT_ROOT="$FIXTURE" CHECK_PORT_CONTRACTS_ONLY=1 bash "$PORT_DIR/check-port.sh"
+	CHECK_PORT_ROOT="$FIXTURE" RULES="$PORT_FIXTURE/rules.sed" STALE_EXEMPT="$PORT_FIXTURE/stale-exempt.tsv" \
+		CHECK_PORT_CONTRACTS_ONLY=1 bash "$PORT_DIR/check-port.sh"
 }
 
 reset_fixture
@@ -132,6 +135,17 @@ mutate_veto_provenance() {
 # upstream sentence must not be a gate failure. There is nothing left here to mutate.
 
 expect_failure 'external veto provenance' 'external capability provenance' mutate_veto_provenance
+
+# A fragment written for one stale rule once matched a second rule too and kept it from failing the
+# gate. Copying the rule the first exemption names gives that fragment two rules to match.
+mutate_shared_fragment() {
+	local frag rule
+	frag=$(awk -F'\t' '$0 !~ /^#/ && $0 != "" { print $1; exit }' "$PORT_FIXTURE/stale-exempt.tsv")
+	rule=$(grep -m1 -F -- "$frag" "$PORT_FIXTURE/rules.sed")
+	printf '%s\n' "$rule" >>"$PORT_FIXTURE/rules.sed"
+}
+
+expect_failure 'shared exemption fragment' 'stale exemptions' mutate_shared_fragment
 
 
 if [ "$fail" -ne 0 ]; then

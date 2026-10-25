@@ -82,7 +82,10 @@ consequence is a Cursor API reaching a generated skill while every other check s
 fix is to correct the left-hand side against what upstream actually says now, or to record the rule
 in `omp-port/stale-exempt.tsv` with a reason. That file is keyed on a literal fragment of the rule
 and never on a line number, because a line number moves the moment anyone edits a rule above it and
-an exemption that silently stops applying is worse than no exemption.
+an exemption that silently stops applying is worse than no exemption. `stale exemptions` fails a
+fragment that matches more than one rule or none, and an ambiguous fragment exempts nothing. A
+`run_in_background: true` fragment once matched a swarm Phase B sentence rule as well as the token
+rule it was written for, and kept that rule from failing when it went stale.
 
 The probe's own exit status is part of the assertion for both. A probe that cannot run reports
 failure, not a clean result: an empty list from a failed build is not evidence that nothing is

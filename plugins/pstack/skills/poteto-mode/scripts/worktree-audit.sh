@@ -163,17 +163,23 @@ while IFS= read -r path; do
 	done
 	dotenvs+=("$path/.env")
 done < <(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}')
-# A listed transcript that is gone holds no chat; its subagents sit in the
-# directory named after it. Under a symlinked home omp lists every bucket
-# transcript too, and the bucket scan already covers those. They share one
-# parent, so it is canonicalized once rather than once per transcript.
+# Under a symlinked home omp lists every bucket transcript too, and the bucket
+# scan already covers those. They share one parent, so it is canonicalized
+# once rather than once per transcript. Any other listed transcript that is
+# gone holds no chat, but one behind a directory the audit cannot search may
+# still exist. Its subagents sit in the directory named after it.
 listed=$([ "${#indexes[@]}" -eq 0 ] || grep -rhs '' -- "${indexes[@]}")
 index_status=$?
-seen="" store=""
+seen="" store="" closed=""
 while IFS= read -r f; do
-	[ -f "$f" ] || continue
 	[ "${f%/*/*}" = "$seen" ] || { seen=${f%/*/*}; store=$(canon "$seen"); }
 	case "$stores" in *$'\n'"$store"$'\n'*) continue ;; esac
+	if [ ! -f "$f" ]; then
+		dir=${f%/*}
+		while [ ! -e "$dir" ] && [ "$dir" != "${dir%/*}" ]; do dir=${dir%/*}; done
+		[ -d "$dir" ] && [ ! -x "$dir" ] && closed=$dir
+		continue
+	fi
 	session_dirs+=("$f")
 	[ -d "${f%.jsonl}" ] && session_dirs+=("${f%.jsonl}/")
 done <<<"$listed"
@@ -191,6 +197,9 @@ elif [ ! -d "$sessions" ]; then
 elif [ "$index_status" -gt 1 ]; then
 	chat_lookup=failed
 	echo "warn: cannot read an omp custom-session-files index; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
+elif [ -n "$closed" ]; then
+	chat_lookup=failed
+	echo "warn: cannot search $closed for a listed omp transcript; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
 fi
 now=$(date +%s)
 

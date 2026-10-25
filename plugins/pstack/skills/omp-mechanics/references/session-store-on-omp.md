@@ -70,7 +70,7 @@ write wherever they point. omp lists each such transcript in `custom-session-fil
 active agent directory, or under `$XDG_STATE_HOME/omp` when that exists, so each profile keeps its
 own list. One file per session holds one absolute transcript path with no newline. omp writes it
 when the session starts, before any message. Under a `$HOME` reached through a symlink it lists
-bucket transcripts there too. Measured on omp 18.12.6 in a throwaway `HOME`.
+bucket transcripts there too. Measured in a throwaway `HOME`, so list a real one after an upgrade.
 
 To find every transcript of a project, read its buckets in every store, `~/.omp/agent` and each
 `~/.omp/profiles/<name>/agent`, then every path those lists name. A listed file that is gone was

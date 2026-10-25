@@ -275,8 +275,9 @@ expect "$RECENT" LAST_CHAT "$TODAY"
 # omp lists each transcript it writes outside the bucket store, from --session-dir, an explicit
 # PI_CODING_AGENT_SESSION_DIR or a --resume of a moved file, as one absolute path per file in the
 # agent dir's custom-session-files, or XDG_STATE_HOME/omp's when that exists. A subagent transcript
-# sits in the directory named after its parent. A listed transcript that is gone is no chat, and an
-# index that cannot be read is unknown.
+# sits in the directory named after its parent. A listed transcript that is gone is no chat. One
+# behind a directory the audit cannot search may still exist, so it is unknown, and so is an index
+# that cannot be read.
 INDEX="$HOME/.omp/agent/custom-session-files"
 chat "$FIXTURE/custom dir" custom "$FIXTURE"
 chat "$FIXTURE/custom dir/custom" Child "$CH/plain"
@@ -295,10 +296,23 @@ expect unrelated LAST_CHAT -
 expect unrelated BUCKET safe
 expect "$RECENT" LAST_CHAT "$TODAY"
 if [ "$(id -u)" != 0 ]; then
+	chmod 000 "$FIXTURE/custom dir"
+	audit closed-transcript-dir
+	expect plain LAST_CHAT '?'
+	expect plain BUCKET verify-recent-chat
+	chmod 755 "$FIXTURE/custom dir"
+	chat "$FIXTURE/vault/inner" s "$CH/plain"
+	printf '%s' "$FIXTURE/vault/inner/s.jsonl" >"$INDEX/6e7f809"
+	chmod 000 "$FIXTURE/vault"
+	audit closed-ancestor
+	expect plain LAST_CHAT '?'
+	chmod 755 "$FIXTURE/vault"
 	chmod 000 "$INDEX"
 	audit unreadable-index
 	expect plain LAST_CHAT '?'
 	chmod 755 "$INDEX"
+else
+	printf 'worktree audit: closed directory and index cases SKIPPED, root searches every directory\n'
 fi
 mkdir -p "$FIXTURE/state/omp"
 mv "$INDEX" "$FIXTURE/state/omp/"

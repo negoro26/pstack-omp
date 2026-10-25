@@ -140,8 +140,10 @@ for x in "${XDG_DATA_HOME:-}" "${XDG_STATE_HOME:-}"; do
 done
 [ -n "${PI_CODING_AGENT_DIR:-}" ] && roots+=("$PI_CODING_AGENT_DIR")
 indexes=()
+stores=$'\n'
 for root in "${roots[@]}"; do
 	[ -d "$root/custom-session-files" ] && indexes+=("$root/custom-session-files")
+	[ -d "$root/sessions" ] && stores+="$(canon "$root/sessions")"$'\n'
 done
 while IFS= read -r path; do
 	cpath=$(canon "$path")
@@ -162,11 +164,16 @@ while IFS= read -r path; do
 	dotenvs+=("$path/.env")
 done < <(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}')
 # A listed transcript that is gone holds no chat; its subagents sit in the
-# directory named after it.
+# directory named after it. Under a symlinked home omp lists every bucket
+# transcript too, and the bucket scan already covers those. They share one
+# parent, so it is canonicalized once rather than once per transcript.
 listed=$([ "${#indexes[@]}" -eq 0 ] || grep -rhs '' -- "${indexes[@]}")
 index_status=$?
+seen="" store=""
 while IFS= read -r f; do
 	[ -f "$f" ] || continue
+	[ "${f%/*/*}" = "$seen" ] || { seen=${f%/*/*}; store=$(canon "$seen"); }
+	case "$stores" in *$'\n'"$store"$'\n'*) continue ;; esac
 	session_dirs+=("$f")
 	[ -d "${f%.jsonl}" ] && session_dirs+=("${f%.jsonl}/")
 done <<<"$listed"

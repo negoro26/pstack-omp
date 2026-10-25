@@ -9,8 +9,8 @@
 # Builds a throwaway repo with a local bare origin, a fake gh and origin CLI, and fixture omp
 # session stores, then runs the audit under each store layout omp resolves. Needs git and jq. It
 # never reaches the network, the real gh, or the real session store. When omp is on PATH it also
-# asks that omp, under the fixture HOME and with no model turn, which transcript it would write;
-# without omp that probe prints SKIPPED.
+# asks that omp, under the fixture HOME and with no model turn, which transcript it would write.
+# Without omp that probe prints SKIPPED, or fails when OMP_AUDIT_LIVE_REQUIRED=1.
 set -euo pipefail
 
 PORT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -359,7 +359,12 @@ probe() {
 	chat "$(dirname "$file")" "$(basename "$file" .jsonl)" "$3"
 }
 if ! command -v omp >/dev/null 2>&1; then
-	printf 'worktree audit: live omp probe SKIPPED, omp is not on PATH\n'
+	if [ "${OMP_AUDIT_LIVE_REQUIRED:-}" = 1 ]; then
+		LABEL=live-omp
+		fail "omp is not on PATH and OMP_AUDIT_LIVE_REQUIRED=1"
+	else
+		printf 'worktree audit: live omp probe SKIPPED, omp is not on PATH; set OMP_AUDIT_LIVE_REQUIRED=1 to fail instead\n'
+	fi
 else
 	LABEL=live-omp
 	printf '%s\n' providers: '  probe:' '    baseUrl: http://127.0.0.1:9/v1' '    auth: none' \

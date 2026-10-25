@@ -12,7 +12,8 @@
 #     ripgrep is not required and a path with [ or spaces matches literally
 #   - fail closed: a store that cannot be found or read makes LAST_CHAT "?" and holds the row at
 #     verify-recent-chat, the bucket playbooks/worktree-cleanup.md already names, never `safe`
-#   - probe GNU or BSD stat and date once, so the audit runs on Linux and macOS alike
+#   - stat each matched transcript on its own through upstream's GNU/BSD probe, so a path with
+#     spaces survives and a stat failure fails closed instead of dropping out of an xargs pipe
 #   - keep the PR list in memory, so the audit writes no scratch file at all, inside the repo or
 #     out of it
 #   - parse `git worktree list` records by stripping the record prefix, so a path containing
@@ -28,8 +29,8 @@
 #     nowhere else bucket as hold-unpushed
 #
 # Upstream's -b/--base flag, its origin/HEAD default, its Origin-first PR fetch with the gh
-# fallback, its LAST_CHAT column, and its verify-recent-chat bucket are all kept exactly as
-# written.
+# fallback, its GNU/BSD stat and date probe, its LAST_CHAT column, and its verify-recent-chat
+# bucket are all kept exactly as written.
 #
 # Authored against post-rules text. rules.sed runs first and rewrites the Cursor path in the
 # comment this patch deletes, so a hunk quoting the raw upstream comment would not apply.
@@ -50,9 +51,9 @@
  
  if [ -z "$base" ]; then
  	for cand in "$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)" origin/main origin/master; do
-@@ -47,33 +52,94 @@
- esac
- git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1 || { echo "error: base ref not found: $base" >&2; exit 1; }
+@@ -55,33 +60,91 @@
+ 	stat_fmt=(-f '%m %N'); fmt_day() { date -r "$1" '+%Y-%m-%d'; }
+ fi
  
 -# PR state by branch, fetched once as [{number, state, head}] with a lowercase
 -# state. Origin when its CLI can read this repo's PRs, otherwise gh. Empty when
@@ -133,9 +134,6 @@
 +	chat_lookup=failed
 +	echo "warn: no omp session store at $sessions; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
 +fi
-+# GNU and BSD spell file mtime and epoch formatting differently; probe once.
-+if stat -c %Y / >/dev/null 2>&1; then mtime() { stat -c %Y "$1"; }; else mtime() { stat -f %m "$1"; }; fi
-+if date -d @0 +%s >/dev/null 2>&1; then day() { date -d "@$1" '+%Y-%m-%d'; }; else day() { date -r "$1" '+%Y-%m-%d'; }; fi
  now=$(date +%s)
  
  echo "# base: $base"
@@ -159,7 +157,7 @@
  	head_ts=$(git -C "$wt" log -1 --format='%ct' HEAD 2>/dev/null || echo 0)
  	age=$([ "$head_ts" -gt 0 ] 2>/dev/null && echo "$(( (now - head_ts) / 86400 ))d" || echo "?")
  
-@@ -81,12 +147,12 @@
+@@ -89,12 +152,12 @@
  	# real signal; merge-base only catches fast-forward/rebase merges.
  	git merge-base --is-ancestor "$head" "$base" 2>/dev/null && merged=YES || merged=no
  
@@ -178,7 +176,7 @@
  
  	branch=$(git -C "$wt" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "")
  	if [ -z "$branch" ]; then remote=detached
-@@ -94,33 +160,56 @@
+@@ -102,33 +165,57 @@
  		[ "$(git -C "$wt" rev-parse "origin/$branch" 2>/dev/null)" = "$head" ] \
  			&& remote=pushed \
  			|| remote="ahead$(git -C "$wt" rev-list --count "origin/$branch..HEAD" 2>/dev/null)"
@@ -200,9 +198,9 @@
 -	last="-"; last_ts=0
 -	if [ -d "$transcripts" ]; then
 -		f=$(rg -l -e "${wt}/" -e "${wt}\"" "$transcripts" 2>/dev/null \
--			| xargs stat -f '%m %N' 2>/dev/null | sort -rn | head -1)
+-			| xargs stat "${stat_fmt[@]}" 2>/dev/null | sort -rn | head -1)
 -		if [ -n "$f" ]; then last_ts=$(echo "$f" | awk '{print $1}')
--			last=$(date -r "$last_ts" '+%Y-%m-%d' 2>/dev/null); fi
+-			last=$(fmt_day "$last_ts" 2>/dev/null); fi
 +	# Most recent chat whose transcript operated in this worktree, under the
 +	# path git lists or its canonical spelling. Match path followed by "/" or a
 +	# quote so glint-482 does not match glint-482-r37.
@@ -214,12 +212,13 @@
 +		[ $? -le 1 ] || chat=failed
 +		while IFS= read -r f; do
 +			[ -n "$f" ] || continue
-+			ts=$(mtime "$f") || { chat=failed; break; }
++			ts=$(stat "${stat_fmt[@]}" "$f") || { chat=failed; break; }
++			ts=${ts%% *}
 +			[ "$ts" -gt "$last_ts" ] && last_ts=$ts
 +		done <<<"$matched"
  	fi
 +	if [ "$chat" != ok ]; then last="?"
-+	elif [ "$last_ts" -gt 0 ]; then last=$(day "$last_ts" 2>/dev/null) || last="?"; fi
++	elif [ "$last_ts" -gt 0 ]; then last=$(fmt_day "$last_ts" 2>/dev/null) || last="?"; fi
  	recent=$([ "$last_ts" -gt 0 ] 2>/dev/null && [ $(( (now - last_ts) / 86400 )) -le 4 ] && echo yes || echo no)
  
 +	# An exact PR head proves the commits were pushed even if origin has no

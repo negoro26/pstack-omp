@@ -155,7 +155,6 @@ s#`readonly: true`#read-only posture carried in the brief#g
 s#`readonly: false`#full tools per spawn#g
 s#agent mode \(`readonly: false`\)#full tools per spawn#g
 s#`readonly`: `true`#read-only posture carried in the brief#g
-s#`run_in_background: true`#one `task` call with all items in `tasks[]`#g
 s#readonly strips MCPs\.#nothing strips MCPs here.#g
 # A judge is spawned with read posture in its brief, never as a field. Matched on the field name
 # rather than the sentence, because upstream rewords the sentence and the field never survives it.

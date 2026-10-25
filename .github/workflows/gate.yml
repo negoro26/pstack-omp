@@ -73,3 +73,5 @@ jobs:
           echo "$dir" >> "$GITHUB_PATH"
       - name: Plugin smoke
         run: OMP_SMOKE_REQUIRED=1 bun omp-port/smoke-plugin.mjs
+      - name: Worktree audit against live omp
+        run: OMP_AUDIT_LIVE_REQUIRED=1 bash omp-port/test-worktree-audit.sh

@@ -10,6 +10,8 @@
 #     root, checked first, -<rel> under home, --<abs>-- otherwise, / \ : mapped to -)
 #   - scan only the buckets of this repo's worktrees, never the whole store, with grep -F, so
 #     ripgrep is not required and a path with [ or spaces matches literally
+#   - scan each linked worktree's subdirectory buckets too, found by the bucket-name prefix, since
+#     omp files a session started in <worktree>/src under that cwd's own bucket
 #   - fail closed: a store that cannot be found or read makes LAST_CHAT "?" and holds the row at
 #     verify-recent-chat, the bucket playbooks/worktree-cleanup.md already names, never `safe`
 #   - fail closed the same way when a .env file omp reads (each worktree's, the agent dir's, the
@@ -54,7 +56,7 @@
  
  if [ -z "$base" ]; then
  	for cand in "$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)" origin/main origin/master; do
-@@ -55,33 +60,105 @@
+@@ -55,33 +60,118 @@
  	stat_fmt=(-f '%m %N'); fmt_day() { date -r "$1" '+%Y-%m-%d'; }
  fi
  
@@ -89,9 +91,10 @@
 +# PI_PROFILE) under ~/${PI_CONFIG_DIR:-.omp}, PI_CODING_AGENT_DIR when no
 +# profile is set, or an existing XDG_DATA_HOME/omp when the agent dir is the
 +# default, and it holds one bucket per canonical cwd. Only the buckets of this
-+# repo's worktrees are scanned; walking every bucket would scale with total
-+# session history. A store that cannot be read makes LAST_CHAT "?" and holds
-+# the row at verify-recent-chat instead of reading as no chat at all.
++# repo's worktrees and their subdirectories are scanned; walking every bucket
++# would scale with total session history. A store that cannot be read makes
++# LAST_CHAT "?" and holds the row at verify-recent-chat instead of reading as
++# no chat at all.
 +# omp also fills each unset variable from the .env in the cwd it launched in,
 +# then the agent dir's, the config root's and home's, reading an OMP_ key there
 +# as its PI_ alias, while the profile comes from the environment alone. The
@@ -136,8 +139,20 @@
 +	temp_root=$(canon "${TMPDIR:-${TMP:-${TEMP:-/tmp}}}")
 +	dotenvs=("$agent/.env" "$config/.env" "$HOME/.env")
 +	while IFS= read -r path; do
-+		dir="$sessions/$(bucket_name "$(canon "$path")")"
++		cpath=$(canon "$path")
++		dir="$sessions/$(bucket_name "$cpath")"
 +		[ -d "$dir" ] && session_dirs+=("$dir/")
++		# A session started in a subdirectory has that subdirectory's bucket,
++		# the worktree's name plus "-<rest>" ahead of any closing "--". A
++		# transcript still has to name the worktree path, so a bucket that
++		# only shares the prefix costs time, never a match. The main worktree
++		# is skipped, since a repo at $HOME would make this the whole store.
++		if [ "$path" != "$main_wt" ]; then
++			sub=$(bucket_name "$cpath/*")
++			for dir in "$sessions/${sub%\**}"*"${sub##*\*}"; do
++				[ -d "$dir" ] && session_dirs+=("$dir/")
++			done
++		fi
 +		dotenvs+=("$path/.env")
 +	done < <(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}')
 +	moved=$(grep -lsE '^[[:space:]]*(export[[:space:]]+)?((PI|OMP)_(CODING_AGENT_SESSION_DIR|CODING_AGENT_DIR|CONFIG_DIR)|XDG_DATA_HOME)[[:space:]]*[=:]' \
@@ -174,7 +189,7 @@
  	head_ts=$(git -C "$wt" log -1 --format='%ct' HEAD 2>/dev/null || echo 0)
  	age=$([ "$head_ts" -gt 0 ] 2>/dev/null && echo "$(( (now - head_ts) / 86400 ))d" || echo "?")
  
-@@ -89,12 +166,12 @@
+@@ -89,12 +179,12 @@
  	# real signal; merge-base only catches fast-forward/rebase merges.
  	git merge-base --is-ancestor "$head" "$base" 2>/dev/null && merged=YES || merged=no
  
@@ -193,7 +208,7 @@
  
  	branch=$(git -C "$wt" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "")
  	if [ -z "$branch" ]; then remote=detached
-@@ -102,33 +179,57 @@
+@@ -102,33 +192,57 @@
  		[ "$(git -C "$wt" rev-parse "origin/$branch" 2>/dev/null)" = "$head" ] \
  			&& remote=pushed \
  			|| remote="ahead$(git -C "$wt" rev-list --count "origin/$branch..HEAD" 2>/dev/null)"

@@ -80,9 +80,10 @@ fi
 # PI_PROFILE) under ~/${PI_CONFIG_DIR:-.omp}, PI_CODING_AGENT_DIR when no
 # profile is set, or an existing XDG_DATA_HOME/omp when the agent dir is the
 # default, and it holds one bucket per canonical cwd. Only the buckets of this
-# repo's worktrees are scanned; walking every bucket would scale with total
-# session history. A store that cannot be read makes LAST_CHAT "?" and holds
-# the row at verify-recent-chat instead of reading as no chat at all.
+# repo's worktrees and their subdirectories are scanned; walking every bucket
+# would scale with total session history. A store that cannot be read makes
+# LAST_CHAT "?" and holds the row at verify-recent-chat instead of reading as
+# no chat at all.
 # omp also fills each unset variable from the .env in the cwd it launched in,
 # then the agent dir's, the config root's and home's, reading an OMP_ key there
 # as its PI_ alias, while the profile comes from the environment alone. The
@@ -127,8 +128,20 @@ else
 	temp_root=$(canon "${TMPDIR:-${TMP:-${TEMP:-/tmp}}}")
 	dotenvs=("$agent/.env" "$config/.env" "$HOME/.env")
 	while IFS= read -r path; do
-		dir="$sessions/$(bucket_name "$(canon "$path")")"
+		cpath=$(canon "$path")
+		dir="$sessions/$(bucket_name "$cpath")"
 		[ -d "$dir" ] && session_dirs+=("$dir/")
+		# A session started in a subdirectory has that subdirectory's bucket,
+		# the worktree's name plus "-<rest>" ahead of any closing "--". A
+		# transcript still has to name the worktree path, so a bucket that
+		# only shares the prefix costs time, never a match. The main worktree
+		# is skipped, since a repo at $HOME would make this the whole store.
+		if [ "$path" != "$main_wt" ]; then
+			sub=$(bucket_name "$cpath/*")
+			for dir in "$sessions/${sub%\**}"*"${sub##*\*}"; do
+				[ -d "$dir" ] && session_dirs+=("$dir/")
+			done
+		fi
 		dotenvs+=("$path/.env")
 	done < <(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}')
 	moved=$(grep -lsE '^[[:space:]]*(export[[:space:]]+)?((PI|OMP)_(CODING_AGENT_SESSION_DIR|CODING_AGENT_DIR|CONFIG_DIR)|XDG_DATA_HOME)[[:space:]]*[=:]' \

@@ -49,14 +49,9 @@ export default function potetomode(pi) {
       return;
     }
 
-    // Indicator matches ponytail's style: ● active, ○ idle
+    // Theme colors only: color emoji ignore the palette and render double-width, so they clash with the rest of the status line.
     const indicator = isActive ? theme.fg("accent", "●") : theme.fg("dim", "○");
-    // 🥔 / 👑 poteto: PINNED
-    const pill =
-      indicator +
-      " 🥔 " +
-      theme.fg("muted", "poteto: ") +
-      theme.fg("warning", "👑 PINNED");
+    const pill = indicator + " " + theme.fg("muted", "poteto ") + theme.fg("warning", "pinned");
 
     c.ui.setStatus("poteto-mode", pill);
   };

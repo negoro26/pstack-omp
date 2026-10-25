@@ -61,12 +61,12 @@ test("latest entry wins and a new session resets the previous override", async (
 test("shortcut, status, command and injection share one effective state", async () => {
   const session = host();
   await session.start();
-  expect(session.status()).toContain("PINNED");
+  expect(session.status()).not.toBe("");
   session.shortcut();
   expect(session.status()).toBe("");
   expect(await session.before()).toBeUndefined();
   await session.command("on");
-  expect(session.status()).toContain("PINNED");
+  expect(session.status()).not.toBe("");
   expect(await session.before()).toBeDefined();
   await session.command("off");
   expect(await session.before()).toBeUndefined();

@@ -366,7 +366,6 @@ s#the `(architect|arena|swarm|interrogate) runners` line in the `pstack-models\.
 s#the `interrogate reviewers` line in the `pstack-models\.mdc` rule#one exact discovered reviewer agent per configured entry#g
 s#the `arena cross-judge pool` line in `~?/?\.cursor/rules/pstack-models\.mdc`#an exact discovered judge agent whose configured model differs from the parent's when the roster provides one, in `~/.omp/agent/config.yml`#g
 s#the `(architect|arena|swarm|interrogate) runners` line in `~?/?\.cursor/rules/pstack-models\.mdc`#the exact discovered runner agents in `~/.omp/agent/config.yml`#g
-s#the `interrogate reviewers` line in `task\.agentModelOverrides` in `~/\.omp/agent/config\.yml`#one exact discovered reviewer agent per entry in `~/.omp/agent/config.yml`#g
 # The last two Cursor role labels. Same reasoning as the runner lines above: the label is a key
 # in a rule file that omp does not have, so naming it names nothing. The capability it stood for
 # is what the port writes instead.
@@ -374,10 +373,9 @@ s#the `how (explorer|explainer)` line#an exact discovered \1 agent in `~/.omp/ag
 s#one per entry on the `interrogate reviewers` line in `~?/?(\.cursor/rules/pstack-models\.mdc|task\.agentModelOverrides in ~?/?\.omp/agent/config\.yml)`#one per configured entry in `~/.omp/agent/config.yml`#g
 s#Set `model` to that line.s value, or to the default if the rule or the line is missing\.#Each discovered agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects its model; the item has no `model` field.#g
 s#Leave `model` unset when the value is `auto` or `inherit-parent`\.#An `auto` or `inherit-parent` entry means the parent chat model, so omit that role from the map.#g
-s#the `interrogate reviewers` line in `task\.agentModelOverrides` in `~?/?\.omp/agent/config\.yml`#one exact discovered reviewer agent per configured entry in `~/.omp/agent/config.yml`#g
+s#the `interrogate reviewers` line in `~?/?\.cursor/rules/pstack-models\.mdc`#one exact discovered reviewer agent per configured entry in `~/.omp/agent/config.yml`#g
 s#the `architect runners` line in the `task\.agentModelOverrides` entries in `~/\.omp/agent/config\.yml`#the same exact discovered runner agents Arena uses, with the architect role in each brief, in `~/.omp/agent/config.yml`#g
 s#an exact discovered (why investigators|why synthesizer|interrogate reviewers|swarm workers|architect runners|arena runners|arena cross-judge pool|reflect tooling|reflect judgment, divergent, synthesizer) agent#an exact discovered agent filling that role#g
-s#one per entry on one exact discovered reviewer agent per entry#one per configured entry#g
 # A single spawn is still one task call with one item and the required shared context. Matched on
 # the "spawn one <role>" phrase, which is the shape upstream uses everywhere it means one worker,
 # rather than on the sentence around it.

@@ -8,7 +8,9 @@
 #
 # Builds a throwaway repo with a local bare origin, a fake gh and origin CLI, and fixture omp
 # session stores, then runs the audit under each store layout omp resolves. Needs git and jq. It
-# never reaches the network, the real gh, or the real session store.
+# never reaches the network, the real gh, or the real session store. When omp is on PATH it also
+# asks that omp, under the fixture HOME and with no model turn, which transcript it would write;
+# without omp that probe prints SKIPPED.
 set -euo pipefail
 
 PORT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -256,6 +258,29 @@ audit xdg XDG_DATA_HOME="$FIXTURE/xdg"
 expect plain LAST_CHAT "$TODAY"
 expect "$RECENT" LAST_CHAT -
 
+# omp fills each unset variable from four .env files, the launch directory's, the agent
+# directory's, the config root's and the home directory's, and reads an OMP_ key in one as its PI_
+# alias. A store moved from one of them holds a recent chat the audit cannot see.
+MOVED="$FIXTURE/moved store"
+chat "$MOVED/agent/sessions/-plain" moved "$CH/plain"
+chat "$MOVED/data/omp/sessions/-plain" moved "$CH/plain"
+dotenv() {
+	printf '%s\n' "$3" >"$2"
+	audit "dotenv-$1"
+	expect plain LAST_CHAT '?'
+	expect plain BUCKET verify-recent-chat
+	rm "$2"
+}
+dotenv project "$REPO/.env" "PI_CODING_AGENT_DIR=\"$MOVED/agent\""
+dotenv agent "$HOME/.omp/agent/.env" "export OMP_CODING_AGENT_DIR=\"$MOVED/agent\""
+dotenv config "$HOME/.omp/.env" "PI_CODING_AGENT_SESSION_DIR: \"$MOVED/agent/sessions/-plain\""
+dotenv home "$HOME/.env" "XDG_DATA_HOME=\"$MOVED/data\""
+printf 'EDITOR=vi\n# PI_CODING_AGENT_DIR="%s"\n' "$MOVED/agent" >"$HOME/.env"
+audit dotenv-unrelated
+expect plain LAST_CHAT -
+expect plain BUCKET safe
+rm "$HOME/.env"
+
 # A store that cannot be read is unknown, never "no chat": the row holds for verification while
 # the stronger holds keep their own bucket.
 audit missing-store PI_CODING_AGENT_DIR="$FIXTURE/nowhere"
@@ -264,6 +289,8 @@ expect plain BUCKET verify-recent-chat
 expect unrelated BUCKET verify-recent-chat
 expect open BUCKET hold-open-pr
 expect tracked BUCKET hold-wip
+expect local-only BUCKET hold-unpushed
+expect detached BUCKET hold-unpushed
 if [ "$(id -u)" != 0 ]; then
 	chmod 000 "$SESSIONS/-main repo/repo.jsonl"
 	audit unreadable-transcript
@@ -276,6 +303,32 @@ fi
 audit no-tmpdir -u TMPDIR
 [ ! -e "$REPO/.pstack-scratch" ] || fail "scratch written inside the repo: $REPO/.pstack-scratch"
 [ -z "$(git -C "$REPO" status --porcelain --ignored)" ] || fail "the audit left files in the repo"
+
+# omp names the transcript it would write for a worktree without a model turn. A chat written at
+# that path has to reach the audit for a home, a temp and an absolute worktree.
+if ! command -v omp >/dev/null 2>&1; then
+	printf 'worktree audit: live omp probe SKIPPED, omp is not on PATH\n'
+else
+	LABEL=live-omp
+	printf '%s\n' providers: '  probe:' '    baseUrl: http://127.0.0.1:9/v1' '    auth: none' \
+		'    api: openai-completions' '    models:' '      - id: no-inference' >"$HOME/.omp/agent/models.yml"
+	for spec in "probe-home:$CH/probe home" "probe-temp:$CT/probe:temp" "probe-abs:$FIXTURE/probe:abs"; do
+		path=${spec#*:}
+		wt "${spec%%:*}" "$path"
+		if ! file=$(cd "$path" && printf '%s\n' '{"id":"s","type":"get_state"}' |
+			env -i HOME="$HOME" TMPDIR="$TMPDIR" PATH="$PATH" omp --mode rpc --no-title --no-lsp \
+				--no-tools --no-rules --no-extensions --no-skills --model probe/no-inference 2>"$FIXTURE/live-omp.err" |
+			jq -r 'select(.type == "response" and .id == "s") | .data.sessionFile // empty') || [ -z "$file" ]; then
+			fail "omp reported no session file for $path: $(tr '\n' ' ' <"$FIXTURE/live-omp.err")"
+			continue
+		fi
+		chat "$(dirname "$file")" "$(basename "$file" .jsonl)" "$path"
+	done
+	audit live-omp
+	for name in "probe home" probe:temp probe:abs; do
+		expect "$name" LAST_CHAT "$TODAY"
+	done
+fi
 
 if [ "$FAILS" -gt 0 ]; then
 	printf 'worktree audit: FAIL (%d)\n' "$FAILS"

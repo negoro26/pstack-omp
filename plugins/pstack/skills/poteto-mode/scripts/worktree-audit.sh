@@ -83,6 +83,12 @@ fi
 # repo's worktrees are scanned; walking every bucket would scale with total
 # session history. A store that cannot be read makes LAST_CHAT "?" and holds
 # the row at verify-recent-chat instead of reading as no chat at all.
+# omp also fills each unset variable from the .env in the cwd it launched in,
+# then the agent dir's, the config root's and home's, reading an OMP_ key there
+# as its PI_ alias, while the profile comes from the environment alone. The
+# audit does not replay that loader. A store key in any of those files counts
+# as a store it cannot read. An explicit session directory is exempt, since the
+# environment outranks every .env.
 canon() { (CDPATH='' cd -- "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"; }
 dash() { printf '%s' "$1" | tr '/\\:' '---'; }
 # Path of $2 relative to $1, failing when $2 is outside it. Like omp, a
@@ -103,6 +109,7 @@ bucket_name() {
 	else printf '%s' "--$(dash "${1#/}")--"; fi
 }
 session_dirs=()
+moved=""
 if [ -n "${PI_CODING_AGENT_SESSION_DIR:-}" ]; then
 	sessions=$PI_CODING_AGENT_SESSION_DIR
 	session_dirs=("$sessions/")
@@ -118,13 +125,20 @@ else
 	sessions="$data/sessions"
 	home_root=$(canon "$HOME")
 	temp_root=$(canon "${TMPDIR:-${TMP:-${TEMP:-/tmp}}}")
+	dotenvs=("$agent/.env" "$config/.env" "$HOME/.env")
 	while IFS= read -r path; do
 		dir="$sessions/$(bucket_name "$(canon "$path")")"
 		[ -d "$dir" ] && session_dirs+=("$dir/")
+		dotenvs+=("$path/.env")
 	done < <(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}')
+	moved=$(grep -lsE '^[[:space:]]*(export[[:space:]]+)?((PI|OMP)_(CODING_AGENT_SESSION_DIR|CODING_AGENT_DIR|CONFIG_DIR)|XDG_DATA_HOME)[[:space:]]*[=:]' \
+		-- "${dotenvs[@]}")
 fi
 chat_lookup=ok
-if [ ! -d "$sessions" ]; then
+if [ -n "$moved" ]; then
+	chat_lookup=failed
+	sed 's/^/warn: /; s/$/ can move the omp session store; LAST_CHAT is ? and rows hold at verify-recent-chat/' <<<"$moved" >&2
+elif [ ! -d "$sessions" ]; then
 	chat_lookup=failed
 	echo "warn: no omp session store at $sessions; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
 fi

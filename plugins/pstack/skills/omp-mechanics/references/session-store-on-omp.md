@@ -18,6 +18,30 @@ it once instead of hardcoding it.
   `$XDG_DATA_HOME/omp/profiles/<name>` under a profile, replaces it as the data root, and the
   sessions sit directly under that, `$XDG_DATA_HOME/omp/sessions/`, with no `agent/` segment.
 
+The process environment is not the whole input. omp fills each variable that is unset or empty
+from four `.env` files, and the first file that sets it wins. The process environment beats all
+four. Every fact here came off `get_state.sessionFile` in a throwaway `HOME`, so rerun the probe at
+the end of this section after an upgrade rather than trusting the list.
+
+1. The launch cwd's own `.env`. A parent directory's or the git root's is not read.
+2. The active agent directory's `.env`. That directory stays put under an existing
+   `$XDG_DATA_HOME/omp`, whose own `.env` is not read.
+3. The active config root's `.env`, so `~/.omp/profiles/<name>/.env` under a profile.
+4. `~/.env`.
+
+In any of the four, `PI_CODING_AGENT_SESSION_DIR`, `PI_CODING_AGENT_DIR`, `PI_CONFIG_DIR`, and
+`XDG_DATA_HOME` move the store. So do `OMP_CODING_AGENT_SESSION_DIR`, `OMP_CODING_AGENT_DIR`, and
+`OMP_CONFIG_DIR`, because a file reads an `OMP_` key as its `PI_` name and that value beats the
+same file's `PI_` line. `export KEY=v`, `KEY: v`, and `KEY = v` all count. An empty value does not.
+`~/.omp/agent/.env` can move the agent directory itself, and the moved directory's `.env` is then
+not read. `OMP_PROFILE` and `PI_PROFILE` in a `.env` select nothing. `.env.local` and
+`.env.<NODE_ENV>` in the cwd moved nothing. A process-level `PI_CODING_AGENT_SESSION_DIR` is
+the one root no `.env` can move.
+
+When the answer matters, ask omp. Launched from the cwd in question, `omp --mode rpc` answers
+`{"type":"get_state"}` with `sessionFile`, the transcript it would write. That creates the
+bucket directory and writes no transcript before the first message.
+
 ## The bucket name
 
 One bucket per canonicalized cwd, so two symlinked spellings of one directory share a bucket. The

@@ -1,88 +1,12 @@
-# Open upstream fixes to watch-pr and the orch store, carried until cursor/plugins merges them.
-# Each hunk is the upstream PR's own code and test, rebased onto the post-rules tree unchanged.
+# Open upstream fix to watch-pr, carried until cursor/plugins merges it: #769. --status-only
+# reports a head with no checks as ci-none in one table and stops on the first query error,
+# instead of retrying through the backoff schedule. The hunks are the PR's own code and test,
+# rebased onto the post-rules tree unchanged.
 #
-#   - #746, rollup of #664: stack discovery requests isCrossRepository and never treats a fork's
-#     head as a parent or child, so a fork's open main->main PR no longer spins the parent walk
-#   - #746, rollup of #666: polling sleeps, interval and query backoff alike, are capped at the
-#     --timeout deadline instead of overshooting it
-#   - #746, rollup of #684: a branch with a closed or merged PR plus one open replacement resolves
-#     to the open one instead of failing with "multiple pull requests"
-#   - #769: --status-only reports a head with no checks as ci-none in one table and stops on the
-#     first query error, instead of retrying through the backoff schedule
+# #769 and the still-open #592 both add a field after `allowDraft` in policy.ts, in readSnapshot's
+# arguments and in runSimple's call to it, so if upstream lands #592 first this patch stops
+# applying at those two lines and needs them re-resolved.
 #
-# #769 and the still-open #592 both add a field after `allowDraft` in policy.ts, so if upstream
-# lands #592 first this patch stops applying there and needs one line re-resolved.
-#
-diff --git a/skills/poteto-mode/scripts/orch/orch.test.ts b/skills/poteto-mode/scripts/orch/orch.test.ts
---- a/skills/poteto-mode/scripts/orch/orch.test.ts
-+++ b/skills/poteto-mode/scripts/orch/orch.test.ts
-@@ -573,6 +573,40 @@ describe("Store", () => {
-       });
-     });
- 
-+    it(`resolves a replacement ${forge} PR alongside closed branch history`, async () => {
-+      for (const historicalState of ["closed", "merged"] as const) {
-+        const { directory, store } = await initializedStore();
-+        const stack = await makeGitStack(directory);
-+        await withFakeForge({
-+          directory, forge,
-+          currentRows: forgeRows(forge, [
-+            { number: 9, state: historicalState, head: "stack/open", base: "main" },
-+            { number: 11, state: "open", head: "stack/open", base: "stack/closed" },
-+          ]),
-+          operation: async () => {
-+            const frontier = await store.frontier.set({ repo: stack.repo, forge });
-+            expect(frontier.prs.map((row) => row.pr)).toEqual([10, 13, 11, 14]);
-+            expect(frontier.lowestUnmerged).toBe(11);
-+          },
-+        });
-+      }
-+    });
-+
-+    it(`still rejects multiple active ${forge} PRs on one branch`, async () => {
-+      const { directory, store } = await initializedStore();
-+      const stack = await makeGitStack(directory);
-+      await withFakeForge({
-+        directory, forge,
-+        currentRows: forgeRows(forge, [
-+          { number: 11, state: "open", head: "stack/open", base: "stack/closed" },
-+          { number: 12, state: "open", head: "stack/open", base: "main" },
-+        ]),
-+        operation: async () => {
-+          await expect(store.frontier.set({ repo: stack.repo, forge })).rejects.toThrow("multiple pull requests");
-+        },
-+      });
-+    });
-+
-     it(`rejects unparseable ${forge} output loudly`, async () => {
-       const { directory, store } = await initializedStore();
-       const stack = await makeGitStack(directory);
-diff --git a/skills/poteto-mode/scripts/orch/store.ts b/skills/poteto-mode/scripts/orch/store.ts
---- a/skills/poteto-mode/scripts/orch/store.ts
-+++ b/skills/poteto-mode/scripts/orch/store.ts
-@@ -1113,15 +1113,19 @@ function branchPullRequest({
-   repo: string;
- }): ForgePullRequest {
-   const rows = listPullRequests({ filter: "--head", branch, forge, repo });
--  const row = rows[0];
-+  // A branch may have closed or merged historical PRs after stack surgery.
-+  // Prefer its sole active PR, but retain historical anchors when none is open.
-+  const active = rows.filter((row) => row.state === "OPEN");
-+  const candidates = active.length > 0 ? active : rows;
-+  const row = candidates[0];
-   if (row === undefined) {
-     throw new UserError(
-       `branch ${branch} has no pull request; open one with ${forge} pr create, or resolve the frontier from a branch whose chain is fully submitted`
-     );
-   }
--  if (rows.length > 1) {
-+  if (candidates.length > 1) {
-     throw new UserError(
--      `branch ${branch} has multiple pull requests (${rows.map((item) => `#${item.pr}`).join(", ")}); close the stale ones first`
-+      `branch ${branch} has multiple pull requests (${candidates.map((item) => `#${item.pr}`).join(", ")}); close the stale ones first`
-     );
-   }
-   return row;
 diff --git a/skills/poteto-mode/scripts/watch-pr/cli.test.ts b/skills/poteto-mode/scripts/watch-pr/cli.test.ts
 --- a/skills/poteto-mode/scripts/watch-pr/cli.test.ts
 +++ b/skills/poteto-mode/scripts/watch-pr/cli.test.ts
@@ -191,148 +115,10 @@ diff --git a/skills/poteto-mode/scripts/watch-pr/cli.ts b/skills/poteto-mode/scr
      .option("--allow-draft", "do not treat a draft as a merge gate", false)
      .option("--pretty", "render human text instead of JSON", false);
    program.parse(argv, { from: "user" });
-diff --git a/skills/poteto-mode/scripts/watch-pr/github.test.ts b/skills/poteto-mode/scripts/watch-pr/github.test.ts
---- a/skills/poteto-mode/scripts/watch-pr/github.test.ts
-+++ b/skills/poteto-mode/scripts/watch-pr/github.test.ts
-@@ -1,4 +1,8 @@
- import { describe, expect, it } from "bun:test";
-+import { spawnSync } from "node:child_process";
-+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-+import { tmpdir } from "node:os";
-+import { join } from "node:path";
- import {
-   ChecksUnavailable,
-   WatcherQueryError,
-@@ -418,19 +422,77 @@ describe("context and stack discovery", () => {
-       {
-         number: parsePrNumber(41),
-         headRefName: "base-feature",
-+        isCrossRepository: false,
-         baseRefName: "main",
-       },
-       {
-         number: context.number,
-         headRefName: "feature",
-+        isCrossRepository: false,
-         baseRefName: "base-feature",
-       },
-       {
-         number: parsePrNumber(43),
-         headRefName: "upstack",
-+        isCrossRepository: false,
-         baseRefName: "feature",
-       },
-     ]);
-     expect(ordered.map((item) => Number(item.number))).toEqual([41, 42, 43]);
-   });
-+  it("does not use a fork's same-named head as a stack parent", () => {
-+    const ordered = orderStack(context, [
-+      { number: parsePrNumber(41), headRefName: "base-feature", baseRefName: "main", isCrossRepository: true },
-+      { number: context.number, headRefName: "feature", baseRefName: "base-feature", isCrossRepository: false },
-+    ]);
-+    expect(ordered.map((item) => Number(item.number))).toEqual([42]);
-+  });
-+
-+  it("does not attach upstream branch children to a fork head", () => {
-+    const ordered = orderStack(context, [
-+      { number: context.number, headRefName: "feature", baseRefName: "main", isCrossRepository: true },
-+      { number: parsePrNumber(43), headRefName: "upstack", baseRefName: "feature", isCrossRepository: false },
-+    ]);
-+    expect(ordered.map((item) => Number(item.number))).toEqual([42]);
-+  });
-+
-+  it("terminates when an unrelated fork opens main against main", () => {
-+    // Bound the subprocess so this regression reports a failure instead of hanging the suite.
-+    const program = `import { orderStack } from ${JSON.stringify(import.meta.dir + "/github.ts")};
-+      console.log(JSON.stringify(orderStack(${JSON.stringify(context)}, [
-+        { number: 41, headRefName: "main", baseRefName: "main", isCrossRepository: true },
-+        { number: 42, headRefName: "feature", baseRefName: "main", isCrossRepository: false }
-+      ])));`;
-+    const child = spawnSync(process.execPath, ["-e", program], { encoding: "utf8", timeout: 2000 });
-+    expect(child.error).toBeUndefined();
-+    expect(child.status).toBe(0);
-+    expect(JSON.parse(child.stdout).map((item: { number: number }) => item.number)).toEqual([42]);
-+  });
-+
-+  it("requests and parses fork identity from gh before stack discovery", () => {
-+    const directory = mkdtempSync(join(tmpdir(), "watch-pr-fork-"));
-+    try {
-+      writeFileSync(join(directory, "gh"), `#!/bin/sh
-+case "$*" in
-+  *number,headRefName,baseRefName,isCrossRepository*) ;;
-+  *) exit 2 ;;
-+esac
-+printf '%s\\n' '[{"number":42,"headRefName":"feature","baseRefName":"main","isCrossRepository":true}]'
-+`, { mode: 0o755 });
-+      const program = `import { GhGitHubReader } from ${JSON.stringify(import.meta.dir + "/github.ts")};
-+        console.log(JSON.stringify(await new GhGitHubReader().openPullRequests({ owner: "owner", repo: "repo" })));`;
-+      const child = spawnSync(process.execPath, ["-e", program], {
-+        encoding: "utf8", timeout: 2000,
-+        env: { ...process.env, PATH: directory + ":" + process.env.PATH },
-+      });
-+      expect(child.error).toBeUndefined();
-+      expect(child.status).toBe(0);
-+      expect(JSON.parse(child.stdout)).toEqual([
-+        { number: 42, headRefName: "feature", baseRefName: "main", isCrossRepository: true },
-+      ]);
-+    } finally {
-+      rmSync(directory, { recursive: true, force: true });
-+    }
-+  });
-+
- });
-diff --git a/skills/poteto-mode/scripts/watch-pr/github.ts b/skills/poteto-mode/scripts/watch-pr/github.ts
---- a/skills/poteto-mode/scripts/watch-pr/github.ts
-+++ b/skills/poteto-mode/scripts/watch-pr/github.ts
-@@ -500,11 +500,14 @@ export class GhGitHubReader implements T.GitHubReader {
-       "--limit",
-       "300",
-       "--json",
--      "number,headRefName,baseRefName",
-+      "number,headRefName,baseRefName,isCrossRepository",
-     ]);
-     return list(value, "open PRs").map((item, index) => {
-       const object = record(item, `open PRs[${index}]`);
-+      if (typeof object.isCrossRepository !== "boolean")
-+        missing(`open PRs[${index}].isCrossRepository`, object.isCrossRepository);
-       return {
-+        isCrossRepository: object.isCrossRepository,
-         number: parsePrNumber(object.number, `open PRs[${index}].number`),
-         headRefName: string(
-           object.headRefName,
-@@ -671,7 +674,11 @@ export function orderStack(
-   open: readonly T.OpenPullRequest[]
- ): T.NonEmpty<T.PrContext> {
-   const byNumber = new Map(open.map((pr) => [pr.number, pr]));
--  const byHead = new Map(open.map((pr) => [pr.headRefName, pr]));
-+  // A base ref belongs to this repository. A fork head with the same name
-+  // cannot be its parent, even when that name is the default branch.
-+  const byHead = new Map(
-+    open.filter((pr) => !pr.isCrossRepository).map((pr) => [pr.headRefName, pr])
-+  );
-   const children = new Map<string, T.OpenPullRequest[]>();
-   for (const pr of open)
-     children.set(pr.baseRefName, [...(children.get(pr.baseRefName) ?? []), pr]);
-@@ -693,6 +700,7 @@ export function orderStack(
-   ]);
-   const up: T.OpenPullRequest[] = [];
-   const visit = (parent: T.OpenPullRequest): void => {
-+    if (parent.isCrossRepository) return;
-     for (const child of children.get(parent.headRefName) ?? []) {
-       if (seen.has(child.number)) continue;
-       seen.add(child.number);
 diff --git a/skills/poteto-mode/scripts/watch-pr/policy.test.ts b/skills/poteto-mode/scripts/watch-pr/policy.test.ts
 --- a/skills/poteto-mode/scripts/watch-pr/policy.test.ts
 +++ b/skills/poteto-mode/scripts/watch-pr/policy.test.ts
-@@ -10,6 +10,7 @@ import {
-   queryBackoffSeconds,
-   readSnapshot,
-   runQueued,
-+  runSimple,
-   selectTierMajorStackDecision,
- } from "./policy.ts";
- import {
-@@ -91,6 +92,54 @@ describe("readiness truth table", () => {
+@@ -92,6 +92,54 @@ describe("readiness truth table", () => {
  });
  
  describe("snapshot query planning", () => {
@@ -387,71 +173,6 @@ diff --git a/skills/poteto-mode/scripts/watch-pr/policy.test.ts b/skills/poteto-
    it("does not query commit rollups while queued checks are pending", async () => {
      const reader = fakeReader({
        fastPath: { kind: "checks", checks: [pendingCheck()] },
-@@ -418,3 +467,64 @@ it("uses the specified retry floor and cap", () => {
-   expect(queryBackoffSeconds(1, 2)).toBe(120);
-   expect(queryBackoffSeconds(60, 4)).toBe(300);
- });
-+
-+
-+describe("polling deadline sleeps", () => {
-+  for (const mode of ["single", "queued-stack", "query-retry"] as const) {
-+    it(`caps ${mode} sleeps at the configured deadline`, async () => {
-+      let now = 0;
-+      const sleeps: number[] = [];
-+      const pending = fakeReader({ fastPath: { kind: "checks", checks: [pendingCheck()] } });
-+      const reader = mode === "query-retry"
-+        ? { ...pending, async pullRequest(): Promise<PullRequestFacts> {
-+          throw new WatcherQueryError({ kind: "command-exit", retryable: true, code: 1, detail: "temporary failure" });
-+        } }
-+        : pending;
-+      const dependencies = {
-+        reader,
-+        clock: {
-+          now: () => now,
-+          observedAt: () => "2026-07-26T00:00:00.000Z",
-+          async sleep(seconds: number) { sleeps.push(seconds); now += seconds; },
-+        },
-+        emit() {},
-+      };
-+      const polling = { ...options, interval: 60, timeout: 5 };
-+      const result = mode === "queued-stack"
-+        ? await runQueued({ dependencies, contexts: [context(1)], options: polling })
-+        : await runSimple({ dependencies, contexts: [context(1)], mode: "single", statusOnly: false, options: polling });
-+      expect(result.kind).toBe("TIMEOUT");
-+      expect(sleeps).toEqual([5]);
-+      expect(now).toBe(5);
-+    });
-+  }
-+  it("preserves the polling interval when the deadline is disabled", async () => {
-+    let now = 0;
-+    let reads = 0;
-+    const sleeps: number[] = [];
-+    const pending = fakeReader({ fastPath: { kind: "checks", checks: [pendingCheck()] } });
-+    const passed = fakeReader({ fastPath: { kind: "checks", checks: [passingCheck()] } });
-+    const result = await runSimple({
-+      dependencies: {
-+        reader: {
-+          ...pending,
-+          async checksFastPath(pr) {
-+            reads += 1;
-+            return reads === 1 ? pending.checksFastPath(pr) : passed.checksFastPath(pr);
-+          },
-+        },
-+        clock: {
-+          now: () => now,
-+          observedAt: () => "2026-07-26T00:00:00.000Z",
-+          async sleep(seconds) { sleeps.push(seconds); now += seconds; },
-+        },
-+        emit() {},
-+      },
-+      contexts: [context(1)], mode: "single", statusOnly: false,
-+      options: { ...options, interval: 60, timeout: 0 },
-+    });
-+    expect(result.kind).toBe("READY");
-+    expect(sleeps).toEqual([60]);
-+  });
-+
-+});
 diff --git a/skills/poteto-mode/scripts/watch-pr/policy.ts b/skills/poteto-mode/scripts/watch-pr/policy.ts
 --- a/skills/poteto-mode/scripts/watch-pr/policy.ts
 +++ b/skills/poteto-mode/scripts/watch-pr/policy.ts
@@ -502,38 +223,7 @@ diff --git a/skills/poteto-mode/scripts/watch-pr/policy.ts b/skills/poteto-mode/
    const failed = nonEmpty(
      checks.checks.filter(
        (check): check is T.FailedCheck => check.kind === "failed"
-@@ -370,6 +396,12 @@ async function pollUntilTerminal<V>(args: {
- }): Promise<V | T.BlockerVerdict | T.TimeoutVerdict> {
-   let failures = 0;
-   const started = args.dependencies.clock.now();
-+  const sleep = async (seconds: number): Promise<void> => {
-+    const remaining = args.options.timeout > 0
-+      ? Math.max(0, args.options.timeout - (args.dependencies.clock.now() - started))
-+      : seconds;
-+    await args.dependencies.clock.sleep(Math.min(seconds, remaining));
-+  };
-   while (true) {
-     let result: StepResult<V>;
-     try {
-@@ -400,7 +432,7 @@ async function pollUntilTerminal<V>(args: {
-           exitCode: 5,
-           reason: { kind: "status-unavailable", failure: error.failure },
-         });
--      await args.dependencies.clock.sleep(retryInSeconds);
-+      await sleep(retryInSeconds);
-       continue;
-     }
-     if (result.kind === "terminal") return result.verdict;
-@@ -410,7 +442,7 @@ async function pollUntilTerminal<V>(args: {
-         deadlinePassed(started, args.options, args.dependencies.clock.now())
-       )
-         return result.onDeadline();
--      await args.dependencies.clock.sleep(result.seconds);
-+      await sleep(result.seconds);
-     }
-   }
- }
-@@ -422,6 +454,12 @@ export async function runSimple(args: {
+@@ -428,6 +454,12 @@ export async function runSimple(args: {
    readonly options: T.PollingOptions;
  }): Promise<T.TerminalVerdict> {
    const stamp = verdictFactory(args.dependencies.clock, args.mode);
@@ -546,7 +236,7 @@ diff --git a/skills/poteto-mode/scripts/watch-pr/policy.ts b/skills/poteto-mode/
    const step = async (): Promise<StepResult<T.TerminalVerdict>> => {
      const rows: T.PrSnapshot[] = [];
      for (const context of args.contexts)
-@@ -431,6 +469,7 @@ export async function runSimple(args: {
+@@ -437,6 +469,7 @@ export async function runSimple(args: {
            context,
            pendingHistory: "include",
            allowDraft: args.options.allowDraft,
@@ -554,7 +244,7 @@ diff --git a/skills/poteto-mode/scripts/watch-pr/policy.ts b/skills/poteto-mode/
          })
        );
      const complete = nonEmpty(rows);
-@@ -512,7 +551,7 @@ export async function runSimple(args: {
+@@ -518,7 +551,7 @@ export async function runSimple(args: {
    };
    return pollUntilTerminal({
      dependencies: args.dependencies,
@@ -578,15 +268,7 @@ diff --git a/skills/poteto-mode/scripts/watch-pr/render.ts b/skills/poteto-mode/
 diff --git a/skills/poteto-mode/scripts/watch-pr/types.ts b/skills/poteto-mode/scripts/watch-pr/types.ts
 --- a/skills/poteto-mode/scripts/watch-pr/types.ts
 +++ b/skills/poteto-mode/scripts/watch-pr/types.ts
-@@ -52,6 +52,7 @@ export interface PullRequestFacts {
- }
- export interface OpenPullRequest {
-   readonly number: PrNumber;
-+  readonly isCrossRepository: boolean;
-   readonly headRefName: string;
-   readonly baseRefName: string;
- }
-@@ -141,7 +142,17 @@ export type CiClean = CiBase & {
+@@ -142,7 +142,17 @@ export type CiClean = CiBase & {
    readonly pending: readonly [];
    readonly github: GitHubMergeAllowed;
  };

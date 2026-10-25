@@ -3,7 +3,7 @@
 An omp marketplace carrying one plugin.
 
 `pstack` is Lauren Tan's engineering methodology for Cursor, ported to oh-my-pi and made
-model and provider agnostic, 59 skills with 23 playbooks and 24 principle leaves.
+model and provider agnostic, 60 skills with 23 playbooks and 24 principle leaves.
 Wide parallel runs are a `swarm` dispatch, not a separate plugin.
 
 ```

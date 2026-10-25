@@ -73,6 +73,7 @@ The default answer is `/skill:poteto-mode`, which runs most of the others when i
 | Understand a change or subsystem, explained plainly | [`/skill:teach`](../teach/SKILL.md) |
 | Catch up on their own recent work on a topic | [`/skill:recall`](../recall/SKILL.md) |
 | Catch up on what changed in this chat since their last message, in plain words and small visuals, with every item waiting on them listed and decidable from the reply alone | [`/skill:ketchup`](../ketchup/SKILL.md) |
+| Catch up like `/skill:ketchup`, in a short silent video of slides, with the waiting calls as text under it | [`/skill:ketchup-video`](../ketchup-video/SKILL.md) |
 | Know what a small diff could break outside itself | [`/skill:blast-radius`](../blast-radius/SKILL.md) |
 | Settle types and module shape before code that crosses a function boundary | [`/skill:architect`](../architect/SKILL.md) |
 | Get several attempts at one brief, merged into the best one | [`/skill:arena`](../arena/SKILL.md) |

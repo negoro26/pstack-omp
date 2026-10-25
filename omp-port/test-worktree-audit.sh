@@ -116,12 +116,18 @@ cat >"$FIXTURE/bin/origin" <<'SH'
 [ "$PR_PROVIDER" = origin ] || exit 1
 cat "$FIXTURE/origin.json"
 SH
-# BSD spellings on any host: GNU stat -c and date -d are refused, stat -f %m and date -r <epoch>
-# are served. And no ripgrep at all.
+# BSD spellings on any host: GNU stat -c and date -d are refused, while stat -f <format> with %m
+# and %N and date -r <epoch> are served the way BSD serves them. And no ripgrep at all.
 cat >"$FIXTURE/portable-bin/stat" <<'SH'
 #!/usr/bin/env bash
-[ "$1" = -f ] && [ "$2" = %m ] || { echo "stat: illegal option" >&2; exit 1; }
-"$REAL_STAT" -c %Y "$3" 2>/dev/null || "$REAL_STAT" -f %m "$3"
+[ "$1" = -f ] || { echo "stat: illegal option" >&2; exit 1; }
+fmt=$2
+shift 2
+for f; do
+	m=$("$REAL_STAT" -c %Y "$f" 2>/dev/null || "$REAL_STAT" -f %m "$f") || exit 1
+	out=${fmt//%m/$m}
+	printf '%s\n' "${out//%N/$f}"
+done
 SH
 cat >"$FIXTURE/portable-bin/date" <<'SH'
 #!/usr/bin/env bash

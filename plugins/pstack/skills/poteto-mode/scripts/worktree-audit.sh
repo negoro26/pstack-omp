@@ -52,6 +52,14 @@ origin/*) git fetch origin "+refs/heads/${base#origin/}:refs/remotes/$base" --qu
 esac
 git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1 || { echo "error: base ref not found: $base" >&2; exit 1; }
 
+# GNU coreutils (Linux, Homebrew gnubin) reads `stat -f` as file system status
+# and `date -r` as a file, so pick the stat and date flags once.
+if stat -c %Y / >/dev/null 2>&1; then
+	stat_fmt=(-c '%Y %n'); fmt_day() { date -d "@$1" '+%Y-%m-%d'; }
+else
+	stat_fmt=(-f '%m %N'); fmt_day() { date -r "$1" '+%Y-%m-%d'; }
+fi
+
 # PR state by branch, fetched once as [{number, state, head, head_oid}] with a
 # lowercase state. Origin when its CLI can read this repo's PRs, otherwise gh.
 # Empty when neither can. Held in memory, so the audit writes no scratch file.
@@ -120,9 +128,6 @@ if [ ! -d "$sessions" ]; then
 	chat_lookup=failed
 	echo "warn: no omp session store at $sessions; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
 fi
-# GNU and BSD spell file mtime and epoch formatting differently; probe once.
-if stat -c %Y / >/dev/null 2>&1; then mtime() { stat -c %Y "$1"; }; else mtime() { stat -f %m "$1"; }; fi
-if date -d @0 +%s >/dev/null 2>&1; then day() { date -d "@$1" '+%Y-%m-%d'; }; else day() { date -r "$1" '+%Y-%m-%d'; }; fi
 now=$(date +%s)
 
 echo "# base: $base"
@@ -182,12 +187,13 @@ printf '%s\n' "$worktree_records" | awk '
 		[ $? -le 1 ] || chat=failed
 		while IFS= read -r f; do
 			[ -n "$f" ] || continue
-			ts=$(mtime "$f") || { chat=failed; break; }
+			ts=$(stat "${stat_fmt[@]}" "$f") || { chat=failed; break; }
+			ts=${ts%% *}
 			[ "$ts" -gt "$last_ts" ] && last_ts=$ts
 		done <<<"$matched"
 	fi
 	if [ "$chat" != ok ]; then last="?"
-	elif [ "$last_ts" -gt 0 ]; then last=$(day "$last_ts" 2>/dev/null) || last="?"; fi
+	elif [ "$last_ts" -gt 0 ]; then last=$(fmt_day "$last_ts" 2>/dev/null) || last="?"; fi
 	recent=$([ "$last_ts" -gt 0 ] 2>/dev/null && [ $(( (now - last_ts) / 86400 )) -le 4 ] && echo yes || echo no)
 
 	# An exact PR head proves the commits were pushed even if origin has no

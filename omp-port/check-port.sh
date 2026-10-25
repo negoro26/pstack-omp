@@ -316,9 +316,7 @@ runtime_contract() {
 	grep -Fxq 'Preserve every unrelated entry in both maps.' "$setup_skill" || bad="$bad"'unrelated setup ownership preservation is missing'$'\n'
 	grep -Fq 'capability, exact discovered agent name' "$setup_skill" || bad="$bad"'setup capability mapping is missing'$'\n'
 	grep -Fq 'The effort ladder is `max > xhigh > high > medium > low > minimal`.' "$setup_skill" || bad="$bad"'setup effort ladder is missing minimal or ordering'$'\n'
-	grep -Fq 'Strip only that supported suffix and require the remaining base to equal a selector from `omp models --json`.' "$setup_skill" || bad="$bad"'setup suffix or base-selector validation is missing'$'\n'
-	grep -Fq 'Never strip an arbitrary colon fragment.' "$setup_skill" || bad="$bad"'setup allows arbitrary suffix stripping'$'\n'
-	grep -Fq '`:low`, or `:minimal` suffix' "$setup_skill" || bad="$bad"'setup supported suffix list is missing minimal'$'\n'
+	grep -Fq 'APPLY=$(realpath skill://setup-pstack)/scripts/apply-models.mjs' "$setup_skill" && grep -Fq -- '--dry-run' "$setup_skill" && [ -f skills/setup-pstack/scripts/apply-models.mjs ] || bad="$bad"'setup does not plan and write through scripts/apply-models.mjs'$'\n'
 	grep -Fq 'selected model' "$setup_skill" && grep -Fq '`thinking.efforts`' "$setup_skill" || bad="$bad"'setup does not validate supported model efforts'$'\n'
 	grep -Fq 'An omitted override uses the discovered agent' "$setup_skill" && grep -Fq "frontmatter model first, then the parent session's active or default model" "$setup_skill" || bad="$bad"'setup omission precedence is missing'$'\n'
 	grep -Fq 'Family diversity is optional' "$setup_skill" || bad="$bad"'setup family fallback is missing'$'\n'
@@ -331,7 +329,7 @@ runtime_contract() {
 		report "setup config contract" "FAIL"
 		while read -r line; do [ -n "$line" ] && violate "$line"; done <<<"$bad"
 	else
-		report "setup config contract" "PASS  ownership, aliases, model efforts, suffix, and base selector"
+		report "setup config contract" "PASS  ownership, aliases, model efforts, suffix, base selector, and the apply-models lever"
 	fi
 }
 runtime_contract

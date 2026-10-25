@@ -44,17 +44,25 @@ Prefer `ask`. Offer these exact labels and name the current budget when recorded
 
 The effort ladder is `max > xhigh > high > medium > low > minimal`. Keep the detected selector as the base. Choose the requested effort only when it appears in that model's `thinking.efforts` list. Otherwise choose the highest listed effort below it. If none exists, mark that alias unresolved. `unlimited` uses the highest listed effort. Never write a requested suffix that the selected model does not support.
 
-### 4. Validate and confirm
+### 4. Plan with the script and confirm
 
-For each `modelRoles` value, allow an exact detected selector, or one supported `:max`, `:xhigh`, `:high`, `:medium`, `:low`, or `:minimal` suffix. Strip only that supported suffix and require the remaining base to equal a selector from `omp models --json`. Require the suffix to appear in the selected model's `thinking.efforts` list. Never strip an arbitrary colon fragment. Every `task.agentModelOverrides` value must be an exact detected selector or an `@role` alias already present in the current `modelRoles` map. Show the exact mapping table and ask whether to accept it. Mark unavailable agents and unresolved selectors. Offer only detected selectors, configured aliases, or omission with the exact agent-then-parent resolution above.
+`skill://` paths are not executable. Resolve the script once in the bash tool, which expands `skill://` inside `realpath`:
+
+```bash
+APPLY=$(realpath skill://setup-pstack)/scripts/apply-models.mjs
+```
+
+Turn the table into arguments: `--alias <alias>=<selector>[:<effort>]` per alias, `--agent <exact agent name>=@<alias>` per mapped agent, and `--unset-agent <exact agent name>` for an agent still bound to a pstack alias but no longer selected. Run `node "$APPLY" --dry-run <arguments>`; `bun` runs it too. It prints the planned changes, every pstack-owned agent with the model it resolves to, and the family count. Show that output with the table, mark unavailable agents and unresolved selectors, and ask whether to accept it. Offer only detected selectors, configured aliases, or omission with the exact agent-then-parent resolution above.
+
+The script refuses and writes nothing when an alias is not one of the three, a base is not a selector from `omp models --json`, an effort is off the ladder or missing from the selected model's `thinking.efforts` list, or an agent value is not a `@pstack_*` alias defined in `modelRoles`. It never strips an arbitrary colon fragment. It also refuses to change or remove an agent entry pstack does not own, and any `pstack_*` agent key. Fix the row and rerun the dry run. Never edit `config.yml` by hand to get past a refusal.
 
 ### 5. Write the config
 
-Use the shape in `skill://omp-mechanics/references/setup-pstack-config.md`. Write only the three pstack aliases and exact discovered agent keys selected in the table. Update entries currently bound to a pstack alias idempotently, and remove stale entries only when they still point to a pstack alias and their exact agent is no longer selected. Preserve unrelated aliases, overrides, and operator entries. Never write a `pstack_*` agent key.
+On acceptance, run the same command without `--dry-run`. It merges onto the current records, writes `modelRoles` before `task.agentModelOverrides`, and preserves every entry pstack does not own. A rerun with the same arguments writes nothing and says so. If it reports that `modelRoles` was written and `task.agentModelOverrides` was not, rerun the same command to finish.
 
 ### 6. Confirm
 
-Report the exact aliases and agent keys written, the selectors and effort suffixes used, any unavailable capability, and the family count. State that the entries apply to new sessions and that rerunning updates them.
+Report the exact aliases and agent keys written, the selectors and effort suffixes used, any unavailable capability, and the family count from the script's output. One family prints `weaker diversity: one family`; report it as information. State that the entries apply to new sessions and that rerunning updates them. `node "$APPLY" --show` prints the current aliases, agent mappings, and family count.
 
 ### 7. Offer a verification skill (optional)
 

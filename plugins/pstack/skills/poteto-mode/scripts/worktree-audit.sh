@@ -110,43 +110,70 @@ bucket_name() {
 	else printf '%s' "--$(dash "${1#/}")--"; fi
 }
 session_dirs=()
-moved=""
+dotenvs=()
+config_root="$HOME/${PI_CONFIG_DIR:-.omp}"
 if [ -n "${PI_CODING_AGENT_SESSION_DIR:-}" ]; then
 	sessions=$PI_CODING_AGENT_SESSION_DIR
 	session_dirs=("$sessions/")
 else
 	profile=$(printf '%s' "${OMP_PROFILE-${PI_PROFILE-}}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 	[ "$profile" = default ] && profile=""
-	config="$HOME/${PI_CONFIG_DIR:-.omp}${profile:+/profiles/$profile}"
+	config="$config_root${profile:+/profiles/$profile}"
 	agent="$config/agent"
 	[ -z "$profile" ] && [ -n "${PI_CODING_AGENT_DIR:-}" ] && agent=$PI_CODING_AGENT_DIR
 	data=$agent
 	xdg="${XDG_DATA_HOME:-}/omp${profile:+/profiles/$profile}"
 	[ "$agent" = "$config/agent" ] && [ -n "${XDG_DATA_HOME:-}" ] && [ -e "$xdg" ] && data=$xdg
 	sessions="$data/sessions"
-	home_root=$(canon "$HOME")
-	temp_root=$(canon "${TMPDIR:-${TMP:-${TEMP:-/tmp}}}")
 	dotenvs=("$agent/.env" "$config/.env" "$HOME/.env")
-	while IFS= read -r path; do
-		cpath=$(canon "$path")
-		dir="$sessions/$(bucket_name "$cpath")"
-		[ -d "$dir" ] && session_dirs+=("$dir/")
-		# A session started in a subdirectory has that subdirectory's bucket,
-		# the worktree's name plus "-<rest>" ahead of any closing "--". A
-		# transcript still has to name the worktree path, so a bucket that
-		# only shares the prefix costs time, never a match. The main worktree
-		# is skipped, since a repo at $HOME would make this the whole store.
-		if [ "$path" != "$main_wt" ]; then
-			sub=$(bucket_name "$cpath/*")
-			for dir in "$sessions/${sub%\**}"*"${sub##*\*}"; do
-				[ -d "$dir" ] && session_dirs+=("$dir/")
-			done
-		fi
-		dotenvs+=("$path/.env")
-	done < <(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}')
+fi
+# A session launched with --profile, --session-dir or another environment is
+# not in that store. Every store under the config root and the XDG roots counts
+# too, and each one's custom-session-files lists the absolute path of every
+# transcript omp wrote outside the bucket store. Precedence does not matter
+# for these, since a transcript only counts when it names the worktree.
+home_root=$(canon "$HOME")
+temp_root=$(canon "${TMPDIR:-${TMP:-${TEMP:-/tmp}}}")
+roots=("$config_root/agent" "$config_root"/profiles/*/agent)
+for x in "${XDG_DATA_HOME:-}" "${XDG_STATE_HOME:-}"; do
+	[ -n "$x" ] && roots+=("$x/omp" "$x"/omp/profiles/*)
+done
+[ -n "${PI_CODING_AGENT_DIR:-}" ] && roots+=("$PI_CODING_AGENT_DIR")
+indexes=()
+for root in "${roots[@]}"; do
+	[ -d "$root/custom-session-files" ] && indexes+=("$root/custom-session-files")
+done
+while IFS= read -r path; do
+	cpath=$(canon "$path")
+	own=$(bucket_name "$cpath")
+	# A session started in a subdirectory has that subdirectory's bucket, the
+	# worktree's name plus "-<rest>" ahead of any closing "--". A transcript
+	# still has to name the worktree path, so a bucket that only shares the
+	# prefix costs time, never a match. The main worktree is skipped, since a
+	# repo at $HOME would make this the whole store.
+	sub=$(bucket_name "$cpath/*")
+	for root in "${roots[@]}"; do
+		[ -d "$root/sessions/$own" ] && session_dirs+=("$root/sessions/$own/")
+		[ "$path" = "$main_wt" ] && continue
+		for dir in "$root/sessions/${sub%\**}"*"${sub##*\*}"; do
+			[ -d "$dir" ] && session_dirs+=("$dir/")
+		done
+	done
+	dotenvs+=("$path/.env")
+done < <(printf '%s\n' "$worktree_records" | awk '/^worktree /{sub(/^worktree /, ""); print}')
+# A listed transcript that is gone holds no chat; its subagents sit in the
+# directory named after it.
+listed=$([ "${#indexes[@]}" -eq 0 ] || grep -rhs '' -- "${indexes[@]}")
+index_status=$?
+while IFS= read -r f; do
+	[ -f "$f" ] || continue
+	session_dirs+=("$f")
+	[ -d "${f%.jsonl}" ] && session_dirs+=("${f%.jsonl}/")
+done <<<"$listed"
+moved=""
+[ -n "${PI_CODING_AGENT_SESSION_DIR:-}" ] ||
 	moved=$(grep -lsE '^[[:space:]]*(export[[:space:]]+)?((PI|OMP)_(CODING_AGENT_SESSION_DIR|CODING_AGENT_DIR|CONFIG_DIR)|XDG_DATA_HOME)[[:space:]]*[=:]' \
 		-- "${dotenvs[@]}")
-fi
 chat_lookup=ok
 if [ -n "$moved" ]; then
 	chat_lookup=failed
@@ -154,6 +181,9 @@ if [ -n "$moved" ]; then
 elif [ ! -d "$sessions" ]; then
 	chat_lookup=failed
 	echo "warn: no omp session store at $sessions; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
+elif [ "$index_status" -gt 1 ]; then
+	chat_lookup=failed
+	echo "warn: cannot read an omp custom-session-files index; LAST_CHAT is ? and rows hold at verify-recent-chat" >&2
 fi
 now=$(date +%s)
 

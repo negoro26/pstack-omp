@@ -244,25 +244,57 @@ for name in "$RECENT" deep:wt temp:wt abs:wt; do
 	expect "$name" BUCKET verify-recent-chat
 done
 
-# An explicit session directory holds transcripts directly, with no cwd bucket under it.
+# An explicit session directory holds transcripts directly, with no cwd bucket under it. The bucket
+# store still counts, since a session launched without the variable lands there.
 chat "$FIXTURE/direct sessions" direct "$CH/plain"
 audit explicit-dir PI_CODING_AGENT_SESSION_DIR="$FIXTURE/direct sessions"
 expect plain LAST_CHAT "$TODAY"
 expect plain BUCKET verify-recent-chat
-expect "$RECENT" LAST_CHAT -
+expect "$RECENT" LAST_CHAT "$TODAY"
 
-# A profile owns its own store and outranks PI_CODING_AGENT_DIR.
+# A session launched with --profile work sits in that profile's store, which an audit under any
+# profile reads. The audit's own profile names the store that has to exist, and under a profile
+# PI_CODING_AGENT_DIR does not name it.
 chat "$HOME/.omp/profiles/work/agent/sessions/-plain" profile "$CH/plain"
-mkdir -p "$FIXTURE/decoy/sessions"
+audit other-profile
+expect plain LAST_CHAT "$TODAY"
+expect plain BUCKET verify-recent-chat
 audit profile OMP_PROFILE=work PI_CODING_AGENT_DIR="$FIXTURE/decoy"
 expect plain LAST_CHAT "$TODAY"
-expect "$RECENT" LAST_CHAT -
+expect "$RECENT" LAST_CHAT "$TODAY"
+rm -r "$HOME/.omp/profiles"
 
-# An existing XDG_DATA_HOME/omp replaces the default data root, with no agent/ under it.
+# An existing XDG_DATA_HOME/omp replaces the default data root, with no agent/ under it. The store
+# it replaced still counts.
 chat "$FIXTURE/xdg/omp/sessions/-plain" xdg "$CH/plain"
 audit xdg XDG_DATA_HOME="$FIXTURE/xdg"
 expect plain LAST_CHAT "$TODAY"
-expect "$RECENT" LAST_CHAT -
+expect "$RECENT" LAST_CHAT "$TODAY"
+
+# omp lists each transcript it writes outside the bucket store, from --session-dir, an explicit
+# PI_CODING_AGENT_SESSION_DIR or a --resume of a moved file, as one absolute path per file in the
+# agent dir's custom-session-files, or XDG_STATE_HOME/omp's when that exists. A subagent transcript
+# sits in the directory named after its parent. A listed transcript that is gone is no chat, and an
+# index that cannot be read is unknown.
+INDEX="$HOME/.omp/agent/custom-session-files"
+chat "$FIXTURE/custom dir" custom "$FIXTURE"
+chat "$FIXTURE/custom dir/custom" Child "$CH/plain"
+mkdir -p "$INDEX"
+printf '%s' "$FIXTURE/custom dir/custom.jsonl" >"$INDEX/0a1b2c3"
+printf '%s' "$FIXTURE/gone/x.jsonl" >"$INDEX/4d5e6f7"
+audit custom-dir
+expect plain LAST_CHAT "$TODAY"
+expect plain BUCKET verify-recent-chat
+if [ "$(id -u)" != 0 ]; then
+	chmod 000 "$INDEX"
+	audit unreadable-index
+	expect plain LAST_CHAT '?'
+	chmod 755 "$INDEX"
+fi
+mkdir -p "$FIXTURE/state/omp"
+mv "$INDEX" "$FIXTURE/state/omp/"
+audit state-index XDG_STATE_HOME="$FIXTURE/state"
+expect plain LAST_CHAT "$TODAY"
 
 # omp fills each unset variable from four .env files, the launch directory's, the agent
 # directory's, the config root's and the home directory's, and reads an OMP_ key in one as its PI_
@@ -311,8 +343,8 @@ audit no-tmpdir -u TMPDIR
 [ -z "$(git -C "$REPO" status --porcelain --ignored)" ] || fail "the audit left files in the repo"
 
 # omp names the transcript it would write for a cwd without a model turn. A chat written at that
-# path has to reach the audit for a home, a temp and an absolute worktree, and for a session started
-# in a subdirectory of one.
+# path has to reach the audit for a home, a temp and an absolute worktree, for a session started in
+# a subdirectory of one, and for one launched with --profile or --session-dir.
 probe() {
 	local file
 	wt "$1" "$2"
@@ -332,13 +364,17 @@ else
 	LABEL=live-omp
 	printf '%s\n' providers: '  probe:' '    baseUrl: http://127.0.0.1:9/v1' '    auth: none' \
 		'    api: openai-completions' '    models:' '      - id: no-inference' >"$HOME/.omp/agent/models.yml"
+	mkdir -p "$HOME/.omp/profiles/live/agent"
+	cp "$HOME/.omp/agent/models.yml" "$HOME/.omp/profiles/live/agent/"
 	probe probe-home "$CH/probe home" "$CH/probe home"
 	probe probe-temp "$CT/probe:temp" "$CT/probe:temp"
 	probe probe-abs "$FIXTURE/probe:abs" "$FIXTURE/probe:abs"
 	probe probe-sub "$CH/probe sub" "$CH/probe sub/src"
 	probe probe-sub-abs "$FIXTURE/probe:sub" "$FIXTURE/probe:sub/src"
+	probe probe-profile "$CH/probe profile" "$CH/probe profile" --profile live
+	probe probe-session-dir "$CH/probe sdir" "$CH/probe sdir" --session-dir "$FIXTURE/live sessions"
 	audit live-omp
-	for name in "probe home" probe:temp probe:abs "probe sub" probe:sub; do
+	for name in "probe home" probe:temp probe:abs "probe sub" probe:sub "probe profile" "probe sdir"; do
 		expect "$name" LAST_CHAT "$TODAY"
 	done
 fi

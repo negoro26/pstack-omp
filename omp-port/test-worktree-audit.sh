@@ -372,11 +372,16 @@ else
 	probe probe-sub "$CH/probe sub" "$CH/probe sub/src"
 	probe probe-sub-abs "$FIXTURE/probe:sub" "$FIXTURE/probe:sub/src"
 	probe probe-profile "$CH/probe profile" "$CH/probe profile" --profile live
-	probe probe-session-dir "$CH/probe sdir" "$CH/probe sdir" --session-dir "$FIXTURE/live sessions"
+	# Under a symlinked HOME omp also lists each bucket transcript in custom-session-files, which would
+	# hide whether the audit finds the bucket itself.
+	rm -rf "$HOME/.omp/agent/custom-session-files" "$HOME/.omp/profiles/live/agent/custom-session-files"
 	audit live-omp
-	for name in "probe home" probe:temp probe:abs "probe sub" probe:sub "probe profile" "probe sdir"; do
+	for name in "probe home" probe:temp probe:abs "probe sub" probe:sub "probe profile"; do
 		expect "$name" LAST_CHAT "$TODAY"
 	done
+	probe probe-session-dir "$CH/probe sdir" "$CH/probe sdir" --session-dir "$FIXTURE/live sessions"
+	audit live-omp-session-dir
+	expect "probe sdir" LAST_CHAT "$TODAY"
 fi
 
 if [ "$FAILS" -gt 0 ]; then

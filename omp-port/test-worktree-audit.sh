@@ -64,7 +64,7 @@ commit() {
 	git -C "$1" rev-parse HEAD
 }
 for name in open draft closed-pushed closed-unpushed squash local-only untracked ignored tracked \
-	locked broken sibling unrelated plain; do
+	locked broken sibling unrelated plain subdir; do
 	wt "$name" "$CH/$name"
 done
 RECENT='recent [one].worktree'
@@ -72,6 +72,7 @@ wt recent "$CH/$RECENT"
 wt nested "$CH/nest/deep:wt"
 wt temp "$CT/temp:wt"
 wt absolute "$FIXTURE/abs:wt"
+wt sub-absolute "$FIXTURE/sub:abs"
 g "$REPO" worktree add -q --detach "$CH/detached" main
 
 OPEN_HEAD=$(git -C "$CH/open" rev-parse HEAD)
@@ -96,7 +97,7 @@ printf 'log\n' >"$CH/ignored/run.log"
 printf 'edit\n' >>"$CH/tracked/tracked"
 g "$REPO" worktree lock --reason 'keep this worktree' "$CH/locked"
 printf 'gitdir: %s/missing\n' "$FIXTURE" >"$CH/broken/.git"
-ROWS=19
+ROWS=21
 
 # A closed PR on a reused branch name sits first, so the audit has to prefer the PR whose head is
 # HEAD. gh reports uppercase states; the audit lowercases them.
@@ -153,6 +154,11 @@ printf '{"type":"message","path":"%s/notes.md"}\n' "$CH/sibling" >>"$SESSIONS/-r
 chat "$SESSIONS/-nest-deep-wt" own "$CH/nest/deep:wt"
 chat "$SESSIONS/-tmp-temp-wt" own "$CT/temp:wt"
 chat "$SESSIONS/$ABS_BUCKET" own "$FIXTURE/abs:wt"
+# A session started in a subdirectory sits in that subdirectory's bucket, for a home and an
+# absolute worktree alike. A bucket that only shares a name prefix with a worktree is no chat in it.
+chat "$SESSIONS/-subdir-src" sub "$CH/subdir/src"
+chat "$SESSIONS/--$(printf '%s' "${FIXTURE#/}" | tr '/' '-')-sub-abs-src--" sub "$FIXTURE/sub:abs/src"
+chat "$SESSIONS/-plain-old" old "$CH/plain-old"
 chat "$SESSIONS/-another-project" other "$CH/unrelated"
 TODAY=$(date '+%Y-%m-%d')
 
@@ -217,7 +223,7 @@ expect plain LOCKED -
 expect plain INSPECT ok
 expect plain LAST_CHAT -
 expect plain BUCKET safe
-for name in "$RECENT" sibling deep:wt temp:wt abs:wt; do
+for name in "$RECENT" sibling deep:wt temp:wt abs:wt subdir sub:abs; do
 	expect "$name" LAST_CHAT "$TODAY"
 	expect "$name" BUCKET verify-recent-chat
 done
@@ -304,28 +310,35 @@ audit no-tmpdir -u TMPDIR
 [ ! -e "$REPO/.pstack-scratch" ] || fail "scratch written inside the repo: $REPO/.pstack-scratch"
 [ -z "$(git -C "$REPO" status --porcelain --ignored)" ] || fail "the audit left files in the repo"
 
-# omp names the transcript it would write for a worktree without a model turn. A chat written at
-# that path has to reach the audit for a home, a temp and an absolute worktree.
+# omp names the transcript it would write for a cwd without a model turn. A chat written at that
+# path has to reach the audit for a home, a temp and an absolute worktree, and for a session started
+# in a subdirectory of one.
+probe() {
+	local file
+	wt "$1" "$2"
+	mkdir -p "$3"
+	if ! file=$(cd "$3" && printf '%s\n' '{"id":"s","type":"get_state"}' |
+		env -i HOME="$HOME" TMPDIR="$TMPDIR" PATH="$PATH" omp --mode rpc --no-title --no-lsp --no-tools \
+			--no-rules --no-extensions --no-skills --model probe/no-inference "${@:4}" 2>"$FIXTURE/live-omp.err" |
+		jq -r 'select(.type == "response" and .id == "s") | .data.sessionFile // empty') || [ -z "$file" ]; then
+		fail "omp reported no session file for $3: $(tr '\n' ' ' <"$FIXTURE/live-omp.err")"
+		return
+	fi
+	chat "$(dirname "$file")" "$(basename "$file" .jsonl)" "$3"
+}
 if ! command -v omp >/dev/null 2>&1; then
 	printf 'worktree audit: live omp probe SKIPPED, omp is not on PATH\n'
 else
 	LABEL=live-omp
 	printf '%s\n' providers: '  probe:' '    baseUrl: http://127.0.0.1:9/v1' '    auth: none' \
 		'    api: openai-completions' '    models:' '      - id: no-inference' >"$HOME/.omp/agent/models.yml"
-	for spec in "probe-home:$CH/probe home" "probe-temp:$CT/probe:temp" "probe-abs:$FIXTURE/probe:abs"; do
-		path=${spec#*:}
-		wt "${spec%%:*}" "$path"
-		if ! file=$(cd "$path" && printf '%s\n' '{"id":"s","type":"get_state"}' |
-			env -i HOME="$HOME" TMPDIR="$TMPDIR" PATH="$PATH" omp --mode rpc --no-title --no-lsp \
-				--no-tools --no-rules --no-extensions --no-skills --model probe/no-inference 2>"$FIXTURE/live-omp.err" |
-			jq -r 'select(.type == "response" and .id == "s") | .data.sessionFile // empty') || [ -z "$file" ]; then
-			fail "omp reported no session file for $path: $(tr '\n' ' ' <"$FIXTURE/live-omp.err")"
-			continue
-		fi
-		chat "$(dirname "$file")" "$(basename "$file" .jsonl)" "$path"
-	done
+	probe probe-home "$CH/probe home" "$CH/probe home"
+	probe probe-temp "$CT/probe:temp" "$CT/probe:temp"
+	probe probe-abs "$FIXTURE/probe:abs" "$FIXTURE/probe:abs"
+	probe probe-sub "$CH/probe sub" "$CH/probe sub/src"
+	probe probe-sub-abs "$FIXTURE/probe:sub" "$FIXTURE/probe:sub/src"
 	audit live-omp
-	for name in "probe home" probe:temp probe:abs; do
+	for name in "probe home" probe:temp probe:abs "probe sub" probe:sub; do
 		expect "$name" LAST_CHAT "$TODAY"
 	done
 fi

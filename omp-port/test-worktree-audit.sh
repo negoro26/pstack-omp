@@ -286,6 +286,14 @@ printf '%s' "$FIXTURE/gone/x.jsonl" >"$INDEX/4d5e6f7"
 audit custom-dir
 expect plain LAST_CHAT "$TODAY"
 expect plain BUCKET verify-recent-chat
+# Under a symlinked HOME omp lists every bucket transcript as well, under the HOME it was given.
+# The bucket scan already covers those, so one in another project's bucket stays out of the scan.
+printf '%s' "$SESSIONS/-another-project/other.jsonl" >"$INDEX/8a9b0c1"
+printf '%s' "$SESSIONS/-recent [one].worktree/own.jsonl" >"$INDEX/2d3e4f5"
+audit listed-buckets
+expect unrelated LAST_CHAT -
+expect unrelated BUCKET safe
+expect "$RECENT" LAST_CHAT "$TODAY"
 if [ "$(id -u)" != 0 ]; then
 	chmod 000 "$INDEX"
 	audit unreadable-index

@@ -1,0 +1,1 @@
+tool:bash {"command":"gh pr view 1 --repo pstack-verify/no-such-repo","i":"Reading the verification PR"}

@@ -22,5 +22,5 @@ new file mode 100644
 +    "target": "esnext",
 +    "types": ["bun-types"]
 +  },
-+  "include": ["bootstrap.ts", "orch/**/*.ts", "watch-pr/**/*.ts"]
++  "include": ["bootstrap.ts", "watch-pr/**/*.ts"]
 +}

@@ -221,13 +221,12 @@ The split is by kind, not by size.
   therefore cannot conflict with upstream at all.
 - A patch is for code: control flow, a data shape, a file upstream does not have.
   `worktree-audit-omp.patch` and `zzz-script-typecheck.patch` are the port's own changes; the
-  second typechecks `orch/` and `bootstrap.ts` as well as `watch-pr/`. `zzz-make-bot-ui-omp.patch`
-  is the one markdown patch, a notice that the skill's webhook mechanic does not exist on omp. Two
-  `zzz*` patches carry open upstream PRs. `zzz-watch-pr-fixes.patch` carries #769, and
-  `zzzz-orch-lock-takeover.patch` carries #733 with an age-limited marker. When upstream merges an
-  equivalent, delete the hunks it covers rather than resolving them, and do not wait for the patch
-  to fail first. A hunk that only adds lines can still find its context at an offset, which at
-  `e73df47` would have added #804's tests to `orch.test.ts` a second time.
+  second typechecks `bootstrap.ts` as well as `watch-pr/`. `zzz-make-bot-ui-omp.patch` is the one
+  markdown patch, a notice that the skill's webhook mechanic does not exist on omp. One `zzz*`
+  patch carries an open upstream PR. `zzz-watch-pr-fixes.patch` carries #769. When upstream merges
+  an equivalent, delete the hunks it covers rather than resolving them, and do not wait for the
+  patch to fail first. A hunk that only adds lines can still find its context at an offset and
+  apply a second time.
 
 Author a patch against **post-rules** text. `rules.sed` runs first, so a hunk quoting the raw
 upstream line fails whenever an earlier rule rewrote it. `worktree-audit-omp.patch` deletes a
@@ -323,10 +322,8 @@ The injected reminder is a pointer, not the playbook. It tells the agent to read
   prints the binary's builtin tool list, which on 18.12.6 carries `wait` and no `hub`; the binary's
   only other `hub` is the `/hub` slash command that opens Agent Hub. An earlier tree read a `hub`
   tool with list/send/inbox/wait ops off a stale pi-coding-agent 17.x package, and the gate now
-  fails any shipped sentence that names one. The orchestrator uses its own TSV store and
-  `orch inbox` for the queue instead, so sibling messaging stays unused there. Cross-session
-  messaging does not exist locally and gets no workaround here. It is tracked upstream and stays
-  open.
+  fails any shipped sentence that names one. Cross-session messaging does not exist locally and
+  gets no workaround here. It is tracked upstream and stays open.
 
 ## Still missing in omp
 

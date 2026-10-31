@@ -4,7 +4,7 @@
 # rule above it and an exemption that silently stops applying turns the gate green for a reason
 # nobody can reconstruct.
 #
-# Re-checked at: 1b6d44ff (pin). Every rule below was applied in isolation to the raw upstream
+# Re-checked at: c742dd6 (pin). Every rule below was applied in isolation to the raw upstream
 # extract and confirmed to change nothing. That is the intersection that distinguishes stale from
 # merely shadowed.
 #
@@ -12,7 +12,6 @@
 # outrun should cost a deliberate decision, not a silent no-op.
 
 So `small` turns `claude-[a-z0-9.-]+` into `claude-[a-z0-9	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
-go to your strongest judgment model \(`claude-[a-z0-9.-]+`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 ^- `model`: the `how explorer` line, default `[^`]+`$	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 ^- `model`: the `how explainer` line, default `[^`]+`$	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 ^- `model`: the `why investigators` line, default `[^`]+`$	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
@@ -30,21 +29,15 @@ Spawn all N subagents in one message with `run_in_backgrou	forward-compat net: t
 Reviewers need MCP access for context lookups \(tickets, c	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 The synthesizer's quality check includes spot-verifying ci	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 there is no task `readonly` field\.  Use	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
-there is no task `readonly` field\.[[:space:]]*$	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 The synthesizer returns a structured Accepted / Rejected /	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-s#After all Phase B candidates complete, choose an exact dis	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 ^- `model`: the configured `interrogate reviewers` entry, 	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 `subagent_type`: `([^`]+)`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
-s#agent mode \(`readonly: false`\)	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
-s#`run_in_background: true`#one	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
-s#`subagent_type: "poteto-agent"`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 ^Spawn one investigator per category that has a matching M	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 One subagent per PR, not batched, each a Cursor cloud agen	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 `claude-fable-[0-9.-]+(-(thinking-)?[a-z]+)?`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 `gpt-[0-9.]+-sol-[a-z]+`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 `cursor-grok-[0-9.]+-([a-z]+-)?fast`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 : gpt-[0-9.]+-sol-[a-z]+$	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
-`(claude|gpt|grok|gemini|opus)-[a-z0-9.]+-[a-z0-9.-]+`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 One Cursor cloud agent	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 Cloud-agent PR tools default to draft, so set `draft: fals	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 Fan out N parallel cloud workers\.	upstream removed Swarm's standalone overview at eb4db2b; retain the cloud-worker translation if that sentence returns.
@@ -60,7 +53,6 @@ arm a `/goal` with the full program objective\.	superseded: upstream reworded th
 arm a `/goal` with this exact text\.	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 \(`control-cli` or `control-ui` from `cursor-team-kit` as 	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 \(`control-ui` or `control-cli` from `cursor-team-kit` as 	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
-`cursor-team-kit` publishes `control-cli` \(CLIs and TUIs\	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 Three transcript layouts: legacy flat \(`<id>\.jsonl`\), c	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 For each candidate, read the first JSONL line and check th	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 , or plugin-installed paths under `~/\.cursor/plugins/`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
@@ -79,10 +71,31 @@ If the bottom PR is mergeable now, squash it with	superseded: upstream reworded 
 push with `--force-with-lease` only after an `ls-remote` c	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 4\. \*\*Prepare only the bottom PR\.\*\* Fetch current tru	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 The operator's full-autonomy grant plus the root's clean v	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-Recompute `frontier.json` from `gt` after every merge and 	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 - Workers never rebase and never run `gt`\.	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 s#The strict `scout` definition has no MCP grant, so never a	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 s#an exact discovered full-access worker for citation spot-c	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 an exact discovered (why investigators|why synthesizer|interrogate reviewers	second-order net: it rewrites the output of the `model`: the `<role>` line token rules, so raw upstream never matches it. At 4ec7ffa the whole-sentence rules for why and reflect claim the last role-line sentences first, so the token rules emit nothing for it to clean. Kept because a reworded sentence upstream falls through to those token rules, and this is what turns their role label into a capability.
 
 `readonly`: `true`#read-only posture carried in the brief	forward-compat net: the Cursor wire field as it appears mid-sentence rather than as a role bullet. Upstream emits no such line today; the rule is what keeps it from reaching the tree if it ever does.
+Each reviewer gets `subagent_type: generalPurpose`	upstream removed interrogate's reviewer spawn contract at ab1f702; retain the task-item translation if that sentence returns.
+^\| Subagent \| Default model \|$	upstream removed interrogate's reviewer model table at ab1f702; retain the runtime-agent column if that table returns.
+^\| Reviewer A \| `[^`]+` \|$	upstream removed interrogate's reviewer model table at ab1f702; retain the runtime-agent column if that table returns.
+^\| Reviewer B \| `[^`]+` \|$	upstream removed interrogate's reviewer model table at ab1f702; retain the runtime-agent column if that table returns.
+Launch all reviewers in a single message with the Task tool, one per entry on the `interrogate reviewers` line	upstream removed interrogate's reviewer launch sentence at ab1f702; retain the one-call batch translation if that sentence returns.
+If the Task tool rejects a configured entry, run that reviewer on its family	upstream removed interrogate's reviewer slug fallback at ab1f702; retain the missing-reviewer translation if that sentence returns.
+the full Task schema including `environment`	upstream removed Orchestrate's full Task schema sentence at c742dd6; retain the `isolated` translation if that sentence returns.
+the cloud agent's status in the Cursor dashboard	upstream removed Orchestrate's cloud status probe at c742dd6; retain the history:// and proc:// translation if that sentence returns.
+s#cloud spawns#isolated spawns#g	upstream removed Orchestrate's cloud spawn budget at c742dd6; retain the isolated-spawn translation if that phrase returns.
+its spawn budget with the cloud default and the local exception list	upstream removed Orchestrate's sub-coordinator spawn budget at c742dd6; retain the shared-checkout exception translation if that sentence returns.
+After a Cursor restart: local agents are dead, cloud work is not\.	upstream removed Orchestrate's restart recovery at c742dd6; retain the omp restart translation if that sentence returns.
+reattach cloud work by PR and branch rather than agent id	upstream removed Orchestrate's restart recovery at c742dd6; retain the pushed-work translation if that sentence returns.
+s#Cloud agent#Isolated subagent#g	upstream removed the capitalised "Cloud agent" from Orchestrate at c742dd6; retain the isolated-subagent translation if that phrase returns.
+a frontier watcher wake \(arm it via the loop skill, with a long heartbeat fallback\)	upstream removed Orchestrate's frontier watcher wake at c742dd6; retain the named-process translation if that sentence returns.
+local transcripts under `agent-transcripts/`	upstream removed Orchestrate's agent-transcripts reference at c742dd6; retain the session-store translation if that phrase returns.
+Agents are spawned, resumed, and drained only through the Task tool\.	upstream removed Orchestrate's spawn-and-drain sentence at c742dd6; retain the `agent://` resume translation if that sentence returns.
+one per entry on the `interrogate reviewers` line in `~?/?(\.	upstream removed interrogate's per-entry reviewer line at ab1f702; retain the config.yml translation if that phrase returns.
+the `interrogate reviewers` line in `~?/?\.cursor/rules/pstack-models\.mdc`	upstream removed interrogate's per-entry reviewer line at ab1f702; retain the config.yml translation if that phrase returns.
+Mechanically landing a verified unit \(fast-forward or clean cherry-pick of a worker	upstream removed Orchestrate's coordinator landing sentence at c742dd6; retain the landing-grant translation if that sentence returns.
+irreversible actions \(force-push to shared branches, deploys, deletions, closing someone else	upstream removed Orchestrate's irreversible-action escalation list at c742dd6; retain the widened list if that sentence returns.
+PR closes and retargets go through the stacker only\.	upstream removed Orchestrate's stacker routing sentence at c742dd6; retain the consent clause if that sentence returns.
+s#the full Task schema#the live `task` schema#g	upstream removed every "the full Task schema" phrase at c742dd6; retain the lowercase `task` translation if that phrase returns.

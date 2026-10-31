@@ -4,7 +4,7 @@
 # rule above it and an exemption that silently stops applying turns the gate green for a reason
 # nobody can reconstruct.
 #
-# Re-checked at: 1b6d44ff (pin). Every rule below was applied in isolation to the raw upstream
+# Re-checked at: c742dd6 (pin). Every rule below was applied in isolation to the raw upstream
 # extract and confirmed to change nothing. That is the intersection that distinguishes stale from
 # merely shadowed.
 #
@@ -32,7 +32,6 @@ The synthesizer's quality check includes spot-verifying ci	superseded: upstream 
 there is no task `readonly` field\.  Use	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 there is no task `readonly` field\.[[:space:]]*$	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 The synthesizer returns a structured Accepted / Rejected /	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-s#After all Phase B candidates complete, choose an exact dis	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 ^- `model`: the configured `interrogate reviewers` entry, 	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 `subagent_type`: `([^`]+)`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 s#agent mode \(`readonly: false`\)	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
@@ -79,41 +78,31 @@ If the bottom PR is mergeable now, squash it with	superseded: upstream reworded 
 push with `--force-with-lease` only after an `ls-remote` c	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 4\. \*\*Prepare only the bottom PR\.\*\* Fetch current tru	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 The operator's full-autonomy grant plus the root's clean v	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-Recompute `frontier.json` from `gt` after every merge and 	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 - Workers never rebase and never run `gt`\.	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 s#The strict `scout` definition has no MCP grant, so never a	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 s#an exact discovered full-access worker for citation spot-c	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 an exact discovered (why investigators|why synthesizer|interrogate reviewers	second-order net: it rewrites the output of the `model`: the `<role>` line token rules, so raw upstream never matches it. At 4ec7ffa the whole-sentence rules for why and reflect claim the last role-line sentences first, so the token rules emit nothing for it to clean. Kept because a reworded sentence upstream falls through to those token rules, and this is what turns their role label into a capability.
 
 `readonly`: `true`#read-only posture carried in the brief	forward-compat net: the Cursor wire field as it appears mid-sentence rather than as a role bullet. Upstream emits no such line today; the rule is what keeps it from reaching the tree if it ever does.
-Each reviewer gets `subagent_type: generalPurpose`	superseded: upstream reworded interrogate to delegate to arena and deleted the reviewer table at ab1f702.
-^\| Subagent \| Default model \|$	superseded: upstream reworded interrogate to delegate to arena and deleted the reviewer table at ab1f702.
-^\| Reviewer A \| `[^`]+` \|$	superseded: upstream reworded interrogate to delegate to arena and deleted the reviewer table at ab1f702.
-^\| Reviewer B \| `[^`]+` \|$	superseded: upstream reworded interrogate to delegate to arena and deleted the reviewer table at ab1f702.
-Launch all reviewers in a single message with the Task tool, one per entry on the `interrogate reviewers` line	superseded: upstream reworded interrogate to delegate to arena at ab1f702.
-choose one model from the `arena cross-judge pool` line in `~/.cursor/rules/pstack-models\.mdc`	superseded: upstream reworded the arena cross-judge pool selection at ab1f702.
-If the Task tool rejects a configured entry, run that reviewer on its family	superseded: upstream reworded interrogate to delegate to arena at ab1f702.
-s#Spawn one readonly judge subagent on that model\.#Start one judge in one `task`	superseded: upstream reworded the arena cross-judge paragraph and dropped "on that model" at ab1f702.
-the full Task schema including `environment`	superseded: upstream made Orchestrate agentic and deleted sub-coordinator CLI sections at c742dd6.
-the cloud agent's status in the Cursor dashboard	superseded: upstream made Orchestrate agentic and deleted status probe sentences at c742dd6.
-s#cloud spawns#isolated spawns#g	superseded: upstream made Orchestrate agentic and deleted the brief sizing section at c742dd6.
-its spawn budget with the cloud default and the local exception list	superseded: upstream made Orchestrate agentic and deleted sub-coordinator briefs at c742dd6.
-After a Cursor restart: local agents are dead, cloud work is not\.	superseded: upstream made Orchestrate agentic and deleted restart instructions at c742dd6.
-reattach cloud work by PR and branch rather than agent id	superseded: upstream made Orchestrate agentic and deleted restart instructions at c742dd6.
-s#Cloud agent#Isolated subagent#g	superseded: upstream made Orchestrate agentic and dropped "Cloud agent" casing in orchestrate.md at c742dd6.
-a frontier watcher wake \(arm it via the loop skill, with a long heartbeat fallback\)	superseded: upstream made Orchestrate agentic and deleted watcher wake instructions at c742dd6.
-local transcripts under `agent-transcripts/`	superseded: upstream made Orchestrate agentic and deleted the agent-transcripts directory reference at c742dd6.
-Agents are spawned, resumed, and drained only through the Task tool\.	superseded: upstream made Orchestrate agentic and deleted task draining instructions at c742dd6.
-one per entry on the `interrogate reviewers` line in `~?/?(\.	superseded: upstream reworded interrogate to delegate to arena at ab1f702.
-the `interrogate reviewers` line in `~?/?\.cursor/rules/pstack-models\.mdc`	superseded: upstream reworded interrogate to delegate to arena at ab1f702.
-Mechanically landing a verified unit \(fast-forward or clean cherry-pick of a worker	superseded: upstream made Orchestrate agentic and deleted the coordinator landing section at c742dd6.
-irreversible actions \(force-push to shared branches, deploys, deletions, closing someone else	superseded: upstream made Orchestrate agentic and reworded escalation in orchestrate.md at c742dd6.
-`units.tsv` has one row per unit: id, track, state, branch, PR, head SHA, brief path\.	superseded: upstream made Orchestrate agentic and deleted units.tsv tracking at c742dd6.
-2\. \*\*Install the runtime\.\*\* Run `orch init`	superseded: upstream made Orchestrate agentic and deleted orch scripts at c742dd6.
-PR closes and retargets go through the stacker only\.	superseded: upstream made Orchestrate agentic and reworded PR retargeting in orchestrate.md at c742dd6.
-s#the full Task schema#the live `task` schema#g	superseded: upstream made Orchestrate agentic and deleted full Task schema claims at c742dd6.
-Read the `interrogate reviewers` line in place of `arena runners`\.	forward-compat: ports interrogate's new arena delegation introduced in upstream ab1f702.
-Spawn each adversary as `generalPurpose`\.	forward-compat: ports interrogate's adversary spawn introduced in upstream ab1f702.
-choose one model from the `arena cross-judge pool` line in `~/\.cursor/rules/pstack-models\.mdc`\. If the rule or that line is missing, choose from `claude-opus-[^`]+` and `grok-[^`]+`\. Spawn one readonly judge subagent	forward-compat: ports arena's cross-judge pool selection introduced in upstream ab1f702.
-Run workers on a new cloud VM \(`environment: "cloud"`\)	forward-compat: ports orchestrate's isolated subagent translation introduced in upstream c742dd6.
-The owner merges only on that verifier's pass at the current head\.	forward-compat: ports orchestrate's owner landing grant requirement introduced in upstream c742dd6.
+Each reviewer gets `subagent_type: generalPurpose`	upstream removed interrogate's reviewer spawn contract at ab1f702; retain the task-item translation if that sentence returns.
+^\| Subagent \| Default model \|$	upstream removed interrogate's reviewer model table at ab1f702; retain the runtime-agent column if that table returns.
+^\| Reviewer A \| `[^`]+` \|$	upstream removed interrogate's reviewer model table at ab1f702; retain the runtime-agent column if that table returns.
+^\| Reviewer B \| `[^`]+` \|$	upstream removed interrogate's reviewer model table at ab1f702; retain the runtime-agent column if that table returns.
+Launch all reviewers in a single message with the Task tool, one per entry on the `interrogate reviewers` line	upstream removed interrogate's reviewer launch sentence at ab1f702; retain the one-call batch translation if that sentence returns.
+If the Task tool rejects a configured entry, run that reviewer on its family	upstream removed interrogate's reviewer slug fallback at ab1f702; retain the missing-reviewer translation if that sentence returns.
+the full Task schema including `environment`	upstream removed Orchestrate's full Task schema sentence at c742dd6; retain the `isolated` translation if that sentence returns.
+the cloud agent's status in the Cursor dashboard	upstream removed Orchestrate's cloud status probe at c742dd6; retain the history:// and proc:// translation if that sentence returns.
+s#cloud spawns#isolated spawns#g	upstream removed Orchestrate's cloud spawn budget at c742dd6; retain the isolated-spawn translation if that phrase returns.
+its spawn budget with the cloud default and the local exception list	upstream removed Orchestrate's sub-coordinator spawn budget at c742dd6; retain the shared-checkout exception translation if that sentence returns.
+After a Cursor restart: local agents are dead, cloud work is not\.	upstream removed Orchestrate's restart recovery at c742dd6; retain the omp restart translation if that sentence returns.
+reattach cloud work by PR and branch rather than agent id	upstream removed Orchestrate's restart recovery at c742dd6; retain the pushed-work translation if that sentence returns.
+s#Cloud agent#Isolated subagent#g	upstream removed the capitalised "Cloud agent" from Orchestrate at c742dd6; retain the isolated-subagent translation if that phrase returns.
+a frontier watcher wake \(arm it via the loop skill, with a long heartbeat fallback\)	upstream removed Orchestrate's frontier watcher wake at c742dd6; retain the named-process translation if that sentence returns.
+local transcripts under `agent-transcripts/`	upstream removed Orchestrate's agent-transcripts reference at c742dd6; retain the session-store translation if that phrase returns.
+Agents are spawned, resumed, and drained only through the Task tool\.	upstream removed Orchestrate's spawn-and-drain sentence at c742dd6; retain the `agent://` resume translation if that sentence returns.
+one per entry on the `interrogate reviewers` line in `~?/?(\.	upstream removed interrogate's per-entry reviewer line at ab1f702; retain the config.yml translation if that phrase returns.
+the `interrogate reviewers` line in `~?/?\.cursor/rules/pstack-models\.mdc`	upstream removed interrogate's per-entry reviewer line at ab1f702; retain the config.yml translation if that phrase returns.
+Mechanically landing a verified unit \(fast-forward or clean cherry-pick of a worker	upstream removed Orchestrate's coordinator landing sentence at c742dd6; retain the landing-grant translation if that sentence returns.
+irreversible actions \(force-push to shared branches, deploys, deletions, closing someone else	upstream removed Orchestrate's irreversible-action escalation list at c742dd6; retain the widened list if that sentence returns.
+PR closes and retargets go through the stacker only\.	upstream removed Orchestrate's stacker routing sentence at c742dd6; retain the consent clause if that sentence returns.
+s#the full Task schema#the live `task` schema#g	upstream removed every "the full Task schema" phrase at c742dd6; retain the lowercase `task` translation if that phrase returns.

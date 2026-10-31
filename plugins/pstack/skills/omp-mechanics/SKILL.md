@@ -36,9 +36,13 @@ Read `references/make-bot-ui-on-omp.md` before starting. The upstream Grok Bot w
 
 OMP does not auto-attach a skill from `globs`. Read `skill://typescript-best-practices` before editing a `.ts` or `.tsx` file.
 
-## Setup pstack
+## Choose models
 
-Read `references/setup-pstack-config.md` for the file shape. The `setup-pstack` skill owns discovery and selection. Use `omp models --json` for each selected model's effort list, and preserve unrelated config entries.
+pstack needs no model configuration. An agent with no override runs on its frontmatter model, then on the parent session's model, which `/model` selects.
+
+To choose a model for an agent, add an entry under `task.agentModelOverrides` in `~/.omp/agent/config.yml`. The key is the exact agent name from the live roster. The value is a selector from `omp models --json`, or `@<alias>` for an alias you define under `modelRoles`. An alias value can carry an effort suffix, such as `<selector>:high`, when the model lists that effort in `thinking.efforts`. `auto` and `inherit-parent` are not values. omp stores an entry without checking it, so a bad value fails only at spawn. Entries apply to new sessions, and an override cannot create an agent.
+
+A review panel in `arena` or `interrogate`, including the `arena` cross-judge, gives a second opinion only when its agents resolve to different model families. With no overrides, every panel agent without a frontmatter model runs on the parent session's model. Check the model each panel agent resolves to before you trust a panel verdict.
 
 ## Session store
 

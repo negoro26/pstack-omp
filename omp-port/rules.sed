@@ -339,6 +339,9 @@ s#^That covers the legacy flat \(`<id>\.jsonl`\), current nested \(`<id>/<id>\.j
 s#`~/\.cursor/projects/<slug>/agent-transcripts/<uuid>/<uuid>\.jsonl`#the session store, by default `~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<session-id>.jsonl`#
 s#where `<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-" \(so `/Users/you/proj` becomes `Users-you-proj`\)#where `<encoded-cwd>` is the cwd with $HOME stripped and each "/" turned into "-" (so `~/proj` becomes `-proj`)#
 s#Every line is one chat message\.#Every line is one JSON object. The first is a fixed-width `type:title` slot, the second a `type:session` header, and the rest messages whose roles are camelCase (`toolResult`, not `tool_result`).#
+# No omp system prompt names a transcript path. The session-store reference resolves the root, so
+# automate-me's locate step points there. Runs before the directory token below rewrites half of it.
+s#The system prompt names the workspace's `agent-transcripts/` directory\.#Resolve the session transcript tree, by default `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl` with subagent sidecars at `<session-stem>/<AgentId>.jsonl`, through `skill://omp-mechanics/references/session-store-on-omp.md`.#
 s#the active workspace's `agent-transcripts/` directory#the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, with subagent sidecars at `<session-stem>/<AgentId>.jsonl`#g
 s#the workspace's `agent-transcripts/` directory#the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, with subagent sidecars at `<session-stem>/<AgentId>.jsonl`#g
 s#local transcripts under `agent-transcripts/`#local transcripts under `~/.omp/agent/sessions/<encoded-cwd>/`#
@@ -556,8 +559,9 @@ s#an exact discovered full-access worker for citation spot-checks that call MCP\
 s#/\*/subagents/\*\.jsonl#/*/*/*.jsonl#
 
 # No omp system prompt names the session transcript tree; `history://<id>` is the documented
-# surface. The path is correct, the justification for trusting it was not.
-s#the system prompt names the path#`history://<id>` is the documented surface#
+# surface. The path is correct, the justification for trusting it was not. Eval says "this path",
+# session-pickup and show-me-your-work say "the path".
+s#the system prompt names (the|this) path#`history://<id>` is the documented surface#
 
 # omp discovers skills one level under the root; the nested shape this prescribes is explicitly
 # not discovered, so the skill it produces silently never registers.

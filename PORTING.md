@@ -54,42 +54,78 @@ Then run `bash omp-port/check-port.sh` and commit.
 
 There is nothing to resolve. The build never edits an upstream file in place, so upstream text and
 port text cannot collide. A patch that no longer applies exits 1, and that or a gate FAIL leaves the
-PR open for a human with both outputs in the body and the reason printed in the job log.
+PR open for a human with both outputs in the body and the reason printed in the job log. The build
+runs `patch --force`, so a patch that no longer applies also exits 1 when `sync-upstream.sh` prints
+the build to a terminal. Plain `patch` stops there at `File to patch:` or `Assume -R?` and waits,
+and `--batch` answers that second prompt yes and applies the hunk backwards.
 
 ### What catches upstream moving
 
 `rules.sed` is a table of exact rewrites, and a `sed` rule whose left-hand side stops matching
 changes nothing while still exiting 0. That is the one failure mode in this port that is silent by
-construction, so the gate treats it as the thing to prove rather than as an absence of errors. It
-asks two questions and needs both, because each has a large healthy population:
+construction, so the gate treats it as the thing to prove rather than as an absence of errors.
 
-- `rule liveness` runs one marked build and lists the rules that substituted nothing. Most of that
-  list is the point: the token rules sit underneath the whole-sentence rules and fire nothing
-  precisely because an earlier rule already consumed their input, and that redundancy is the net
-  that catches a whole-sentence rule when it misses.
+- `rule liveness` runs one marked build and counts the rules that fired nothing. Every `s`, `d`
+  and `a` command carries its own marker, so an address is probed the same as a left side. Each
+  dead rule then gets one cause, decided by running it on raw upstream with the same `sed` and the
+  same `-E` the build uses:
+  - `stale` changes nothing in raw upstream either, so it can never fire again.
+  - `shadowed` has raw matches that the rules above it rewrite when those matches are fed through
+    them alone. A duplicate lands here, and so does a narrower rule placed above a broader one.
+  - `consumed` has raw matches the rules above leave alone, because they rewrite the sentence
+    around them. These are the token nets under the whole-sentence rules, and they fire when a
+    sentence rule misses. They need nothing.
+  - `catch-all` is the model-slug catch-all, which the tiered slug rules starve by design.
 - `target builds` is the only upstream assertion that runs the whole build rather than probing
   text. Every other one reads upstream directly, and none of them runs `omp-port/patches`, so
   without it an upstream commit that rewords a line a patch matches on passes the gate and the sync
   it clears cannot be applied. It is skipped when the target is the pin, because `reproducible` has
   already built exactly that tree.
-- `rule staleness` applies each rule on its own to upstream as it stands, with the same `sed` and
-  the same `-E` the build uses, and intersects the result with the liveness list. Dead in isolation
-  *and* dead in the build is stale. Dead only in isolation is a rule fed by an earlier rule's
-  output and is ordinary. The intersection is why most rules need no exemption at all.
+- `rule staleness` fails a stale rule with no row in `omp-port/stale-exempt.tsv`, and a row whose
+  rule is not stale. That second kind records a decision about a rule that matches upstream again,
+  and it would keep the rule from being reviewed the next time it goes stale.
+- `rule shadowing` fails a shadowed rule with no row in `omp-port/shadow-exempt.tsv`, and a row
+  whose rule is not shadowed. Rule 228 at 4275556 sat behind rule 227, which rewrote the same token
+  first, and shipped its translation dead.
+- `swallow ledger` holds every rule with `.*` or `.+` to a row in `omp-port/swallow.tsv`. The row
+  carries the sha256 of every raw upstream span the rule's own left side matches, and why dropping
+  that text is right. A wildcard swallows whatever upstream writes inside its span, so at c742dd6
+  rule 89 dropped a new clause about steering a running agent and rule 35 dropped six new sentences,
+  with no rule changing. When the hash moves the check fails and prints the spans, as a diff against
+  the pin when the target is not the pin. Read the new text, then narrow the rule or record the new
+  hash.
 
 A stale rule that upstream has outrun **fails** the gate. It is not a report, because the
 consequence is a Cursor API reaching a generated skill while every other check stays green. The
 fix is to correct the left-hand side against what upstream actually says now, or to record the rule
-in `omp-port/stale-exempt.tsv` with a reason. That file is keyed on a literal fragment of the rule
-and never on a line number, because a line number moves the moment anyone edits a rule above it and
-an exemption that silently stops applying is worse than no exemption. `stale exemptions` fails a
-fragment that matches more than one rule or none, and an ambiguous fragment exempts nothing. A
-`run_in_background: true` fragment once matched a swarm Phase B sentence rule as well as the token
-rule it was written for, and kept that rule from failing when it went stale.
+in `omp-port/stale-exempt.tsv` with a reason. All three ledgers are keyed on a literal fragment of
+the rule and never on a line number, because a line number moves the moment anyone edits a rule
+above it and a row that silently stops applying is worse than no row. `stale exemptions`, `shadow
+exemptions` and `rule wildcards` fail a fragment that matches more than one rule or none, and an
+ambiguous fragment counts for nothing. A `run_in_background: true` fragment once matched a swarm
+Phase B sentence rule as well as the token rule it was written for, and kept that rule from failing
+when it went stale.
 
-The probe's own exit status is part of the assertion for both. A probe that cannot run reports
-failure, not a clean result: an empty list from a failed build is not evidence that nothing is
-stale.
+The probe's own exit status is part of each assertion. A probe that cannot run reports failure,
+not a clean result: an empty list from a failed build is not evidence that nothing is stale.
+
+Three checks read `rules.sed` as data and need no clone, so they also run in the mutation harness.
+Each is a shape that shipped once while every other check passed.
+
+- `rule replacement &` fails a bare `&` in a replacement, which writes the whole match back in.
+  Rule 512 at 73f30d9 quoted `git fetch && git reset` and spliced its sentence into
+  `opening-a-pr.md` three times.
+- `rule paren groups` fails a left side that wraps upstream's literal parentheses in an ERE group
+  it never references, when the replacement adds `(` back. Three rules at 73f30d9 shipped `((`.
+- `rule wildcards` fails a `.*` that is followed by more pattern in a left side with no `$`
+  anchor, unless `swallow.tsv` has its row. Such a match ends at the last place that pattern occurs
+  on the line. Rule 34 at 4275556 ended `(\b.*)?\.` and deleted two sentences after its own.
+
+`omp-port/test-gate-mutations.sh` breaks one thing per case in a copy of the tree and the port
+files and expects one named check to fail on it, with the violation line it should print. The cases
+that need upstream text run the whole gate nested. One case runs the pin's build alone with its
+output on a pseudo-terminal and a deadline, so a patch prompt that waits for an answer fails the
+harness. The gate itself sends build output to a file, where patch takes the default answer.
 
 `bash omp-port/check-port.sh [canonical-clone] [sha]` takes the sha to gate, defaulting to the pin.
 The tree assertions follow the pin, because they are about the checked-in tree; the upstream
@@ -249,13 +285,15 @@ transcript layout, model slugs, retired role keys, install paths, a claimed `hub
 `skills/setup-pstack` is port-owned, so the build restores it from `HEAD` and never rebuilds it from
 upstream. Upstream's version writes a Cursor rules file with no omp meaning, so the fork is
 deliberate, but the drift list alone does not mark it: an upstream edit to that skill shows up as an
-ordinary pstack commit with no patch conflict, no gate failure, and no reminder to re-derive it.
+ordinary pstack commit with no patch conflict and no reminder to re-derive it.
 `bash omp-port/sync-upstream.sh check` therefore writes a `shadowed <path>:` line per owned path to
-stderr, counting the upstream commits sitting ahead of the pin on that path. Every one of them is
-unapplied by construction, since the build restores the path from `HEAD`; the count is what tells
-you how much upstream moved underneath you. A non-zero count on `skills/setup-pstack` means re-derive
-the selection procedure by hand before trusting the skill; the two other owned paths have no
-upstream counterpart and always report as port-only.
+stderr, counting the upstream commits sitting ahead of the pin on that path. That count resets the
+moment the pin moves past the commit, which is how ab1f702's edit to setup-pstack step 3(c) went
+unread through the c742dd6 sync. So `omp-port/owned.txt` also records, per owned path, the upstream
+object a maintainer last read against the owned copy, and `owned drift` fails when upstream's
+object at the target differs. The failure prints both objects and the `git diff` that shows the
+change. Carry what the owned copy needs, then record the new object. The two other owned paths have
+no upstream counterpart and record `-`, so upstream adding one fails the same way.
 
 `skills/setup-pstack/scripts/apply-models.mjs` makes the config write. `omp config set` stores a
 selector the catalog does not have and an alias no role defines without complaint, so a bad value

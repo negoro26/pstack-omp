@@ -1,0 +1,11 @@
+# Rules in omp-port/rules.sed that earlier rules starve, kept as they are for now, one per line as
+# `left-hand-fragment<TAB>reason`. `rule shadowing` feeds each dead rule's own raw upstream matches
+# through every rule above it; when they come out changed, an earlier rule rewrites this rule's text
+# first and this one never fires while that order stands. A duplicate lands here, and so does a
+# narrower rule placed above a broader one, which is how rule 228 at 4275556 shipped dead. The
+# fragment is matched as a literal substring of the rule's own line, as in stale-exempt.tsv.
+#
+# Re-checked at: c742dd6 (pin).
+
+s#agent mode \(`readonly: false`\)#	the `readonly: false` token rule directly above rewrites the inside of its match first, so a sentence that falls through the reflect sentence rules would keep "agent mode (full tools per spawn)". No effect at c742dd6: those sentence rules consume both upstream lines. Moving it above that token rule makes it fire.
+s#`subagent_type: "poteto-agent"`#`agent`: `poteto-agent`#g	duplicates the generic `subagent_type: "..."` rule above it, which writes the same `agent`: `poteto-agent` text. No effect on the tree; deleting it changes nothing.

@@ -9,4 +9,4 @@
 # owned path is read before a sync lands rather than discarded by the build in silence.
 skills/omp-mechanics	-
 skills/pstack-omp	-
-skills/setup-pstack	d533da1671e44234a9f72d1d4db8043cedd25eb2
+skills/setup-pstack	800811ddcb1d1d1831bfd853cfad14429a3d6842

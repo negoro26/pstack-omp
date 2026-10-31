@@ -6,6 +6,3 @@
 # fragment is matched as a literal substring of the rule's own line, as in stale-exempt.tsv.
 #
 # Re-checked at: c742dd6 (pin).
-
-s#agent mode \(`readonly: false`\)#	the `readonly: false` token rule directly above rewrites the inside of its match first, so a sentence that falls through the reflect sentence rules would keep "agent mode (full tools per spawn)". No effect at c742dd6: those sentence rules consume both upstream lines. Moving it above that token rule makes it fire.
-s#`subagent_type: "poteto-agent"`#`agent`: `poteto-agent`#g	duplicates the generic `subagent_type: "..."` rule above it, which writes the same `agent`: `poteto-agent` text. No effect on the tree; deleting it changes nothing.

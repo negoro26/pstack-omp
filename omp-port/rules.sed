@@ -152,8 +152,8 @@ s#`subagent_type`#`agent`#g
 s#subagent_type#agent#g
 s#`run_in_background: true`#one `task` call with all items in `tasks[]`#g
 s#`readonly: true`#read-only posture carried in the brief#g
-s#`readonly: false`#full tools per spawn#g
 s#agent mode \(`readonly: false`\)#full tools per spawn#g
+s#`readonly: false`#full tools per spawn#g
 s#`readonly`: `true`#read-only posture carried in the brief#g
 s#readonly strips MCPs\.#nothing strips MCPs here.#g
 # A judge is spawned with read posture in its brief, never as a field. Matched on the field name
@@ -167,7 +167,6 @@ s#`model` from the `([^`]+)` line#`agent` from the `task.agentModelOverrides` en
 s#Spawn one investigator per category that has a matching MCP, all in a single message so they run concurrently#Assign one investigator to each category that has a matching MCP, in one `task` call with all items in `tasks[]` and the required shared `context` so they run concurrently#
 s#Spawn one synthesizer\.#Start one synthesizer in one `task` call with one item in `tasks[]` and the required shared `context`.#
 # Inline selectors that survive into patch context are exact values, not a Markdown catch-all.
-s#`subagent_type: "poteto-agent"`#`agent`: `poteto-agent`#g
 s#Shape: one or two questions with 4-6 options each, `allow_multiple: true` for category questions\.#Shape: one or two questions with 4-6 options each. Put `multi: true` on each category question object.#
 # Plan lanes and the checker name an exact discovered worker agent, never a model-map role label.
 s#per the \*\*swarm\*\* skill, on the `swarm workers` model \(default `grok-[^`]+`\)#per the **swarm** skill, using exact discovered worker agents. Inspect each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` for its model#

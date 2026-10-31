@@ -6,10 +6,11 @@
 #
 # Re-checked at: c742dd6 (pin). Every rule below was applied in isolation to the raw upstream
 # extract and confirmed to change nothing. That is the intersection that distinguishes stale from
-# merely shadowed.
+# merely shadowed. `d`, `a` and addressed rules are probed on their address the same way.
 #
 # Anything stale and not listed here fails `rule staleness`. That is the point: a rule upstream has
-# outrun should cost a deliberate decision, not a silent no-op.
+# outrun should cost a deliberate decision, not a silent no-op. So does a row whose rule matches
+# upstream text again: the decision it records is about a rule that no longer exists, so delete it.
 
 So `small` turns `claude-[a-z0-9.-]+` into `claude-[a-z0-9	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 ^- `model`: the `how explorer` line, default `[^`]+`$	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
@@ -99,3 +100,4 @@ Mechanically landing a verified unit \(fast-forward or clean cherry-pick of a wo
 irreversible actions \(force-push to shared branches, deploys, deletions, closing someone else	upstream removed Orchestrate's irreversible-action escalation list at c742dd6; retain the widened list if that sentence returns.
 PR closes and retargets go through the stacker only\.	upstream removed Orchestrate's stacker routing sentence at c742dd6; retain the consent clause if that sentence returns.
 s#the full Task schema#the live `task` schema#g	upstream removed every "the full Task schema" phrase at c742dd6; retain the lowercase `task` translation if that phrase returns.
+/^- `subagent_type`: `generalPurpose`$/d	forward-compat net: deletes the Cursor role bullet the how and why skills carried, which upstream does not emit today. If it returns, the `subagent_type` token rules would otherwise turn it into an `agent`: `generalPurpose` line naming an agent omp does not have.

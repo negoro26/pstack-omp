@@ -2,6 +2,10 @@
 # plugins/pstack/{skills,agents} and reinstalls them from upstream, then restores every path
 # listed here from HEAD. A path here is never produced by rules.sed or omp-port/patches, so it
 # survives a sync unchanged and an edit to it is a real commit rather than a rewrite rule.
-skills/omp-mechanics
-skills/pstack-omp
-skills/setup-pstack
+#
+# `<path><TAB><reviewed>`. <reviewed> is the upstream object at pstack/<path> a maintainer last
+# read against the owned copy, `git -C <clone> rev-parse <sha>:pstack/<path>`, or `-` when upstream
+# has no such path. `owned drift` fails when upstream's object differs, so an upstream edit to an
+# owned path is read before a sync lands rather than discarded by the build in silence.
+skills/omp-mechanics	-
+skills/pstack-omp	-

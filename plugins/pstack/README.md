@@ -1,8 +1,8 @@
 # pstack for oh-my-pi
 
-Lauren Tan's pstack methodology, ported to omp. 60 skills, 23 playbooks, 24 principle
+Lauren Tan's pstack methodology, ported to omp. 59 skills, 23 playbooks, 24 principle
 leaves, the `poteto-mode` pin, and the `poteto-agent` and `comment-sicko` agents.
-57 skills are built from upstream. `omp-mechanics`, `pstack-omp`, and `setup-pstack` are port-owned.
+57 skills are built from upstream. `omp-mechanics` and `pstack-omp` are port-owned.
 
 ## Install
 
@@ -11,7 +11,7 @@ leaves, the `poteto-mode` pin, and the `poteto-agent` and `comment-sicko` agents
 /marketplace install pstack@pstack-omp
 ```
 
-That loads the 60 skills and both extensions, `potetomode` and `pstackpolicy`. The two agents are optional.
+That loads the 59 skills and both extensions, `potetomode` and `pstackpolicy`. The two agents are optional.
 On omp 18.1.13 a marketplace plugin's `agents/` directory is scanned only through the
 `claude-plugins` discovery provider, and enabling that provider also loads every Claude Code
 plugin cached under `~/.claude/plugins`. Link the agents into omp's native root instead:
@@ -38,12 +38,20 @@ Then `/poteto-mode on`, or `alt+shift+t`, or `omp -p --poteto '...'` for headles
 `pstackpolicy` loads with the plugin and needs no configuration. It registers `tool_call` on `bash`
 and `eval`, and refuses the forge mutations the playbooks only ask for in prose: `gh pr merge`,
 merge and close through `gh api`, `gh pr close|reopen|delete`, `gh pr edit --base`, `gh pr review`,
-merge-when-ready, `gh repo delete`, `gh release create|delete|upload`,
+merge-when-ready, a trunk ref moved through `gh api`, the GraphQL `updateRef`, `updateRefs` and
+`deleteRef` mutations, `gh repo delete`, `gh release create|delete|upload`,
 `gh secret|variable set|delete`, `gh workflow run --ref <trunk>`, the same forge calls made with
-`curl`, and `gt submit|rebase|restack`. Locally it refuses `git update-ref`, `git branch -D`,
-`git reset --hard` against a remote, and `git reflog expire --expire=now --all`. Any `git push`
-whose refspec lands on `main`, `master`, `trunk`, `develop`, or `release` is refused, forced or not;
-a force push to a feature branch stays allowed, because that is the port's own rebase flow.
+`curl`, and `gt submit|rebase|restack|merge`. A `gh` flag such as
+`-R o/r` may sit before or after the command group. Locally it refuses `git update-ref`,
+`git branch -D`, `git reset --hard` against a remote, and `git reflog expire --expire=now --all`.
+Any `git push` whose refspec lands on `main`, `master`, `trunk`, `develop`, or `release` is
+refused, forced or not; a force push to a feature branch stays allowed, because that is the port's
+own rebase flow. A refspec the scan cannot read may be trunk and is refused too: `HEAD`, no refspec
+at all, a `$VAR`, `${VAR}`, `$(...)` or backtick substitution, and a `*` pattern. A push's
+refspecs end at its own command, so a later `&&`, `||`, `;`, `|` or newline does not lend it
+arguments, inside a subshell or brace group as well. A comment ends at its newline whatever quotes
+it holds, and a redirection target is not a refspec. Each line of a heredoc body is checked as a
+command, because a shell may run it.
 
 To land, set `PSTACK_LANDING_GRANT=1` in the environment omp starts from. It is an environment
 variable and not a flag or a slash command because a flag an agent can pass is not a grant you made.
@@ -84,7 +92,5 @@ does, which is collapsing conversation context.
 alias fails the spawn, so bind before you add. Bind it yourself with `/model`, or with
 `omp config set modelRoles '<full json>'`, because a dotted `modelRoles.poteto` key is rejected and
 `inherit-parent` resolves to `No model selected`, which also fails the spawn.
-`/skill:setup-pstack` will not make this binding for you: its ownership contract limits it to the
-three `pstack_*` aliases and says never to treat `poteto`, `default`, or another operator role as
-pstack-owned. It is still the right command for the pstack-owned aliases, and omp registers one
-slash command per skill as `/skill:<name>`, so a bare `/setup-pstack` is not a command.
+pstack needs no other model configuration. To choose models for other agents, follow
+[Choose models](skills/omp-mechanics/SKILL.md#choose-models) in `omp-mechanics`.

@@ -4,10 +4,12 @@ import potetomode from "./index.js";
 const entry = (pinned) => ({ type: "custom", customType: "poteto-mode", data: { pinned } });
 function host(flag = true) {
   const events = new Map();
-  let command, shortcut, entries = [], status = "";
+  let command, shortcut, entries = [], status = "", idle = true;
+  const sent = [];
   const ctx = {
     sessionManager: { getBranch: () => entries },
     ui: { theme: { fg: (_color, text) => text }, setStatus: (_key, value) => { status = value; }, notify() {} },
+    isIdle: () => idle,
   };
   potetomode({
     registerCommand: (_name, value) => { command = value.handler; },
@@ -16,7 +18,7 @@ function host(flag = true) {
     on: (name, handler) => events.set(name, handler),
     getFlag: () => flag,
     appendEntry: (_name, data) => entries.push(entry(data.pinned)),
-    sendUserMessage() {},
+    sendUserMessage: (text, options) => sent.push({ text, options }),
   });
   return {
     start: async (branch = []) => { entries = branch; await events.get("session_start")({}, ctx); },
@@ -25,6 +27,8 @@ function host(flag = true) {
     command: (args) => command(args, ctx),
     shortcut: () => shortcut(ctx),
     status: () => status,
+    busy: () => { idle = false; },
+    sent,
   };
 }
 
@@ -91,5 +95,33 @@ test("switch, branch and tree navigation reload the pin from the branch they lan
     expect(session.status()).toBe("");
     await session.emit(event, [entry(true)]);
     expect((await session.before()).systemPrompt[1]).toContain("poteto-mode is PINNED");
+  }
+});
+
+test("/poteto-mode <task> pins the session and starts the task", async () => {
+  const session = host(false);
+  await session.start();
+  await session.command("  Fix the bug in parser.ts ");
+  expect(session.sent).toHaveLength(1);
+  expect(session.sent[0].text).toBe("Fix the bug in parser.ts");
+  expect(session.sent[0].options?.deliverAs).toBeUndefined();
+  expect(await session.before()).toBeDefined();
+});
+
+test("/poteto-mode <task> queues the task as a follow-up while a turn is running", async () => {
+  const session = host(false);
+  await session.start();
+  session.busy();
+  await session.command("fix the bug");
+  expect(session.sent).toEqual([{ text: "fix the bug", options: { deliverAs: "followUp" } }]);
+});
+
+test("/poteto-mode status sends nothing and leaves the pin where it was", async () => {
+  for (const flag of [true, false]) {
+    const session = host(flag);
+    await session.start();
+    await session.command("status");
+    expect(session.sent).toEqual([]);
+    expect((await session.before()) !== undefined).toBe(flag);
   }
 });

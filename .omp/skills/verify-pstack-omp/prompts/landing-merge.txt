@@ -1,0 +1,1 @@
+tool:bash {"command":"gh pr merge 1 --repo pstack-verify/no-such-repo --squash","i":"Merging the verification PR"}

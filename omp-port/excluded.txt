@@ -1,0 +1,7 @@
+# Upstream paths under pstack/ the port does not ship, one per line, relative to plugins/pstack.
+# extract_upstream deletes each one right after the export, so no rule, patch, or probe sees its
+# text. `excluded paths` in check-port.sh fails when one is in the tree or a tree file names it.
+#
+# Upstream's setup-pstack writes a Cursor rules file. pstack on omp needs no model configuration,
+# and the Choose models section of skills/omp-mechanics/SKILL.md says how to pick models by hand.
+skills/setup-pstack

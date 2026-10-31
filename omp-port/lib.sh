@@ -52,11 +52,24 @@ ensure_canon() {
 	done
 }
 
-# Step 1, upstream text as it is, with pstack/ stripped so skills and agents land at the root.
+# excluded.txt is one upstream path per line, relative to plugins/pstack, that the port does not
+# ship. Comments and blanks are the file's, as in owned.txt.
+EXCLUDED_FILE="${EXCLUDED:-$PORT_DIR/excluded.txt}"
+excluded_paths() {
+	[ -f "$EXCLUDED_FILE" ] || return 0
+	awk '{ sub(/#.*/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, "") } $0 != ""' "$EXCLUDED_FILE"
+}
+
+# Step 1, upstream text as it is, with pstack/ stripped so skills and agents land at the root and
+# the excluded paths deleted. Deleting them here rather than after the build keeps them out of every
+# probe as well, so a rule that only an excluded file matched reads as stale.
 extract_upstream() {
-	local sha="$1" work="$2"
+	local sha="$1" work="$2" p
 	git -C "$CANON" archive "$sha" pstack/skills pstack/agents |
 		tar -x --strip-components=1 -C "$work" || return 1
+	while IFS= read -r p; do
+		rm -rf "${work:?}/$p" || return 1
+	done < <(excluded_paths)
 	[ -d "$work/skills" ] && [ -d "$work/agents" ]
 }
 

@@ -103,9 +103,13 @@ question locally:
 bash omp-port/check-port.sh "" "$(gh api 'repos/cursor/plugins/commits?path=pstack&sha=main&per_page=1' --jq '.[0].sha')"
 ```
 
-The gate runs as its own workflow, `gate.yml`, on every pull request and on every push to `main`. A
-PR opened with `github.token` does not trigger `pull_request` workflows, so the sync PR carries the
-gate output in its body and the `push` to `main` run after the merge is the backstop.
+The gate runs as its own workflow, `gate.yml`, on every pull request and on every push to `main`.
+Neither trigger gated the two syncs the bot merged, #19 and #32. Each PR got a `pull_request` run
+that ended with no jobs a second after the merge, and the merge, made with `github.token`, started
+no `push` run. So `upstream-sync` calls `gate.yml` itself, as a reusable workflow on the sync
+commit, and its `merge` job runs only after that call passes. A sync that fails the build,
+`check-port.sh`, or `gate.yml` stays open for a human, and later runs stop at the open-PR guard
+until someone resolves it.
 
 Never substitute the `backnotprop/pstack` mirror for upstream.
 

@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# Drives the pstack plugin inside a real, isolated omp TUI. ../SKILL.md is the workflow.
+#
+#   control-pstack launch <run> [--grant] [-- <extra omp flags>]
+#   control-pstack doctor <run>
+#   control-pstack type <run> <text>            types literal text into the omp editor
+#   control-pstack type-file <run> <file>       types the file's first line
+#   control-pstack press <run> <tmux-key>...    Enter, Escape, Tab, C-c, ...
+#   control-pstack wait <run> <ere> [seconds]   waits for a match the pane lacked at the last press, default 30s
+#   control-pstack capture <run> <name>         pane, model log, and gh calls into the evidence dir
+#   control-pstack clone <run>                  throwaway clone of this checkout's HEAD for the port CLI
+#   control-pstack evidence <run>               creates and prints the evidence dir
+#   control-pstack cleanup <run>
+#
+# VERIFY_OMP_BIN picks the omp binary (default: omp on PATH). VERIFY_PSTACK_PLUGIN picks the plugin
+# tree (default: plugins/pstack in this checkout). VERIFY_PSTACK_EVIDENCE moves the evidence root.
+set -euo pipefail
+
+die() { printf 'control-pstack: %s\n' "$*" >&2; exit 1; }
+[ $# -ge 2 ] || die "usage: control-pstack launch|doctor|type|type-file|press|wait|capture|clone|evidence|cleanup <run> ..."
+verb=$1 run=$2
+shift 2
+[[ $run =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]] || die "run id must be 1-40 chars of [a-z0-9-], got '$run'"
+
+here=$(cd "$(dirname "$0")" && pwd)
+plugin=${VERIFY_PSTACK_PLUGIN:-$(git -C "$here" rev-parse --show-toplevel)/plugins/pstack}
+omp_bin=${VERIFY_OMP_BIN:-$(command -v omp || true)}
+scratch=${TMPDIR:-/tmp}/verify-pstack-omp-$run
+evidence=${VERIFY_PSTACK_EVIDENCE:-${XDG_STATE_HOME:-$HOME/.local/state}/verify-pstack-omp}/$run
+marker="HOME=$scratch/home"
+
+tm() { tmux -L "verify-pstack-omp-$run" -f /dev/null "$@"; }
+note() { mkdir -p "$evidence" && printf '%s\t%s\n' "$(date -Is)" "$*" >>"$evidence/actions.log"; }
+pane() { tm capture-pane -t omp -p -J -S -; }
+omp_pid() { tm display-message -p -t omp '#{pane_pid}'; }
+
+# Every process this run started carries the scratch HOME, omp's worker daemons included, and no
+# other process on the host can.
+ours() {
+	local p
+	for p in /proc/[0-9]*; do
+		tr '\0' '\n' 2>/dev/null <"$p/environ" | grep -qxF "$marker" && printf '%s\n' "${p#/proc/}"
+	done
+	return 0
+}
+
+# Pane text accumulates, so a pattern from an earlier turn would satisfy a plain grep at once. A wait
+# succeeds only when the pane holds more matching lines than it did when the last press was sent.
+matches() { grep -cE -- "$1" || true; }
+wait_for() {
+	local ere=$1 limit=$2 waited=0 before=0
+	[ ! -f "$scratch/pressed.txt" ] || before=$(matches "$ere" <"$scratch/pressed.txt")
+	until [ "$(pane | matches "$ere")" -gt "$before" ]; do
+		if [ "$waited" -ge $((limit * 2)) ]; then
+			pane | grep -v '^[[:space:]]*$' | tail -n 20 >&2
+			die "pane gained no line matching /$ere/ within ${limit}s"
+		fi
+		sleep 0.5
+		waited=$((waited + 1))
+	done
+}
+
+launch() {
+	local grant=() extra=()
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--grant) grant=(PSTACK_LANDING_GRANT=1) ;;
+		--) shift; extra=("$@"); break ;;
+		*) die "launch: unknown argument '$1'" ;;
+		esac
+		shift
+	done
+	[ -x "$omp_bin" ] || die "no omp binary; set VERIFY_OMP_BIN"
+	[ -f "$plugin/package.json" ] || die "no plugin tree at $plugin"
+	[ ! -e "$scratch" ] || die "$scratch exists; run 'control-pstack cleanup $run' first"
+	! tm has-session 2>/dev/null || die "tmux server verify-pstack-omp-$run is already running"
+
+	mkdir -p "$scratch"/{home/.omp/agent,work,bin} "$evidence"
+	printf 'setupVersion: 2\n' >"$scratch/home/.omp/agent/config.yml"
+	printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>%q\necho "gh-shim: $*"\n' "$scratch/gh-calls.log" >"$scratch/bin/gh"
+	chmod +x "$scratch/bin/gh"
+
+	tm new-session -d -s model -x 200 -y 10 \
+		env -i "$marker" PATH=/usr/local/bin:/usr/bin:/bin "$(command -v bun)" "$here/scripted-model.mjs" "$scratch"
+	local i
+	for i in $(seq 50); do [ -s "$scratch/model.port" ] && break; sleep 0.1; done
+	[ -s "$scratch/model.port" ] || die "scripted model did not start; see 'tmux -L verify-pstack-omp-$run attach -t model'"
+	cat >"$scratch/home/.omp/agent/models.yml" <<-EOF
+		providers:
+		  verify:
+		    baseUrl: http://127.0.0.1:$(cat "$scratch/model.port")/v1
+		    auth: none
+		    api: openai-completions
+		    models:
+		      - id: scripted
+	EOF
+
+	tm new-session -d -s omp -x 200 -y 50 -c "$scratch/work" \
+		env -i "$marker" USER="$USER" TERM=tmux-256color LANG="${LANG:-C.UTF-8}" SHELL=/bin/bash \
+		PATH="$scratch/bin:/usr/local/bin:/usr/bin:/bin" "${grant[@]}" \
+		"$omp_bin" --no-session --no-title --no-lsp --no-rules --no-extensions \
+		--plugin-dir "$plugin" -e "$plugin" --model verify/scripted --approval-mode yolo "${extra[@]}"
+	note launch "grant=${grant[*]:-none}" "extra=${extra[*]:-none}"
+	wait_for ' scripted > ' 30
+	printf 'run\t%s\nomp\t%s %s\nplugin\t%s\nplugin_head\t%s\ngrant\t%s\nextra\t%s\nscratch\t%s\n' \
+		"$run" "$omp_bin" "$("$omp_bin" --version)" "$plugin" \
+		"$(git -C "$plugin" rev-parse HEAD) $(git -C "$plugin" status --porcelain -- . | wc -l) dirty" \
+		"${grant[*]:-none}" "${extra[*]:-none}" "$scratch" >"$evidence/launch.txt"
+	printf 'ready: tmux -L verify-pstack-omp-%s attach -t omp\nevidence: %s\n' "$run" "$evidence"
+}
+
+doctor() {
+	local bad=0 pid env
+	check() { if eval "$2"; then printf 'ok    %s\n' "$1"; else printf 'FAIL  %s\n' "$1"; bad=1; fi; }
+	check "tmux server verify-pstack-omp-$run has sessions model and omp" \
+		'tm has-session -t model 2>/dev/null && tm has-session -t omp 2>/dev/null'
+	[ $bad -eq 0 ] || exit 1
+	pid=$(omp_pid)
+	env=$(tr '\0' '\n' 2>/dev/null <"/proc/$pid/environ" || true)
+	check "omp pane process $pid is alive" '[ "$(tm display-message -p -t omp "#{pane_dead}")" = 0 ]'
+	check "pane runs $omp_bin ($("$omp_bin" --version))" \
+		'[ "$(tr "\0" " " </proc/$pid/cmdline | cut -d" " -f1)" = "$omp_bin" ]'
+	check "omp loads $plugin" 'tr "\0" "\n" </proc/$pid/cmdline | grep -qxF "$plugin"'
+	check "omp HOME is the scratch home" 'grep -qxF "$marker" <<<"$env"'
+	check "omp env carries no credential or omp root variable" \
+		'! grep -qiE "^(OMP_|PI_|XDG_|CLAUDE_CONFIG_DIR=)|API_KEY|TOKEN|SECRET|PASSWORD" <<<"$env"'
+	check "scripted model answers on port $(cat "$scratch/model.port" 2>/dev/null)" \
+		'[ "$(curl -fsS "http://127.0.0.1:$(cat "$scratch/model.port")/health")" = ok ]'
+	check "status line shows the scripted model" 'pane | grep -q " scripted > "'
+	printf 'grant %s\n' "$(grep -q '^PSTACK_LANDING_GRANT=1$' <<<"$env" && echo armed || echo absent)"
+	exit $bad
+}
+
+capture() {
+	local name=${1:?capture needs a name}
+	mkdir -p "$evidence"
+	pane >"$evidence/$name.pane.txt"
+	cp "$scratch/model-requests.jsonl" "$evidence/$name.model-requests.jsonl" 2>/dev/null || : >"$evidence/$name.model-requests.jsonl"
+	cp "$scratch/gh-calls.log" "$evidence/$name.gh-calls.log" 2>/dev/null || : >"$evidence/$name.gh-calls.log"
+	note capture "$name"
+	wc -l "$evidence/$name".*
+}
+
+cleanup() {
+	local left i sock="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)/verify-pstack-omp-$run"
+	note cleanup
+	tm kill-server 2>/dev/null || true
+	[ ! -S "$sock" ] || rm -f -- "$sock"
+	for i in $(seq 20); do
+		left=$(ours)
+		[ -n "$left" ] || break
+		if [ "$i" -eq 10 ]; then
+			printf 'terminating stragglers with %s: %s\n' "$marker" "$(tr '\n' ' ' <<<"$left")"
+			kill $left 2>/dev/null || true
+		fi
+		sleep 0.5
+	done
+	if [ -d "$scratch" ]; then
+		mkdir -p "$evidence"
+		cp -r "$scratch/home/.omp/logs" "$evidence/omp-logs" 2>/dev/null || true
+		rm -rf -- "$scratch"
+	fi
+	left=$(ours)
+	[ -z "$left" ] || die "processes still carry $marker: $left"
+	printf 'gone: %s, tmux server verify-pstack-omp-%s, processes with %s\nevidence kept at %s:\n' "$scratch" "$run" "$marker" "$evidence"
+	ls -la "$evidence"
+}
+
+case $verb in
+launch) launch "$@" ;;
+doctor) doctor ;;
+type) note type "$*"; tm send-keys -t omp -l -- "$*" ;;
+type-file) note type-file "$1"; tm send-keys -t omp -l -- "$(head -n 1 "$1")" ;;
+press) note press "$*"; pane >"$scratch/pressed.txt"; tm send-keys -t omp "$@" ;;
+wait) wait_for "$1" "${2:-30}" ;;
+capture) capture "$@" ;;
+clone)
+	[ ! -e "$scratch" ] || die "$scratch exists; run 'control-pstack cleanup $run' first"
+	mkdir -p "$scratch"
+	git clone -q "$(git -C "$here" rev-parse --show-toplevel)" "$scratch/repo"
+	note clone "$(git -C "$scratch/repo" rev-parse HEAD)"
+	printf '%s\n' "$scratch/repo"
+	;;
+evidence) mkdir -p "$evidence" && printf '%s\n' "$evidence" ;;
+cleanup) cleanup ;;
+*) die "unknown verb '$verb'" ;;
+esac

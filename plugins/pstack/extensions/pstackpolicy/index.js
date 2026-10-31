@@ -31,26 +31,26 @@
 //   PSTACK_LANDING_GRANT=1   allow the forge mutations below for this process
 //
 // Three shapes of rule, because no one shape covers the ground. The `gh` rules are regexes, so
-// they have to tolerate global flags between the binary and the subcommand -- `gh --repo o/r pr
-// merge` is the documented way to target a non-default repo and the port uses it constantly,
-// and anchoring on `gh pr` alone let every one of them through. The `git push` and
-// `git branch -D` rules are token scans, because "does this push land on trunk" is a question
-// about refspecs, not a substring: `git push origin HEAD:main` moves trunk with no force flag
-// at all, which a force-token regex cannot see, and a naive trunk-word lookahead then blocks
-// `feature/main-menu`. And both of those token scans have to read past git's global options,
-// because `git -C <dir> push ...` and `/usr/bin/git push ...` are the same push; a scan keyed on
-// two adjacent raw tokens of exactly `git` then `push` was proven to let
+// they have to tolerate flags on both sides of the command group. `gh --repo o/r pr merge` is
+// the documented way to target a non-default repo and the port uses it constantly, gh reads
+// `gh pr -R o/r merge` as the same merge, and anchoring on `gh pr merge` let both through. The
+// `git push` and `git branch -D` rules are token scans, because "does this push land on trunk"
+// is a question about refspecs, not a substring: `git push origin HEAD:main` moves trunk with no
+// force flag at all, which a force-token regex cannot see, and a naive trunk-word lookahead then
+// blocks `feature/main-menu`. And both of those token scans have to read past git's global
+// options, because `git -C <dir> push ...` and `/usr/bin/git push ...` are the same push; a scan
+// keyed on two adjacent raw tokens of exactly `git` then `push` was proven to let
 // `git -C /tmp/bypass/work push -q origin HEAD:trunk` create a branch on a real remote.
 
 const GRANT = "PSTACK_LANDING_GRANT";
 
 const TRUNK = new Set(["main", "master", "trunk", "develop", "release"]);
 
-// Regexes cannot read a Set, and two rules have to name trunk inside a pattern.
+// Regexes cannot read a Set, and some rules have to name trunk inside a pattern.
 const TRUNK_ALT = [...TRUNK].join("|");
 
-// gh accepts global flags before the subcommand. Each rule permits any number of them, including
-// `--repo owner/name`, which is the form the port actually uses.
+// gh accepts flags before the command group and between the group and its verb. Each rule
+// permits any number of them, including `--repo owner/name`, which is the form the port uses.
 const GH_FLAGS = String.raw`(?:\s+(?:-[A-Za-z]|[-]{2}[A-Za-z][\w-]*)(?:[= ]\S+)?)*`;
 
 // Any run of characters that is not a newline, except a backslash immediately followed by one. A
@@ -58,7 +58,16 @@ const GH_FLAGS = String.raw`(?:\s+(?:-[A-Za-z]|[-]{2}[A-Za-z][\w-]*)(?:[= ]\S+)?
 // the flag it gates sits on the far side of the continuation.
 const CONT = String.raw`(?:[^\n\\]|\\\n)*`;
 
-// Two normalisations, because these rules match text and the text is not always a shell line.
+const gh = (group, verbs) =>
+  String.raw`\bgh\b${GH_FLAGS}\s+(?:${group})${GH_FLAGS}\s+(?:${verbs})\b`;
+
+const GH_API = String.raw`\bgh\b${GH_FLAGS}\s+api\b`;
+
+// Every API spelling of a merge: the pull request and branch merge endpoints, and the GraphQL
+// mutations that merge or arm a merge.
+const API_MERGE = String.raw`\/merges?\b|mergePullRequest|mergeBranch|enablePullRequestAutoMerge`;
+
+// Three normalisations, because these rules match text and the text is not always a shell line.
 //
 // Quotes are syntax once the shell or the host language has read them, so `gh "pr" merge 12` is
 // `gh pr merge 12` and `'HEAD:main'` is one refspec. And inside an `eval` cell the command is
@@ -67,63 +76,71 @@ const CONT = String.raw`(?:[^\n\\]|\\\n)*`;
 // what separated nothing in a shell line. Both are rewritten to a space. Only the loose direction
 // is taken: an unpaired quote is left alone, and a comma between two branch names becomes two
 // branch names, which this scan already treats as two refspecs.
+//
+// A backtick substitution becomes `$` and its command, the text a `$(...)` leaves once its
+// brackets go. So `` `git push origin main` `` is still a push, and a refspec built from one reads
+// as a value the shell fills in when it runs.
 const normalize = (command) =>
   command
     .replace(/(["'])([^"'\n]*)\1\s*,?/g, "$2 ")
+    .replace(/`([^`]*)`/g, "$$ $1 ")
     .replace(/[()[\]{},]/g, " ");
 
 const FORBIDDEN = [
+  // Ahead of the plain merge rule, which matches every `--auto` merge as well.
   [
-    "merging a pull request",
-    new RegExp(String.raw`\bgh\b${GH_FLAGS}\s+pr\s+merge\b`),
-  ],
-  [
-    "merging a pull request through the API",
+    "armoring merge-when-ready",
     new RegExp(
-      String.raw`\bgh\b${GH_FLAGS}\s+api\b${CONT}(?:\/pulls\/\d+\/merge|mergePullRequest|\/merge\b)`
+      String.raw`${gh("pr", "merge")}${CONT}--auto\b|${GH_API}${CONT}enablePullRequestAutoMerge`
     ),
   ],
+  ["merging a pull request", new RegExp(gh("pr", "merge"))],
+  ["merging through the API", new RegExp(String.raw`${GH_API}${CONT}(?:${API_MERGE})`)],
   [
     "closing, reopening, or deleting a pull request, issue, or thread",
     new RegExp(
-      String.raw`\bgh\b${GH_FLAGS}\s+(pr|issue)\s+(close|reopen|delete)\b|\bgh\b${GH_FLAGS}\s+api\b${CONT}(?:-X\s*DELETE[^\n]*\/(issues|pulls|git\/refs)|state\s*=\s*closed|closePullRequest|closeIssue)`
+      String.raw`${gh("pr|issue", "close|reopen|delete")}|${GH_API}${CONT}(?:-X\s*DELETE[^\n]*\/(issues|pulls|git\/refs)|state\s*=\s*closed|closePullRequest|closeIssue)`
     ),
   ],
   [
+    "moving a trunk branch through the API",
+    // The ref is a path, so the method decides. gh api sends GET unless told otherwise, and a
+    // PATCH to a feature ref is the API's feature-branch force push, which stays allowed.
+    new RegExp(
+      String.raw`${GH_API}(?=${CONT}\s(?:-X\s*|--method[= ]\s*)(?!GET\b)[A-Za-z])${CONT}\bgit\/refs\/heads\/(?:${TRUNK_ALT})(?![\w/-])`
+    ),
+  ],
+  [
+    "moving or deleting a ref through the GraphQL API, which may be trunk",
+    // GraphQL names the ref by node ID or inside an input list, so no text rule can tell trunk
+    // from a feature branch. Every ref update or delete is refused wherever it points.
+    new RegExp(String.raw`(?:${GH_API}|\bcurl\b)${CONT}\b(?:updateRefs?|deleteRef)\b`),
+  ],
+  [
     "retargeting a pull request base, which rewrites the whole stack under it",
-    new RegExp(String.raw`\bgh\b${GH_FLAGS}\s+pr\s+edit\b${CONT}--base\b`),
+    new RegExp(String.raw`${gh("pr", "edit")}${CONT}--base\b`),
   ],
   [
     "posting a review or resolving a review thread",
     new RegExp(
-      String.raw`\bgh\b${GH_FLAGS}\s+pr\s+review\b|\bgh\b${GH_FLAGS}\s+api\b${CONT}(?:-X\s*POST[^\n]*(?:\/reviews|pulls\/\d+\/(comments|reviews))|resolveReviewThread|addPullRequestReview)`
+      String.raw`${gh("pr", "review")}|${GH_API}${CONT}(?:-X\s*POST[^\n]*(?:\/reviews|pulls\/\d+\/(comments|reviews))|resolveReviewThread|addPullRequestReview)`
     ),
-  ],
-  [
-    "armoring merge-when-ready",
-    new RegExp(String.raw`\bgh\b${GH_FLAGS}\s+pr\s+merge\b${CONT}--(?:auto|auto-merge)\b`),
   ],
   // The enumeration below used to stop at the verbs the port happened to use, so every other
   // forge mutation gh ships was a clean pass: `gh repo delete` destroys the repository the whole
   // stack lives in, and a release publish or a secret write is not undoable from a later step.
-  [
-    "deleting the repository",
-    new RegExp(String.raw`\bgh\b${GH_FLAGS}\s+repo\s+(delete|remove|rm)\b`),
-  ],
-  [
-    "publishing, replacing, or deleting a release",
-    new RegExp(String.raw`\bgh\b${GH_FLAGS}\s+release\s+(create|delete|upload)\b`),
-  ],
+  ["deleting the repository", new RegExp(gh("repo", "delete|remove|rm"))],
+  ["publishing, replacing, or deleting a release", new RegExp(gh("release", "create|delete|upload"))],
   [
     "writing a secret or a deployment variable on the forge",
-    new RegExp(String.raw`\bgh\b${GH_FLAGS}\s+(secret|variable)\s+(set|delete)\b`),
+    new RegExp(gh("secret|variable", "set|delete")),
   ],
   [
     "running a workflow against a trunk branch",
     // `--ref` is the trigger, and the ref is what decides: `gh workflow run ci.yml --ref
     // feature/x` is the port's own CI path and stays allowed.
     new RegExp(
-      String.raw`\bgh\b${GH_FLAGS}\s+workflow\s+run\b${CONT}(?:--ref|-r)(?![A-Za-z0-9-])[= ]+["']?(?:${TRUNK_ALT})(?![\w-])`
+      String.raw`${gh("workflow", "run")}${CONT}(?:--ref|-r)(?![A-Za-z0-9-])[= ]+["']?(?:${TRUNK_ALT})(?![\w-])`
     ),
   ],
   [
@@ -131,21 +148,32 @@ const FORBIDDEN = [
     // Same request as the `gh api` rules above, and equally available with the token already in
     // the environment. The trigger is the method or a request body, since curl POSTs by default.
     new RegExp(
-      String.raw`\bcurl\b${CONT}(?:(?:-X|--request)\s*[A-Za-z]+|--data[\s=])${CONT}(?:\/pulls\/\d+\/merge|\/merge\b|mergePullRequest|state\s*=\s*closed|\/git\/refs)`,
+      String.raw`\bcurl\b${CONT}(?:(?:-X|--request)\s*[A-Za-z]+|--data[\s=])${CONT}(?:${API_MERGE}|state\s*=\s*closed|\/git\/refs)`,
       "i"
     ),
   ],
   [
     "merging through Graphite",
-    new RegExp(String.raw`\bgt\s+(submit|rebase|restack)\b`),
+    new RegExp(String.raw`\bgt\s+(submit|rebase|restack|merge)\b`),
   ],
 ];
 
+// `;`, `|` and `&` end a shell word and the simple command it is in, except inside a redirection:
+// the `&` of `2>&1`, `<&` or `&>`, and the `|` of `>|`.
+function separates(text, i) {
+  const ch = text[i];
+  if (ch === ";") return true;
+  if (ch === "|") return text[i - 1] !== ">";
+  if (ch === "&") return !/[<>]/.test(text[i - 1] ?? "") && text[i + 1] !== ">";
+  return false;
+}
+
 /**
- * Shell-shaped tokeniser: whitespace separates, single and double quotes group, a backslash
- * escapes the next character and a backslash-newline disappears. Quotes are stripped, because
- * `'HEAD:main'` and `HEAD:main` are one refspec to git and the strip is what lets the refspec
- * rules see the colon.
+ * Shell-shaped tokeniser: whitespace and the separators above end a word, single and double
+ * quotes group, a backslash escapes the next character and a backslash-newline disappears. Quotes
+ * are stripped, because `'HEAD:main'` and `HEAD:main` are one refspec to git and the strip is what
+ * lets the refspec rules see the colon. A glued `;` is not part of the word, so
+ * `(git push origin main; true)` pushes `main`, not `main;`.
  */
 function shellTokens(command) {
   const out = [];
@@ -182,7 +210,7 @@ function shellTokens(command) {
       open = true;
       continue;
     }
-    if (/\s/.test(ch)) {
+    if (/\s/.test(ch) || separates(command, i)) {
       if (open) out.push(current);
       current = "";
       open = false;
@@ -192,6 +220,60 @@ function shellTokens(command) {
     open = true;
   }
   if (open) out.push(current);
+  return out;
+}
+
+/**
+ * The simple commands in a command line, cut where the shell ends one: `&&`, `||`, `;`, `|`, `&`
+ * and newline. A push's refspecs end with its own command, so `git push origin feature && git
+ * rev-parse HEAD` is a feature push and a read, not a push of HEAD. A subshell or brace group cuts
+ * the same way, so `(cd x && git push origin feature && git rev-parse HEAD)` reads the same.
+ *
+ * Every miss leaves text joined, which fails closed. Nothing inside quotes, backticks, a
+ * substitution or a list literal is cut, so the `;` in `$(echo; echo main)` and the newlines of a
+ * list literal stay with the push they feed, and the `&` of `2>&1` or `&>` is a redirection, not a
+ * separator. A comment is dropped up to its newline, quotes and all, so the apostrophe in
+ * `# don't` opens nothing. A heredoc body gets no exception: each line is scanned as its own
+ * command, because `bash <<EOF` runs it.
+ */
+function simpleCommands(command) {
+  const out = [];
+  let kept = "";
+  let start = 0;
+  let quote = null;
+  // One entry per open bracket. A subshell or brace group is true, because the shell still
+  // separates the commands inside it. A substitution or list literal is false, because its text
+  // feeds one command.
+  const brackets = [];
+  const cut = (at) => {
+    out.push(kept + command.slice(start, at));
+    kept = "";
+    start = at + 1;
+  };
+  for (let i = 0; i < command.length; i += 1) {
+    const ch = command[i];
+    if (quote === "'") {
+      if (ch === "'") quote = null;
+    } else if (ch === "\\") {
+      i += 1;
+    } else if (quote) {
+      if (ch === quote) quote = null;
+    } else if (ch === "'" || ch === '"' || ch === "`") {
+      quote = ch;
+    } else if (ch === "#" && /^$|[\s;&|()]/.test(command[i - 1] ?? "")) {
+      kept += command.slice(start, i);
+      start = command.indexOf("\n", i);
+      if (start < 0) start = command.length;
+      i = start - 1;
+    } else if ("([{".includes(ch)) {
+      brackets.push(ch !== "[" && /^[\s({]*$/.test(kept + command.slice(start, i)));
+    } else if (")]}".includes(ch)) {
+      brackets.pop();
+    } else if (brackets.every(Boolean) && (ch === "\n" || separates(command, i))) {
+      cut(i);
+    }
+  }
+  out.push(kept + command.slice(start));
   return out;
 }
 
@@ -232,15 +314,38 @@ function gitSubcommand(tokens, start) {
   return -1;
 }
 
-/** Every `git <subcommand>` in the command, with its arguments and no global options. */
+/** Every `git <subcommand>` in the command, with the arguments its own simple command gives it. */
 function eachGitCommand(command, visit) {
-  const tokens = shellTokens(command);
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (!GIT_BASENAME.test(tokens[i])) continue;
-    const at = gitSubcommand(tokens, i);
-    if (at < 0) continue;
-    visit(tokens[at], tokens.slice(at + 1));
+  for (const simple of simpleCommands(command)) {
+    const tokens = shellTokens(normalize(simple));
+    for (let i = 0; i < tokens.length; i += 1) {
+      if (!GIT_BASENAME.test(tokens[i])) continue;
+      const at = gitSubcommand(tokens, i);
+      if (at < 0) continue;
+      visit(tokens[at], tokens.slice(at + 1));
+    }
   }
+}
+
+// A redirection with its target glued on, and an operator alone, whose target is the next token.
+// The target names a file, not a refspec.
+const REDIRECTION = /^(?:\d+|&)?[<>]/;
+const REDIRECTION_ALONE = /^(?:\d+|&)?[<>]+[&|]?$/;
+
+/**
+ * Why a push destination may be trunk although it names no trunk branch, or null.
+ *
+ * `HEAD` is whatever this checkout is on, which from a trunk checkout is trunk, and `git push
+ * origin HEAD` is the idiom an agent actually writes. `$` opens a parameter or command
+ * substitution, and normalize spells a backtick one with `$` too, so the shell fills the name in
+ * when it runs. `*` is a pattern git matches against every local branch.
+ */
+function unreadable(dest) {
+  if (dest === "HEAD") return "pushing the current branch, which may be trunk";
+  if (/[$*]/.test(dest)) {
+    return "pushing a refspec that resolves only when it runs, which may be trunk";
+  }
+  return null;
 }
 
 /**
@@ -249,9 +354,13 @@ function eachGitCommand(command, visit) {
  * Deliberately blocks every push whose refspec lands on a trunk branch, not only forced ones:
  * the port's own pause list now names "pushing to trunk" as irreversible, and a plain
  * `git push origin HEAD:main` does that with no force flag to key on. A push to a feature branch
- * is the port's normal rebase flow and stays allowed.
+ * is the port's normal rebase flow and stays allowed. A destination this scan cannot read is
+ * refused too, but only once no refspec is certainly trunk, so the reason names the surest one.
  */
-function pushRefuse(args) {
+function pushRefuse(argv) {
+  const args = argv.filter(
+    (token, i) => !REDIRECTION.test(token) && !REDIRECTION_ALONE.test(argv[i - 1] ?? "")
+  );
   const has = (token) => args.includes(token);
   if (has("--dry-run") || has("-n")) return null;
   if (has("--mirror") || has("--all") || has("--tags")) {
@@ -260,6 +369,7 @@ function pushRefuse(args) {
   if (has("--delete")) return "deleting a branch on the forge";
   const forced = args.some((t) => /^--force/.test(t) || t === "-f");
   let sawRefspec = false;
+  let unsure = null;
   // The first bare, colon-free, non-HEAD token is the remote name, not a refspec. Counting it as
   // one made `git push origin` look like a push with a destination.
   const bare = args.filter((t) => !t.startsWith("-"));
@@ -268,31 +378,22 @@ function pushRefuse(args) {
     // `:branch` is git's refspec delete form; it carries no --delete flag.
     if (token.startsWith(":")) return "deleting a branch on the forge";
     if (token.startsWith("-")) continue;
-    if (!token.includes(":")) {
-      if (!remoteSeen) {
-        remoteSeen = true;
-        continue;
-      }
-      // A bare destination, or HEAD, is whatever this checkout is on. From a trunk checkout that
-      // is trunk, and there is nothing in the command to tell, so it is treated as trunk-risky
-      // rather than allowed. `git push origin HEAD` is the idiom an agent actually writes.
-      sawRefspec = true;
-      // A leading `+` is git's own force spelling, and the destination can still be trunk.
-      const bareDest = token.replace(/^\+/, "").replace(/^refs\/heads\//, "");
-      if (bareDest === "HEAD") return "pushing the current branch, which may be trunk";
-      if (TRUNK.has(bareDest)) {
-        return forced ? "rewriting history on a trunk branch" : "pushing to trunk";
-      }
+    if (!remoteSeen && !token.includes(":")) {
+      remoteSeen = true;
       continue;
     }
     sawRefspec = true;
-    const afterColon = token.slice(token.lastIndexOf(":") + 1);
-    const clean = afterColon.replace(/^\+/, "").replace(/^refs\/heads\//, "");
-    if (TRUNK.has(clean)) {
-      return forced ? "rewriting history on a trunk branch" : "pushing to trunk";
-    }
+    // The destination follows the last colon, or is the whole token. A leading `+` is git's own
+    // force spelling, and the destination can still be trunk.
+    const dest = token
+      .slice(token.lastIndexOf(":") + 1)
+      .replace(/^\+/, "")
+      .replace(/^refs\/heads\//, "");
+    if (TRUNK.has(dest)) return forced ? "rewriting history on a trunk branch" : "pushing to trunk";
+    unsure ??= unreadable(dest);
   }
-  // No refspec at all: `git push` with only flags, or `git push origin`. Same reasoning.
+  if (unsure) return unsure;
+  // No refspec at all: `git push` with only flags, or `git push origin`. Same reasoning as HEAD.
   if (!sawRefspec) return "pushing without an explicit refspec, which may be trunk";
   return null;
 }
@@ -339,8 +440,6 @@ function localDestruction(command) {
   return why;
 }
 
-export const DENY_REASONS = FORBIDDEN.map(([why]) => why);
-
 function granted() {
   const raw = process.env[GRANT];
   // Anything but an explicit affirmative is absent. A stray "0" or "false" must not read as
@@ -370,9 +469,9 @@ export default function pstackpolicy(pi) {
 
     const text = normalize(command);
     const why =
-      pushOffence(text) ??
+      pushOffence(command) ??
       (FORBIDDEN.find(([, pattern]) => pattern.test(text)) ?? null)?.[0] ??
-      localDestruction(text);
+      localDestruction(command);
 
     if (why) {
       return {

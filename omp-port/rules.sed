@@ -5,8 +5,9 @@
 # mechanic it maps to. This file replaces PORTING.md's substitution table: the table is here now.
 # Order is load-bearing in three places, each marked below.
 #
-# Owned prose lives in the three skill paths named by omp-port/owned.txt. Script changes live in
-# omp-port/patches. Neither belongs here.
+# Owned prose lives in the two skill paths named by omp-port/owned.txt. Script changes live in
+# omp-port/patches. Upstream paths the port does not ship are in omp-port/excluded.txt. None of
+# these belongs here.
 
 ## 1. Whole-sentence rewrites, which must read raw upstream text before any token rule edits it.
 
@@ -26,22 +27,25 @@ s#^Each reviewer gets `subagent_type: generalPurpose`, `readonly: true`, and `mo
 s#^\| Subagent \| Default model \|$#| Reviewer slot | Runtime agent |#
 s#^\| Reviewer A \| `[^`]+` \|$#| Reviewer A | discovered reviewer agent or default worker |#
 s#^\| Reviewer B \| `[^`]+` \|$#| Reviewer B | independently configured reviewer agent or default worker; report unavailable diversity |#
+s#Read the `interrogate reviewers` line in place of `arena runners`\.#Use exact discovered review-capable agents in place of Arena's runners. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects its model.#
+s#Spawn each adversary as `generalPurpose`\.#Use exact discovered review-capable agents, or omit `agent` for the default worker with the adversary brief.#
 # Reasoning and speed are configured role properties, not routed-skill task fields. The router's
 # paragraph tunes a per-call Cursor slug and retries a family default on rejection; omp's task item
 # takes no model, and its only per-spawn knob is the gated `effort` field.
-s#Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the \*\*poteto-mode\*\* skill\.#Use the reasoning and speed already selected by agent frontmatter or exact `task.agentModelOverrides` entries. Do not change operator configuration to satisfy a skill example.#g
+s#Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section[^.]*\.#Use the reasoning and speed already selected by agent frontmatter or exact `task.agentModelOverrides` entries. Do not change operator configuration to satisfy a skill example.#g
 s#^\*\*Match the model to the job\.\*\*.*$#**Match the role to the job.** Resolve the required capability against the live agent roster and use that agent's configured reasoning and speed. Pass a per-spawn `effort` only when the live task schema exposes it. Agent frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model. Do not adjust a per-call slug, retry a family default, or change operator configuration to satisfy an example. Report unavailable diversity honestly.#
 # Poteto help's install, model defaults, pin UI, and guide links describe Cursor. On omp the install
 # is the marketplace, the model map is config.yml, and the pin is the potetomode extension's
 # `/poteto-mode on|off|status`, `alt+shift+t`, and `--poteto` flag. These run before the
 # `/skill:<name>` rule, which would otherwise rewrite the `/poteto-mode` their left sides quote.
 s#^1\. Install with `/add-plugin pstack` in chat, or from Customize in the sidebar\.$#1. Install with `/marketplace add negoro26/pstack-omp`, then `/marketplace install pstack@pstack-omp`.#
-s#^2\. Run \[`/setup-pstack`\].*$#2. Run [`/setup-pstack`](../setup-pstack/SKILL.md). It selects models and a reasoning budget for exact discovered agents, writing three pstack-owned `modelRoles` aliases and `task.agentModelOverrides` entries in `~/.omp/agent/config.yml`. It does not create missing agents or select the chat model. Read the skill for activation and optional verification-skill setup.#
-s#^- No `~/\.cursor/rules/pstack-models\.mdc` means.*$#- No exact override for a role means its loaded agent frontmatter or the parent chat model selects its model. Absence of an override does not prove setup was never run.#
+s#^2\. Run \[`/setup-pstack`\].*$#2. Models need no configuration. Each agent runs on its frontmatter model, then on the chat model. To pick models per agent, follow [Choose models](../omp-mechanics/SKILL.md\#choose-models). Offer once each to generate a verification skill with `/skill:create-verification-skill` and a formal verification skill with `/skill:create-formal-verification-skill`, unless the project already has one.#
+s#^- No `~/\.cursor/rules/pstack-models\.mdc` means.*$#- No exact override for a role means its loaded agent frontmatter or the parent chat model selects its model.#
 s#When the model rule is missing and it matters,#When required role overrides are missing and model selection matters,#
+s#^- Now: give them `/setup-pstack` to type, and answer their question too\.$#- Now: point them to [Choose models](../omp-mechanics/SKILL.md\#choose-models), and answer their question too.#
 s#^- Later: answer their question, and add one line saying every role keeps its default model until they run `/setup-pstack`\.$#- Later: answer their question, and say agent frontmatter or parent inheritance remains in effect until they configure exact role overrides.#
-s#^If cost is the worry, say where the tokens go and how to spend fewer\..*$#If cost is the worry, explain that extra workers and review panels spend more tokens. Rerun `/setup-pstack` to choose a smaller reasoning budget or cheaper available models. An agent without a model override uses its frontmatter or inherits the chat model. Fewer configured reviewer slots mean fewer subagents. Never write `auto` or `inherit-parent` as an OMP model selector. Save `/poteto-mode` for work that needs rigor.#
-s#Installing changes nothing until the user invokes a skill\. Only `/setup-pstack` loads from the user's words\.#Skills run when invoked or routed. The installed extension also provides the session pin commands. `setup-pstack` is available for model-configuration requests.#
+s#^If cost is the worry, say where the tokens go and how to spend fewer\..*$#If cost is the worry, explain that extra workers and review panels spend more tokens. To spend fewer, pick a lower effort or cheaper available models per [Choose models](../omp-mechanics/SKILL.md\#choose-models). An agent without a model override uses its frontmatter or inherits the chat model. Never write `auto` or `inherit-parent` as an OMP model selector. Save `/poteto-mode` for work that needs rigor.#
+s#Installing changes nothing until the user invokes a skill\. Only `/setup-pstack` loads from the user's words\.#Skills run when invoked or routed. The installed extension also provides the session pin commands.#
 s#^Whether `/poteto-mode` stays on depends on how the user starts it:$#Choose whether to invoke the router once or pin it for the session:#
 s#^- Enter on `/poteto-mode` attaches.*$#- `/skill:poteto-mode` invokes the router for a task; it does not enable the persistent pin.#
 s#^- Option\+Enter on Mac or Alt\+Enter on Windows,.*$#- `/poteto-mode on` pins the router for every turn, `/poteto-mode off` unpins it, and `/poteto-mode status` reports the current pin. These are the installed extension's OMP commands, not Cursor's Custom Mode UI.#
@@ -49,7 +53,8 @@ s#^- Cursor's docs list Custom Modes.*$#- The extension registers Alt+Shift+T to
 s#^Link \[Cursor's skills docs\].*$#Link the installed [OMP README](../../README.md) for pin commands and [runtime mapping](../pstack-omp/SKILL.md) for delegation. Mid-chat, "new task" makes the router match a fresh playbook. Resolve any helper against the live agent roster; use `poteto-agent` only when loaded, otherwise follow the runtime mapping's role and default-worker routing.#
 s#a Custom Mode keeps it on#`/poteto-mode on` keeps it pinned#g
 s#^\| The mode stopped applying after a few turns \|.*$#| The mode stopped applying after a few turns | Check `/poteto-mode status`. Use `/poteto-mode on` to pin it, or invoke `/skill:poteto-mode` for each task. |#
-s#^\| A new model choice had no effect \|.*$#| A new model choice had no effect | Confirm the loaded agent name and its exact `task.agentModelOverrides` entry. Follow `/skill:setup-pstack` activation guidance; an override cannot create an agent. |#
+s#^\| A new model choice had no effect \|.*$#| A new model choice had no effect | Confirm the loaded agent name and its exact `task.agentModelOverrides` entry, then start a new session. An override cannot create an agent. |#
+s#^\| Pick a model for each role and a reasoning budget \| \[`/setup-pstack`\]\(\.\./setup-pstack/SKILL\.md\) \|$#| Pick a model for each role and a reasoning budget | [Choose models](../omp-mechanics/SKILL.md\#choose-models) |#
 s#^\| A skill didn't load on its own \|.*$#| A skill didn't load on its own | Invoke `/skill:<name>` explicitly or let the router load it. Only skills enabled for model invocation appear in the per-turn index. |#
 s#which each get their own machine#which get private worktrees, not separate machines#g
 s#^- `/loop` and `/create-skill` are Cursor built-ins\.$#- `/loop` is an OMP runtime command when exposed. Skill authoring uses the [authoring playbook](../poteto-mode/playbooks/authoring-a-skill.md); there is no assumed Cursor `/create-skill` command.#
@@ -63,7 +68,7 @@ s#\]\(../../docs/guide/([0-9][0-9]-[a-z-]+\.md)\)#](https://github.com/cursor/pl
 s#The links here point into the installed plugin, which the user may not be able to open, so give the user the file's public copy: `https://github.com/cursor/plugins/blob/main/pstack/` followed by its path\.#Link installed skill and runtime files directly. For a public copy of ported behavior, use `https://github.com/negoro26/pstack-omp/blob/main/plugins/pstack/` followed by the installed plugin-relative path. Guide URLs point to upstream for workflow background only; use this port's README and runtime skills for OMP commands.#
 # Poteto help's companion list. `omp cleanse` detects AND fixes repo-wide, so it is no diagnostic.
 s#^- `/deslop`, `control-cli`, and `control-ui` ship in the `cursor-team-kit` plugin\.$#- Prose cleanup uses `skill://unslop`. Diagnostics use the project's documented read-only checks, with LSP diagnostics only when a live server is configured. OMP exposes browser interaction through its eval prelude and CLI interaction through named bash services and `proc://`. Do not run `omp cleanse` as a diagnostic check.#
-s#^Other tools can read the skills, because they use the Agent Skills format.*$#The engineering workflows come from upstream. `skill://pstack-omp` maps worker execution and lifecycle to OMP; `skill://setup-pstack` configures OMP models, and the mode extension preserves the session pin.#
+s#^Other tools can read the skills, because they use the Agent Skills format.*$#The engineering workflows come from upstream. `skill://pstack-omp` maps worker execution and lifecycle to OMP, `skill://omp-mechanics` says how to choose models, and the mode extension preserves the session pin.#
 # Reflect's lens table loses Cursor's default-model column below, so its separator loses one too.
 /^## 2\. Spawn three reviewers in parallel$/,/^## 3\. Synthesize$/s#^\|---\|---\|---\|---\|$#|---|---|---|#
 
@@ -88,7 +93,7 @@ s#^\*\*Defaults for every `Task` call\.\*\* `run_in_background: true`.*Prose and
 # Autonomous run's exact post-Cursor workflow.
 s#^\*\*You own the exit condition\. Define done, then drive to it without stopping\.\*\*$#**You own the exit condition. Define done, then drive to it without stopping.** For "going to bed", "run until done", or "continue until X".#
 s#^1\. State the exit condition as a checkable predicate before the first iteration \(tests green, repro fixed, all N PRs merged, pixel-diff zero\)\.$#1. State the exit condition as a checkable predicate before the first iteration (tests green, repro fixed, all N PRs merged, pixel-diff zero). A vague goal stalls; a predicate lets you stop.#
-s#^4\. Mid-run discoveries are yours\..*Keep the predicate as the main drive, and return to it after each side fix\.$#4. Mid-run discoveries are yours. Address broken skills, related bugs, flaky verifiers, review noise, tooling failures, orphaned follow-ups, and fixable drift yourself via poteto-mode. Put out-of-band fixes in their own PR. Do not park reversible work for the human or open a user question. Surface only irreversible actions, genuine product or preference calls no experiment can settle, or a real dead end. Keep the predicate as the main drive, and return to it after each side fix.#
+s#^4\. Mid-run discoveries( that support the goal)? are yours\..*Keep the predicate as the main drive, and return to it after each side fix\.$#4. Mid-run discoveries that support the goal are yours. Address broken skills, related bugs, flaky verifiers, review noise, tooling failures, orphaned follow-ups, and fixable drift yourself via poteto-mode. Put out-of-band fixes in their own PR. Do not park reversible work for the human or open a user question. Surface only irreversible actions, genuine product or preference calls no experiment can settle, or a real dead end. Keep the predicate as the main drive, and return to it after each side fix.#
 s#^5\. Checkpoint every iteration via the \*\*show-me-your-work\*\* skill, a row for what changed and whether the predicate moved\.$#5. Checkpoint every iteration via the **show-me-your-work** skill, a row for what changed and whether the predicate moved. A run with no trail can't be audited or resumed.#
 # Cursor's model paragraph -> exact discovered agents and runtime-selected models.
 s#Each spawn below names a role line in the `pstack-models\.mdc` rule and a default\. Set `model` to that line's value, or to the default if the rule or the line is missing\. Leave `model` unset when the value is `auto` or `inherit-parent`\. If the Task tool rejects a slug, use the default and say so\. If it rejects the default, use the closest valid slug of the same family from its error message\.#Resolve agents against the live roster. Use an exact preferred agent only when it is present; otherwise follow the workflow's default-worker fallback. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects its model; the task item has no `model` field.#
@@ -135,10 +140,8 @@ s#^\| Divergent \| `reflect judgment, divergent, synthesizer` \| `[^`]+` \| `ref
 s#The synthesizer returns a structured Accepted / Rejected / Backlog list\.#Pass this explicit `outputSchema` when the live task schema exposes it:\n\n```json\n{"type":"object","required":["Accepted","Rejected","Backlog"],"properties":{"Accepted":{"type":"array","items":{"type":"object","required":["Problem","Proposal","Routing"],"properties":{"Problem":{"type":"string"},"Proposal":{"type":"string"},"Routing":{"type":"string"}}}},"Rejected":{"type":"array","items":{"type":"object","required":["Principle","Reason"],"properties":{"Principle":{"type":"string"},"Reason":{"type":"string"}}}},"Backlog":{"type":"array","items":{"type":"object","required":["Pattern","Hit","Mechanism"],"properties":{"Pattern":{"type":"string"},"Hit":{"type":"string"},"Mechanism":{"type":"string"}}}}}}\n```#
 # These model-map sentences must match raw upstream before slug and path token rewrites.
 s#^Take the runners from the `architect runners` line in the `pstack-models\.mdc` rule, in place of the `arena runners` line\. If the rule or that line is missing, use `claude-opus-[^`]+` and `grok-[^`]+`\. Alias and rejected entries follow the runner rules in the \*\*arena\*\* skill's Phase A\.$#Use the same exact discovered runner agents as Arena, with the architect role in each brief. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects its model; the task item has no `model` field.#
-s#^3\. Pick the runners\. Use the `arena runners` line in `~/\.cursor/rules/pstack-models\.mdc`\. If the rule or that line is missing, default to one each on `claude-opus-[^`]+` and `grok-[^`]+`\. An `auto` or `inherit-parent` entry in this line or the cross-judge line means the parent model, so omit `model` for it\. If the Task tool rejects a configured entry, run that seat on its family's default and say so\. Families go by prefix: `claude-\*`, and `grok-\*` with `cursor-grok-\*` and `composer-\*`\. A refused `composer-\*` entry runs on `grok-[^`]+`\. With no family match, use `claude-opus-[^`]+`\. If it rejects a default, use the closest valid slug of the same family from its error message\.#3. Pick the runners. Resolve exact discovered agent names and inspect each agent's frontmatter or `task.agentModelOverrides[<exact-name>]`. Prefer distinct configured model families when the roster supplies them; otherwise keep the independent contexts and report weaker model diversity. A model override cannot create an agent.#
-s#After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~/.cursor/rules/pstack-models\.mdc`\. If the rule or that line is missing, choose from `claude-opus-[^`]+` and `grok-[^`]+`\. Prefer a different model family from the parent's\.#After all Phase B candidates complete, choose an exact discovered judge agent whose configured model differs from the parent's when the roster provides one.#
-# The judge is one task item, with posture in its brief rather than a task field.
-s#After all Phase B candidates complete, choose an exact discovered judge agent whose configured model differs from the parent's when the roster provides one\. Spawn one readonly judge subagent on that model\.#After all Phase B candidates complete, choose an exact discovered judge agent. Start the judge in one `task` call with one item in `tasks[]`, the required shared `context`, and that exact agent name. Its frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; the task item has no `model` field. The brief carries read-only posture, grants only the tools that discovered agent actually has, forbids writes, and has no task `readonly` field. Prefer a different configured model family when the operator's model policy and roster supply one; otherwise keep the exact agent and report weaker model diversity.#
+s#^3\. Pick the runners\. Use the `arena runners` line in `~/\.cursor/rules/pstack-models\.mdc`\. If the rule or that line is missing, default to one each on `claude-opus-[^`]+` and `grok-[^`]+`\. An `auto` or `inherit-parent` entry in this line( or the cross-judge line)? means the parent model, so omit `model` for it\. If the Task tool rejects a configured entry, run that seat on its family's default and say so\. Families go by prefix: `claude-\*`, and `grok-\*` with `cursor-grok-\*` and `composer-\*`\. A refused `composer-\*` entry runs on `grok-[^`]+`\..* (Spawn more runners when )#3. Pick the runners. Resolve exact discovered agent names and inspect each agent's frontmatter or `task.agentModelOverrides[<exact-name>]`. Prefer distinct configured model families when the roster supplies them; otherwise keep the independent contexts and report weaker model diversity. A model override cannot create an agent. \2#
+s#After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~/\.cursor/rules/pstack-models\.mdc`\. If the rule or that line is missing, choose from `claude-opus-[^`]+` and `grok-[^`]+`\. Spawn one readonly judge subagent\..*and say that the family check did not run\.#After all Phase B candidates complete, choose an exact discovered judge agent whose configured model is from a different family than the parent's. An agent with no override and no frontmatter model inherits the parent's model, so it never judges. Start the judge in one `task` call with one item in `tasks[]`, the required shared `context`, and that exact agent name. Its frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; the task item has no `model` field. The brief carries read-only posture and forbids writes; there is no task `readonly` field. If no judge from another family can run, skip the cross-judge, pick the base alone in Phase D, and say so. If you do not know the parent's model, choose a judge whose model its frontmatter or exact override sets, and say that the family check did not run.#
 s#^- `model`: the configured `interrogate reviewers` entry, or the table default with no configured line\. For an `auto` or `inherit-parent` entry, omit `model` so that reviewer runs on the parent model\.$#- `agent`: an exact discovered reviewer agent name. Its frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model; the task item has no `model` field#
 s#If the Task tool rejects a configured entry, run that reviewer on its family's table default and say so\. Families go by prefix: `claude-\*`, and `grok-\*` with `cursor-grok-\*` and `composer-\*`\. A refused `composer-\*` entry runs on Reviewer B's default\. With no family match, use Reviewer A's default\. If it rejects a table default, spawn with the closest equivalent from the valid slugs in its error message \(prefer the same family and reasoning tier\), and open a separate PR to update the default table\. Do not block the review on the slug issue\. Never treat an alias entry as a rejected slug or apply either fallback to it\.#If the requested exact reviewer is absent, use another discovered reviewer with the same brief and report the missing model diversity. A model override cannot create an agent.#
 s#^([0-9]+)\. Pick the worker model from the `swarm workers` line in `~/\.cursor/rules/pstack-models\.mdc`\. If the rule or that line is missing, use `grok-[^`]+`\. For `auto` or `inherit-parent`, omit `model` so the workers run on the parent model\. If the Task tool rejects a slug, use the default and say so\. If it rejects the default, use the closest valid slug of the same family from its error message\. For a model race, name each arm's model up front\.#\1. Pick exact discovered agent names. Inspect each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` for its model. A model race needs one loaded agent file and one exact override entry per arm; overrides cannot create agents.#
@@ -152,13 +155,13 @@ s#`subagent_type`#`agent`#g
 s#subagent_type#agent#g
 s#`run_in_background: true`#one `task` call with all items in `tasks[]`#g
 s#`readonly: true`#read-only posture carried in the brief#g
-s#`readonly: false`#full tools per spawn#g
 s#agent mode \(`readonly: false`\)#full tools per spawn#g
+s#`readonly: false`#full tools per spawn#g
 s#`readonly`: `true`#read-only posture carried in the brief#g
 s#readonly strips MCPs\.#nothing strips MCPs here.#g
 # A judge is spawned with read posture in its brief, never as a field. Matched on the field name
 # rather than the sentence, because upstream rewords the sentence and the field never survives it.
-s#Spawn one readonly judge subagent on that model\.#Start one judge in one `task` call with one item in `tasks[]`, the required shared `context`, and a brief that grants read tools only.#
+s#Spawn one readonly judge subagent( on that model)?\.#Start one judge in one `task` call with one item in `tasks[]`, the required shared `context`, and a brief that grants read tools only.#
 # `model`: the <role> line -> the agent that role names. Same reason: the field has no omp wire
 # equivalent, so replacing the token is always right and never over-rewrites.
 s#`model`: the `([^`]+)` line#`agent`: an exact discovered \1 agent#g
@@ -167,7 +170,6 @@ s#`model` from the `([^`]+)` line#`agent` from the `task.agentModelOverrides` en
 s#Spawn one investigator per category that has a matching MCP, all in a single message so they run concurrently#Assign one investigator to each category that has a matching MCP, in one `task` call with all items in `tasks[]` and the required shared `context` so they run concurrently#
 s#Spawn one synthesizer\.#Start one synthesizer in one `task` call with one item in `tasks[]` and the required shared `context`.#
 # Inline selectors that survive into patch context are exact values, not a Markdown catch-all.
-s#`subagent_type: "poteto-agent"`#`agent`: `poteto-agent`#g
 s#Shape: one or two questions with 4-6 options each, `allow_multiple: true` for category questions\.#Shape: one or two questions with 4-6 options each. Put `multi: true` on each category question object.#
 # Plan lanes and the checker name an exact discovered worker agent, never a model-map role label.
 s#per the \*\*swarm\*\* skill, on the `swarm workers` model \(default `grok-[^`]+`\)#per the **swarm** skill, using exact discovered worker agents. Inspect each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` for its model#
@@ -192,19 +194,12 @@ s#`gpt-[0-9.]+-sol-[a-z]+`#your strongest instruction-following model#g
 s#`grok-[0-9.]+-([a-z]+-)?fast(-[a-z]+)?`#your fast code model#g
 # The same family under Cursor's provider prefix, effort token in the middle.
 s#`cursor-grok-[0-9.]+-([a-z]+-)?fast`#your fast code model#g
-# The same tiers where the rule-file example writes a role value with no backticks. Anchored to
-# the end of a `<role>: <slug>` line, which is the only place upstream writes a bare slug.
-s#: claude-(fable|opus)-[0-9.-]+(-(thinking-)?[a-z]+)?$#: your strongest judgment model#
-s#: gpt-[0-9.]+-sol-[a-z]+$#: your strongest instruction-following model#
-s#: grok-[0-9.]+-([a-z]+-)?fast(-[a-z]+)?$#: your fast code model#
 # Catch-all for a slug no tier above knows. Two hyphen groups required, so an illustrative
 # `gpt-4` rename example is not a prescription and survives. omp-port reports what this rewrote.
 s#`(claude|gpt|grok|gemini|opus)-[a-z0-9.]+-[a-z0-9.-]+`#your configured model for this role#g
 
 ## 3. Remaining exact task text and generated frontmatter.
 
-# Cursor's Task-spawn slug enumeration and hypothetical models API -> `omp models`.
-s#Enumerate the model slugs you can pass to a `Task` subagent in this session\. That is the dependable source\. If Cursor also exposes a models API or CLI that lists the user's entitled models, prefer it for completeness\.#Run `omp models` to list the models configured on this machine. That is the dependable source.#
 # Cursor's blocking watch mode has the same liveness hazard without naming another runtime primitive.
 s#Reaching for `drive` inside a phase agent stops that agent finishing its turn\.#Blocking inside a phase agent stops that agent finishing its turn.#
 # These exact Cursor tool tokens survive only in otherwise rewritten sentences.
@@ -221,12 +216,19 @@ s#Reads the `poteto-mode` skill's `SKILL.md` in full before any work, including 
 
 ## 4. Cloud agents. Cursor runs them on its own VMs; omp runs isolated subagents on this machine.
 
+# Ahead of the token rule below, which would otherwise rewrite this sentence's field and strand it.
+s#Run workers on a new cloud VM \(`environment: "cloud"`\) unless the work needs this machine:[^.]*only here\.#Request `isolated: true` for each worker when the live task schema exposes it, unless the work needs the parent checkout's uncommitted state. Isolated workers still run on this machine, so browsers, simulators, local transcripts, and local auth stay available.#
 s#`environment: "cloud"`#`isolated: true`#g
+# Cursor Projects hold a program's tracker and store, and Cursor forks an agent along with its
+# state. A plain file and directory, and a fresh worker pointed at the built worktree, stand in.
+s#Keep the program's state in the Project tracker \(`notes\.md`\) and the Project store\.#Keep the program's state in a tracker file (`notes.md`) and a store directory, both at paths you choose when the program starts.#
+s#\*\*Fork when new work needs a worker's built state,\*\*([^.]*)\.#**When new work needs a worker's built state,**\1, start a fresh worker pointed at that worker's worktree path or pushed branch, with its report pasted in.#
 s#the full Task schema including `environment`#the full Task schema including `isolated`#g
 # `cloud_base_branch` is not accepted by omp's task tool; a worktree on that base is the answer.
 s#When a worker must start from a non-default pushed branch, pass `cloud_base_branch`\.#When a worker must start from a non-default base, create its `git worktree` on that base first and point the worker at that path.#
 s#One Cursor cloud agent#One isolated subagent (`isolated: true`)#g
 s#each a Cursor cloud agent#an isolated subagent (`isolated: true`)#g
+s#is a Cursor cloud agent#is an isolated subagent (`isolated: true`)#g
 s#Cloud agents cannot read the local store, so their briefs inline what they need or point at repo paths\.#An isolated worker runs on this machine in its own worktree with no conversation history, so its brief inlines what it needs or points at absolute paths.#
 # Cursor's cloud dashboard -> the live omp agent roster read through history://.
 s#the cloud agent's status in the Cursor dashboard#agent state from `read history://` and `read proc://`#
@@ -290,7 +292,7 @@ s#the `deslop` skill from the `cursor-team-kit` plugin \(`/deslop`\)#the `unslop
 s#Run `/deslop` from `cursor-team-kit` over the diff before commit#Run the `unslop` skill (`skill://unslop`) and non-mutating repository diagnostics scoped to the diff before commit#
 s#`/deslop`#the `unslop` skill (`skill://unslop`)#g
 # `control-ui` / `control-cli` -> browser, computer, and named bash processes.
-s#`control-ui` or `control-cli` runtime verification \(from `cursor-team-kit`\)#`browser` or `computer` for UIs, or bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs#
+s#`control-ui` or `control-cli` runtime (verification|check) \(from `cursor-team-kit`\)#`browser` or `computer` for UIs, or bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs#
 s#\(`control-cli` or `control-ui` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs, as the change demands)#
 s#\(`control-ui` or `control-cli` from `cursor-team-kit` as the change demands\)#(`browser` or `computer` for UIs, bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs, as the change demands)#
 s#Drive through `control-ui` or `control-cli` from `cursor-team-kit`\.#Drive through `browser` or `computer` for UIs, and bash with a unique `name`, a `ready` check, and `proc://` state for CLIs and TUIs.#
@@ -332,6 +334,9 @@ s#^That covers the legacy flat \(`<id>\.jsonl`\), current nested \(`<id>/<id>\.j
 s#`~/\.cursor/projects/<slug>/agent-transcripts/<uuid>/<uuid>\.jsonl`#the session store, by default `~/.omp/agent/sessions/<encoded-cwd>/<timestamp>_<session-id>.jsonl`#
 s#where `<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-" \(so `/Users/you/proj` becomes `Users-you-proj`\)#where `<encoded-cwd>` is the cwd with $HOME stripped and each "/" turned into "-" (so `~/proj` becomes `-proj`)#
 s#Every line is one chat message\.#Every line is one JSON object. The first is a fixed-width `type:title` slot, the second a `type:session` header, and the rest messages whose roles are camelCase (`toolResult`, not `tool_result`).#
+# No omp system prompt names a transcript path. The session-store reference resolves the root, so
+# automate-me's locate step points there. Runs before the directory token below rewrites half of it.
+s#The system prompt names the workspace's `agent-transcripts/` directory\.#Resolve the session transcript tree, by default `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl` with subagent sidecars at `<session-stem>/<AgentId>.jsonl`, through `skill://omp-mechanics/references/session-store-on-omp.md`.#
 s#the active workspace's `agent-transcripts/` directory#the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, with subagent sidecars at `<session-stem>/<AgentId>.jsonl`#g
 s#the workspace's `agent-transcripts/` directory#the session transcript tree `~/.omp/agent/sessions/<encoded-cwd>/*.jsonl`, with subagent sidecars at `<session-stem>/<AgentId>.jsonl`#g
 s#local transcripts under `agent-transcripts/`#local transcripts under `~/.omp/agent/sessions/<encoded-cwd>/`#
@@ -376,10 +381,15 @@ s#Leave `model` unset when the value is `auto` or `inherit-parent`\.#An `auto` o
 s#the `interrogate reviewers` line in `~?/?\.cursor/rules/pstack-models\.mdc`#one exact discovered reviewer agent per configured entry in `~/.omp/agent/config.yml`#g
 s#the `architect runners` line in the `task\.agentModelOverrides` entries in `~/\.omp/agent/config\.yml`#the same exact discovered runner agents Arena uses, with the architect role in each brief, in `~/.omp/agent/config.yml`#g
 s#an exact discovered (why investigators|why synthesizer|interrogate reviewers|swarm workers|architect runners|arena runners|arena cross-judge pool|reflect tooling|reflect judgment, divergent, synthesizer) agent#an exact discovered agent filling that role#g
-# A single spawn is still one task call with one item and the required shared context. Matched on
-# the "spawn one <role>" phrase, which is the shape upstream uses everywhere it means one worker,
-# rather than on the sentence around it.
-s#([Ss]pawn) one ([a-z]+)#\1 one \2 in one `task` call with one item in `tasks[]` and the required shared `context`#g
+# A single spawn is still one task call with one item and the required shared context. Each rule
+# appends that clause after the whole sentence, because the noun phrase after "spawn one" varies
+# ("one blinded judge", "one owner per PR") and a word-level match split it.
+s#(Spawn one explainer that explores and explains in one pass, built from `references/explainer-prompt\.md` without the explorer-findings section\.)#\1 Start it in one `task` call with one item in `tasks[]` and the required shared `context`.#
+s#(spawn one explainer with `references/explainer-prompt\.md` and every explorer's findings filled in\.)#\1 Start it in one `task` call with one item in `tasks[]` and the required shared `context`.#
+s#(\*\*Spawn one blinded judge\*\* on a different model family per the \*\*arena\*\* skill's Phase C\.)#\1 Start it in one `task` call with one item in `tasks[]` and the required shared `context`.#
+# Owners run in parallel off trunk (step 3 of the same playbook), so they start together, the same
+# batch shape as the multi-phase plan's owner box.
+s#\*\*Spawn one owner per PR, and keep its work#**Spawn one owner per PR, all in one `task` call with one item per PR in `tasks[]` and the required shared `context`, and keep its work#
 s#, in place of the .(arena|architect|swarm|interrogate) runners. line#.#g
 s#`agent`: an exact discovered (how explorer|how explainer) (agent|line)#`agent`: an exact discovered agent filling that role#g
 
@@ -396,6 +406,9 @@ s#`~?/?\.cursor/rules/pstack-models\.mdc`#`task.agentModelOverrides` in `~/.omp/
 # the config is correct whether or not a path was written, so this matches the bare name too.
 s#the `pstack-models\.mdc` rule#the `task.agentModelOverrides` entries in `~/.omp/agent/config.yml`#g
 s#~/\.cursor/#~/.omp/#g
+# The built plugin carries its version only in its root `package.json`. Cursor's manifest is not
+# shipped, so a selection rule that reads it cannot run.
+s#`\.cursor-plugin/plugin\.json`#`package.json` beside its `skills/` directory#g
 
 ## 9. Install paths. pstack is vendored in Cursor's monorepo and installed as a plugin on omp.
 ## Order is load-bearing: the trunk-read rewrites and the checklist append run before the
@@ -426,6 +439,12 @@ s#Reviewers return findings in the `Task` response body\.#Reviewers return findi
 s#Use Glob to find directories and files, Grep to find key symbols, Read to understand#Use `glob` to find directories and files, `grep` to find key symbols, `read` to understand#
 s#Use Read, Grep, and Glob as needed\.#Use `read`, `grep`, and `glob` as needed.#
 s#Subagents inherit it\. Multiple `Task` calls on the same branch each get their own worktree#A worker shares the parent's checkout unless its spawn sets `isolated: true` where the live schema exposes it, so give every concurrent writer its own worktree explicitly#
+# setup-pstack is in omp-port/excluded.txt, so the build ships no such skill. The poteto-help
+# sentence rules above point at the omp-mechanics model note; these nets catch a line upstream
+# rewords, ahead of the /skill:<name> rule below.
+s#\[`/setup-pstack`\]#[Choose models]#g
+s#\.\./setup-pstack/SKILL\.md#../omp-mechanics/SKILL.md\#choose-models#g
+s#`/setup-pstack`#the Choose models section of `skill://omp-mechanics`#g
 # omp registers one slash command per skill as /skill:<name>; a bare /how is not a command on this
 # harness. `/poteto-mode` is in the alternation only because the gate scans for it like any other
 # name; the port's own extension registers that command, so the rewrite is a no-op in practice.
@@ -434,7 +453,7 @@ s#Subagents inherit it\. Multiple `Task` calls on the same branch each get their
 # forgot: upstream added eighteen skills after it was written and every one of them shipped a bare
 # /name the gate could not accept. Adding a skill upstream now means adding its name to the
 # alternation, once.
-s#`/(teach|recall|reflect|tdd|swarm|arena|interrogate|correct|setup-pstack|automate-me|figure-it-out|show-me-your-work|benchmark-checklist|blast-radius|ketchup-video|ketchup|bro|make-bot-ui|poteto-help|no-comments|unslop|create-verification-skill|maintain-verification-skill|create-formal-verification-skill|maintain-formal-verification-skill|statechart|architect|why|how|technical-writing|sharpen|in-your-own-words|typescript-best-practices|poteto-mode|principle-[a-z-]+)`#`/skill:\1`#g
+s#`/(teach|recall|reflect|tdd|swarm|arena|interrogate|correct|automate-me|figure-it-out|show-me-your-work|benchmark-checklist|blast-radius|ketchup-video|ketchup|bro|make-bot-ui|poteto-help|no-comments|unslop|create-verification-skill|maintain-verification-skill|create-formal-verification-skill|maintain-formal-verification-skill|statechart|architect|why|how|technical-writing|sharpen|in-your-own-words|typescript-best-practices|poteto-mode|principle-[a-z-]+)`#`/skill:\1`#g
 # One verdict vocabulary. pstack-omp and swarm both name PASS/ISSUES/BLOCKED; shipping named a
 # different three, and its landing rule tested for a different set, so a verifier told by one file
 # and checked by another could not satisfy both.
@@ -468,13 +487,7 @@ s#^\*\*Session overrides:\*\* "Don't stop" / "going to bed" / "run until done" /
 s#Mechanically landing a verified unit \(fast-forward or clean cherry-pick of a worker's commit, then push\) is bookkeeping the coordinator may do itself on repos where local git is cheap\.#Mechanically landing a verified unit (fast-forward or clean cherry-pick of a worker's commit, then push to that unit's own branch) is bookkeeping the coordinator may do itself on repos where local git is cheap. Merging, or pushing to trunk, needs an operator landing grant recorded in the standing orders, exactly like any other irreversible write.#
 
 s#irreversible actions \(force-push to shared branches, deploys, deletions, closing someone else's PR\)#irreversible actions (pushing to trunk, merging, force-pushing a shared branch, retargeting a base, closing someone else's PR, issue, or review thread, posting a review, deploys, deletions)#
-
-# Seven columns, because that is what the runtime enforces. The thirteen below were prose the
-# store never wrote, so every `orch` command after following it failed on the header line.
-s#`units.tsv` has one row per unit: id, track, state, branch, PR, head SHA, brief path\.#`units.tsv` has one row per unit and exactly seven tab-separated columns, which is what `orch` enforces on the header and on every row: id, track, state, branch, pr, sha, brief. A ninth column is rejected, so do not add one.#
-
-# Mandatory, and the playbook never said so, so the first runtime step of any program aborted.
-s#2\. \*\*Install the runtime\.\*\* Run `orch init`\.#2. **Install the runtime.** Run `orch init --store <repo-dir>`; `--store`, or `ORCH_STORE`, is required and the command aborts without it.#
+s#The owner merges only on that verifier's pass at the current head\.#The owner merges only on that verifier's pass at the current head, and only once the operator has set `PSTACK_LANDING_GRANT=1` for that merge.#
 
 # Routing through one writer is a constraint on who writes, not authorisation that they may.
 s#PR closes and retargets go through the stacker only\.#PR closes and retargets go through the stacker only, and only once the operator has approved that specific change; one writer is not consent.#
@@ -509,17 +522,10 @@ s#The operator's full-autonomy grant plus the root's clean verdict is the merge 
 # The `or` put a hard reset on the same footing as a worktree, and the very next clause handled a
 # dirty branch safely. So the file knew the hazard and still offered the destructive branch first,
 # with no check between the two.
-s#or `git fetch && git reset --hard origin/<branch>` between them\.#or `git fetch && git reset --hard origin/<branch>` between them -- and only after `git status --porcelain` comes back empty, since the next clause is what you do when it does not.#
+s#(or `git fetch && git reset --hard origin/<branch>` between them)\.#\1 -- and only after `git status --porcelain` comes back empty, since the next clause is what you do when it does not.#
 
-## 12. Graphite. Four playbooks said "Never require Graphite (`gt`)" while orchestrate made `gt`
-## the authoritative stack oracle and the store hard-errors without it. Only one of those can be
-## true, and the code is the one that decides what an agent experiences: `orch frontier` resolves
-## the stack through Graphite when it is installed and refuses to guess when it is not, and nothing
-## else in the port touches it. So `gt` is optional and never authoritative. These sentences now
-## say that, and no longer imply the port breaks without Graphite.
-
-s#Recompute `frontier.json` from `gt` after every merge and stack mutation because GitHub base refs drift mid-restack while gt tracking is authoritative: ordered PR list, branch names, head SHAs, a generation number, the lowest unmerged PR\.#Recompute `frontier.json` after every merge and stack mutation, because base refs drift mid-restack. `orch frontier` resolves the order from the forge's own PR base refs when it can, and refuses to guess rather than inventing an order when it cannot; record what it could not resolve instead. A pull request that is not reachable from trunk is reported as unattached rather than assumed to be in the stack.#
-
+## 12. Graphite. Four playbooks say "Never require Graphite (`gt`)", so no sentence may make `gt`
+## mandatory or authoritative.
 
 s#- Workers never rebase and never run `gt`\.#- Workers never rebase and never touch stack topology.#
 
@@ -542,7 +548,7 @@ s#"/architect with checkpoint,"#"/skill:architect with checkpoint,"#
 # `cursor location` is a Cursor composer affordance: the editor injects the caret position. omp is
 # a terminal harness with no editor-state primitive, so an agent following the hint looks for a
 # signal that does not exist.
-s#(open files, recent edits, cursor location, what was just discussed)#(open files, recent edits, what was just discussed)#
+s#open files, recent edits, cursor location, what was just discussed#open files, recent edits, what was just discussed#
 
 # False: a subagent's `tools:` list does not remove MCP tools or server instructions
 # (omp://system-prompt-customization.md). The real restriction on `scout` is the tool set, not MCP.
@@ -554,8 +560,9 @@ s#an exact discovered full-access worker for citation spot-checks that call MCP\
 s#/\*/subagents/\*\.jsonl#/*/*/*.jsonl#
 
 # No omp system prompt names the session transcript tree; `history://<id>` is the documented
-# surface. The path is correct, the justification for trusting it was not.
-s#(the system prompt names the path)#(`history://<id>` is the documented surface)#
+# surface. The path is correct, the justification for trusting it was not. Eval says "this path",
+# session-pickup and show-me-your-work say "the path".
+s#the system prompt names (the|this) path#`history://<id>` is the documented surface#
 
 # omp discovers skills one level under the root; the nested shape this prescribes is explicitly
 # not discovered, so the skill it produces silently never registers.
@@ -564,7 +571,7 @@ s#(the system prompt names the path)#(`history://<id>` is the documented surface
 
 # Unqualified force-push blocks the port's own rebase flow, which `pstackpolicy` explicitly permits
 # and `autopilot-stack` prescribes. Scope the pause the way the rest of the port scopes it.
-s#(force-push, delete production data, send external messages)#(force-push to a shared or trunk branch, delete production data, send external messages)#
+s#force-push, delete production data, send external messages#force-push to a shared or trunk branch, delete production data, send external messages#
 
 ## 13. Cursor's `Task` tool name. omp's tool is lowercase `task`, and capitalised it names nothing.
 ## Last on purpose: every sentence rule above quotes the capitalised form in its left-hand side, so

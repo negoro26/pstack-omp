@@ -324,7 +324,7 @@ The injected reminder is a pointer, not the playbook. It tells the agent to read
   tool blocks until the next settled job or peer message. These are the sanctioned primitives when
   workers must coordinate instead of running independent. There is no `hub` tool. Probe it rather
   than trusting this line: `grep -a -A40 'src/tools/builtin-names.ts' "$(readlink -f "$(command -v omp)")"`
-  prints the binary's builtin tool list, which on 18.12.6 carries `wait` and no `hub`; the binary's
+  prints the binary's builtin tool list, which on 18.14.1 carries `wait` and no `hub`; the binary's
   only other `hub` is the `/hub` slash command that opens Agent Hub. An earlier tree read a `hub`
   tool with list/send/inbox/wait ops off a stale pi-coding-agent 17.x package, and the gate now
   fails any shipped sentence that names one. The orchestrator uses its own TSV store and
@@ -398,7 +398,7 @@ thinking id for judgment work.
 ### What omp can actually stop
 
 The playbooks say "stop where the human's call begins", and until recently that was advice with
-nothing behind it. Three facts from `omp://approval-mode.md`, on omp 18.4.10, decide what an
+nothing behind it. Three facts from `omp://approval-mode.md`, on omp 18.14.1, decide what an
 instruction is worth here:
 
 - `yolo` auto-approves the `read`, `write`, **and `exec`** tiers. A `gh pr merge` inside a bash

@@ -5,8 +5,9 @@
 # mechanic it maps to. This file replaces PORTING.md's substitution table: the table is here now.
 # Order is load-bearing in three places, each marked below.
 #
-# Owned prose lives in the three skill paths named by omp-port/owned.txt. Script changes live in
-# omp-port/patches. Neither belongs here.
+# Owned prose lives in the two skill paths named by omp-port/owned.txt. Script changes live in
+# omp-port/patches. Upstream paths the port does not ship are in omp-port/excluded.txt. None of
+# these belongs here.
 
 ## 1. Whole-sentence rewrites, which must read raw upstream text before any token rule edits it.
 
@@ -38,12 +39,13 @@ s#^\*\*Match the model to the job\.\*\*.*$#**Match the role to the job.** Resolv
 # `/poteto-mode on|off|status`, `alt+shift+t`, and `--poteto` flag. These run before the
 # `/skill:<name>` rule, which would otherwise rewrite the `/poteto-mode` their left sides quote.
 s#^1\. Install with `/add-plugin pstack` in chat, or from Customize in the sidebar\.$#1. Install with `/marketplace add negoro26/pstack-omp`, then `/marketplace install pstack@pstack-omp`.#
-s#^2\. Run \[`/setup-pstack`\].*$#2. Run [`/setup-pstack`](../setup-pstack/SKILL.md). It selects models and a reasoning budget for exact discovered agents, writing three pstack-owned `modelRoles` aliases and `task.agentModelOverrides` entries in `~/.omp/agent/config.yml`. It does not create missing agents or select the chat model. Read the skill for activation and optional verification-skill setup.#
-s#^- No `~/\.cursor/rules/pstack-models\.mdc` means.*$#- No exact override for a role means its loaded agent frontmatter or the parent chat model selects its model. Absence of an override does not prove setup was never run.#
+s#^2\. Run \[`/setup-pstack`\].*$#2. Models need no configuration. Each agent runs on its frontmatter model, then on the chat model. To pick models per agent, follow [Choose models](../omp-mechanics/SKILL.md\#choose-models). Offer once each to generate a verification skill with `/skill:create-verification-skill` and a formal verification skill with `/skill:create-formal-verification-skill`, unless the project already has one.#
+s#^- No `~/\.cursor/rules/pstack-models\.mdc` means.*$#- No exact override for a role means its loaded agent frontmatter or the parent chat model selects its model.#
 s#When the model rule is missing and it matters,#When required role overrides are missing and model selection matters,#
+s#^- Now: give them `/setup-pstack` to type, and answer their question too\.$#- Now: point them to [Choose models](../omp-mechanics/SKILL.md\#choose-models), and answer their question too.#
 s#^- Later: answer their question, and add one line saying every role keeps its default model until they run `/setup-pstack`\.$#- Later: answer their question, and say agent frontmatter or parent inheritance remains in effect until they configure exact role overrides.#
-s#^If cost is the worry, say where the tokens go and how to spend fewer\..*$#If cost is the worry, explain that extra workers and review panels spend more tokens. Rerun `/setup-pstack` to choose a smaller reasoning budget or cheaper available models. An agent without a model override uses its frontmatter or inherits the chat model. Fewer configured reviewer slots mean fewer subagents. Never write `auto` or `inherit-parent` as an OMP model selector. Save `/poteto-mode` for work that needs rigor.#
-s#Installing changes nothing until the user invokes a skill\. Only `/setup-pstack` loads from the user's words\.#Skills run when invoked or routed. The installed extension also provides the session pin commands. `setup-pstack` is available for model-configuration requests.#
+s#^If cost is the worry, say where the tokens go and how to spend fewer\..*$#If cost is the worry, explain that extra workers and review panels spend more tokens. To spend fewer, pick a lower effort or cheaper available models per [Choose models](../omp-mechanics/SKILL.md\#choose-models). An agent without a model override uses its frontmatter or inherits the chat model. Never write `auto` or `inherit-parent` as an OMP model selector. Save `/poteto-mode` for work that needs rigor.#
+s#Installing changes nothing until the user invokes a skill\. Only `/setup-pstack` loads from the user's words\.#Skills run when invoked or routed. The installed extension also provides the session pin commands.#
 s#^Whether `/poteto-mode` stays on depends on how the user starts it:$#Choose whether to invoke the router once or pin it for the session:#
 s#^- Enter on `/poteto-mode` attaches.*$#- `/skill:poteto-mode` invokes the router for a task; it does not enable the persistent pin.#
 s#^- Option\+Enter on Mac or Alt\+Enter on Windows,.*$#- `/poteto-mode on` pins the router for every turn, `/poteto-mode off` unpins it, and `/poteto-mode status` reports the current pin. These are the installed extension's OMP commands, not Cursor's Custom Mode UI.#
@@ -51,7 +53,8 @@ s#^- Cursor's docs list Custom Modes.*$#- The extension registers Alt+Shift+T to
 s#^Link \[Cursor's skills docs\].*$#Link the installed [OMP README](../../README.md) for pin commands and [runtime mapping](../pstack-omp/SKILL.md) for delegation. Mid-chat, "new task" makes the router match a fresh playbook. Resolve any helper against the live agent roster; use `poteto-agent` only when loaded, otherwise follow the runtime mapping's role and default-worker routing.#
 s#a Custom Mode keeps it on#`/poteto-mode on` keeps it pinned#g
 s#^\| The mode stopped applying after a few turns \|.*$#| The mode stopped applying after a few turns | Check `/poteto-mode status`. Use `/poteto-mode on` to pin it, or invoke `/skill:poteto-mode` for each task. |#
-s#^\| A new model choice had no effect \|.*$#| A new model choice had no effect | Confirm the loaded agent name and its exact `task.agentModelOverrides` entry. Follow `/skill:setup-pstack` activation guidance; an override cannot create an agent. |#
+s#^\| A new model choice had no effect \|.*$#| A new model choice had no effect | Confirm the loaded agent name and its exact `task.agentModelOverrides` entry, then start a new session. An override cannot create an agent. |#
+s#^\| Pick a model for each role and a reasoning budget \| \[`/setup-pstack`\]\(\.\./setup-pstack/SKILL\.md\) \|$#| Pick a model for each role and a reasoning budget | [Choose models](../omp-mechanics/SKILL.md\#choose-models) |#
 s#^\| A skill didn't load on its own \|.*$#| A skill didn't load on its own | Invoke `/skill:<name>` explicitly or let the router load it. Only skills enabled for model invocation appear in the per-turn index. |#
 s#which each get their own machine#which get private worktrees, not separate machines#g
 s#^- `/loop` and `/create-skill` are Cursor built-ins\.$#- `/loop` is an OMP runtime command when exposed. Skill authoring uses the [authoring playbook](../poteto-mode/playbooks/authoring-a-skill.md); there is no assumed Cursor `/create-skill` command.#
@@ -65,7 +68,7 @@ s#\]\(../../docs/guide/([0-9][0-9]-[a-z-]+\.md)\)#](https://github.com/cursor/pl
 s#The links here point into the installed plugin, which the user may not be able to open, so give the user the file's public copy: `https://github.com/cursor/plugins/blob/main/pstack/` followed by its path\.#Link installed skill and runtime files directly. For a public copy of ported behavior, use `https://github.com/negoro26/pstack-omp/blob/main/plugins/pstack/` followed by the installed plugin-relative path. Guide URLs point to upstream for workflow background only; use this port's README and runtime skills for OMP commands.#
 # Poteto help's companion list. `omp cleanse` detects AND fixes repo-wide, so it is no diagnostic.
 s#^- `/deslop`, `control-cli`, and `control-ui` ship in the `cursor-team-kit` plugin\.$#- Prose cleanup uses `skill://unslop`. Diagnostics use the project's documented read-only checks, with LSP diagnostics only when a live server is configured. OMP exposes browser interaction through its eval prelude and CLI interaction through named bash services and `proc://`. Do not run `omp cleanse` as a diagnostic check.#
-s#^Other tools can read the skills, because they use the Agent Skills format.*$#The engineering workflows come from upstream. `skill://pstack-omp` maps worker execution and lifecycle to OMP; `skill://setup-pstack` configures OMP models, and the mode extension preserves the session pin.#
+s#^Other tools can read the skills, because they use the Agent Skills format.*$#The engineering workflows come from upstream. `skill://pstack-omp` maps worker execution and lifecycle to OMP, `skill://omp-mechanics` says how to choose models, and the mode extension preserves the session pin.#
 # Reflect's lens table loses Cursor's default-model column below, so its separator loses one too.
 /^## 2\. Spawn three reviewers in parallel$/,/^## 3\. Synthesize$/s#^\|---\|---\|---\|---\|$#|---|---|---|#
 
@@ -191,19 +194,12 @@ s#`gpt-[0-9.]+-sol-[a-z]+`#your strongest instruction-following model#g
 s#`grok-[0-9.]+-([a-z]+-)?fast(-[a-z]+)?`#your fast code model#g
 # The same family under Cursor's provider prefix, effort token in the middle.
 s#`cursor-grok-[0-9.]+-([a-z]+-)?fast`#your fast code model#g
-# The same tiers where the rule-file example writes a role value with no backticks. Anchored to
-# the end of a `<role>: <slug>` line, which is the only place upstream writes a bare slug.
-s#: claude-(fable|opus)-[0-9.-]+(-(thinking-)?[a-z]+)?$#: your strongest judgment model#
-s#: gpt-[0-9.]+-sol-[a-z]+$#: your strongest instruction-following model#
-s#: grok-[0-9.]+-([a-z]+-)?fast(-[a-z]+)?$#: your fast code model#
 # Catch-all for a slug no tier above knows. Two hyphen groups required, so an illustrative
 # `gpt-4` rename example is not a prescription and survives. omp-port reports what this rewrote.
 s#`(claude|gpt|grok|gemini|opus)-[a-z0-9.]+-[a-z0-9.-]+`#your configured model for this role#g
 
 ## 3. Remaining exact task text and generated frontmatter.
 
-# Cursor's Task-spawn slug enumeration and hypothetical models API -> `omp models`.
-s#Enumerate the model slugs you can pass to a `Task` subagent in this session\. That is the dependable source\. If Cursor also exposes a models API or CLI that lists the user's entitled models, prefer it for completeness\.#Run `omp models` to list the models configured on this machine. That is the dependable source.#
 # Cursor's blocking watch mode has the same liveness hazard without naming another runtime primitive.
 s#Reaching for `drive` inside a phase agent stops that agent finishing its turn\.#Blocking inside a phase agent stops that agent finishing its turn.#
 # These exact Cursor tool tokens survive only in otherwise rewritten sentences.
@@ -443,6 +439,12 @@ s#Reviewers return findings in the `Task` response body\.#Reviewers return findi
 s#Use Glob to find directories and files, Grep to find key symbols, Read to understand#Use `glob` to find directories and files, `grep` to find key symbols, `read` to understand#
 s#Use Read, Grep, and Glob as needed\.#Use `read`, `grep`, and `glob` as needed.#
 s#Subagents inherit it\. Multiple `Task` calls on the same branch each get their own worktree#A worker shares the parent's checkout unless its spawn sets `isolated: true` where the live schema exposes it, so give every concurrent writer its own worktree explicitly#
+# setup-pstack is in omp-port/excluded.txt, so the build ships no such skill. The poteto-help
+# sentence rules above point at the omp-mechanics model note; these nets catch a line upstream
+# rewords, ahead of the /skill:<name> rule below.
+s#\[`/setup-pstack`\]#[Choose models]#g
+s#\.\./setup-pstack/SKILL\.md#../omp-mechanics/SKILL.md\#choose-models#g
+s#`/setup-pstack`#the Choose models section of `skill://omp-mechanics`#g
 # omp registers one slash command per skill as /skill:<name>; a bare /how is not a command on this
 # harness. `/poteto-mode` is in the alternation only because the gate scans for it like any other
 # name; the port's own extension registers that command, so the rewrite is a no-op in practice.
@@ -451,7 +453,7 @@ s#Subagents inherit it\. Multiple `Task` calls on the same branch each get their
 # forgot: upstream added eighteen skills after it was written and every one of them shipped a bare
 # /name the gate could not accept. Adding a skill upstream now means adding its name to the
 # alternation, once.
-s#`/(teach|recall|reflect|tdd|swarm|arena|interrogate|correct|setup-pstack|automate-me|figure-it-out|show-me-your-work|benchmark-checklist|blast-radius|ketchup-video|ketchup|bro|make-bot-ui|poteto-help|no-comments|unslop|create-verification-skill|maintain-verification-skill|create-formal-verification-skill|maintain-formal-verification-skill|statechart|architect|why|how|technical-writing|sharpen|in-your-own-words|typescript-best-practices|poteto-mode|principle-[a-z-]+)`#`/skill:\1`#g
+s#`/(teach|recall|reflect|tdd|swarm|arena|interrogate|correct|automate-me|figure-it-out|show-me-your-work|benchmark-checklist|blast-radius|ketchup-video|ketchup|bro|make-bot-ui|poteto-help|no-comments|unslop|create-verification-skill|maintain-verification-skill|create-formal-verification-skill|maintain-formal-verification-skill|statechart|architect|why|how|technical-writing|sharpen|in-your-own-words|typescript-best-practices|poteto-mode|principle-[a-z-]+)`#`/skill:\1`#g
 # One verdict vocabulary. pstack-omp and swarm both name PASS/ISSUES/BLOCKED; shipping named a
 # different three, and its landing rule tested for a different set, so a verifier told by one file
 # and checked by another could not satisfy both.

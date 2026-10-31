@@ -24,28 +24,28 @@ Infer the need from the message and the conversation. A named situation, such as
 
 Check the state that changes the answer, and mention it only when it does:
 
-- No exact override for a role means its loaded agent frontmatter or the parent chat model selects its model. Absence of an override does not prove setup was never run.
+- No exact override for a role means its loaded agent frontmatter or the parent chat model selects its model.
 - No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `/skill:create-verification-skill` when the question is about proving a change works.
 - No formal verification skill in the project means no property is checked past what tests reach. Mention `/skill:create-formal-verification-skill` when the question is about a race, an invariant, or another case tests rarely hit. When one exists and the code it covers changed after the commit it records as last in sync, mention `/skill:maintain-formal-verification-skill` if the question touches that code.
 
 When required role overrides are missing and model selection matters, ask whether the user wants to pick a model for each role and a reasoning budget now. It matters when the user is new, the question is about setup or cost, or the answer depends on which models run. Ask at most once per chat. If the need is also unclear, ask both questions together. Offer two choices:
 
-- Now: give them `/skill:setup-pstack` to type, and answer their question too.
+- Now: point them to [Choose models](../omp-mechanics/SKILL.md#choose-models), and answer their question too.
 - Later: answer their question, and say agent frontmatter or parent inheritance remains in effect until they configure exact role overrides.
 
 ## Get set up
 
 1. Install with `/marketplace add negoro26/pstack-omp`, then `/marketplace install pstack@pstack-omp`.
-2. Run [`/skill:setup-pstack`](../setup-pstack/SKILL.md). It selects models and a reasoning budget for exact discovered agents, writing three pstack-owned `modelRoles` aliases and `task.agentModelOverrides` entries in `~/.omp/agent/config.yml`. It does not create missing agents or select the chat model. Read the skill for activation and optional verification-skill setup.
+2. Models need no configuration. Each agent runs on its frontmatter model, then on the chat model. To pick models per agent, follow [Choose models](../omp-mechanics/SKILL.md#choose-models). Offer once each to generate a verification skill with `/skill:create-verification-skill` and a formal verification skill with `/skill:create-formal-verification-skill`, unless the project already has one.
 3. Start a real task with `/skill:poteto-mode`, a goal, and a check that can pass or fail.
 
-Skills run when invoked or routed. The installed extension also provides the session pin commands. `setup-pstack` is available for model-configuration requests. The [README](../../README.md) and [guide page 1](https://github.com/cursor/plugins/blob/main/pstack/docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
+Skills run when invoked or routed. The installed extension also provides the session pin commands. The [README](../../README.md) and [guide page 1](https://github.com/cursor/plugins/blob/main/pstack/docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
 
-If cost is the worry, explain that extra workers and review panels spend more tokens. Rerun `/skill:setup-pstack` to choose a smaller reasoning budget or cheaper available models. An agent without a model override uses its frontmatter or inherits the chat model. Fewer configured reviewer slots mean fewer subagents. Never write `auto` or `inherit-parent` as an OMP model selector. Save `/skill:poteto-mode` for work that needs rigor.
+If cost is the worry, explain that extra workers and review panels spend more tokens. To spend fewer, pick a lower effort or cheaper available models per [Choose models](../omp-mechanics/SKILL.md#choose-models). An agent without a model override uses its frontmatter or inherits the chat model. Never write `auto` or `inherit-parent` as an OMP model selector. Save `/skill:poteto-mode` for work that needs rigor.
 
 pstack installs in omp with `/marketplace add negoro26/pstack-omp`, then `/marketplace install pstack@pstack-omp`. Invoke skills as `/skill:<name>`, such as `/skill:poteto-mode`. Read `skill://pstack-omp` for the live task and runtime contract and `skill://omp-mechanics` for pstack-specific OMP differences.
 
-The engineering workflows come from upstream. `skill://pstack-omp` maps worker execution and lifecycle to OMP; `skill://setup-pstack` configures OMP models, and the mode extension preserves the session pin.
+The engineering workflows come from upstream. `skill://pstack-omp` maps worker execution and lifecycle to OMP, `skill://omp-mechanics` says how to choose models, and the mode extension preserves the session pin.
 
 ## Start a task with `/skill:poteto-mode`
 
@@ -93,7 +93,7 @@ The default answer is `/skill:poteto-mode`, which runs most of the others when i
 | Vet a performance number before reporting or acting on it | [`/skill:benchmark-checklist`](../benchmark-checklist/SKILL.md) |
 | Run a large or cross-cutting change, or one to review after stepping away | [`/skill:figure-it-out`](../figure-it-out/SKILL.md) |
 | Keep a decision log during a run, and review it afterward | [`/skill:show-me-your-work`](../show-me-your-work/SKILL.md) |
-| Pick a model for each role and a reasoning budget | [`/skill:setup-pstack`](../setup-pstack/SKILL.md) |
+| Pick a model for each role and a reasoning budget | [Choose models](../omp-mechanics/SKILL.md#choose-models) |
 | Turn their own working habits into a personal mode skill | [`/skill:automate-me`](../automate-me/SKILL.md) |
 | Turn what a finished task taught into skill edits | [`/skill:reflect`](../reflect/SKILL.md) |
 | Stop agents from repeating the same mistakes in this repo | [`/skill:correct`](../correct/SKILL.md) |
@@ -140,7 +140,7 @@ Principles are one-rule skills that `/skill:poteto-mode` reads and cites in its 
 |---|---|
 | The mode stopped applying after a few turns | Check `/poteto-mode status`. Use `/poteto-mode on` to pin it, or invoke `/skill:poteto-mode` for each task. |
 | A question got treated as the next step of the last task | Say "new task", or say the turn doesn't need the mode. |
-| A new model choice had no effect | Confirm the loaded agent name and its exact `task.agentModelOverrides` entry. Follow `/skill:setup-pstack` activation guidance; an override cannot create an agent. |
+| A new model choice had no effect | Confirm the loaded agent name and its exact `task.agentModelOverrides` entry, then start a new session. An override cannot create an agent. |
 | Runs cost more than expected | See the cost paragraph under Get set up. |
 | A skill didn't load on its own | Invoke `/skill:<name>` explicitly or let the router load it. Only skills enabled for model invocation appear in the per-turn index. |
 | Parallel agents overwrote each other | Give each agent its own worktree, or run them as isolated subagents, which get private worktrees, not separate machines. |

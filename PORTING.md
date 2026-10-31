@@ -34,10 +34,11 @@ the head a second time and getting a different answer.
 ### How to re-sync
 
 The port is a build, not a maintained tree. `plugins/pstack/skills` and `plugins/pstack/agents` are
-upstream text at the pinned sha with `omp-port/rules.sed` applied, then `omp-port/patches/*.patch`,
-then the paths in `omp-port/owned.txt` carried across. A hand edit under either directory fails the
-`reproducible` check, which rebuilds the pin and diffs it against the tree, and the next build
-deletes it. Put the change in `rules.sed`, in a patch, or in an owned path instead.
+upstream text at the pinned sha minus the paths in `omp-port/excluded.txt`, with
+`omp-port/rules.sed` applied, then `omp-port/patches/*.patch`, then the paths in
+`omp-port/owned.txt` carried across. A hand edit under either directory fails the `reproducible`
+check, which rebuilds the pin and diffs it against the tree, and the next build deletes it. Put the
+change in `rules.sed`, in a patch, or in an owned path instead.
 
 The `upstream-sync` workflow does this daily. It runs `bash omp-port/check-port.sh` on `main` first,
 so a red trunk stops the run rather than being merged over, then builds at the newest upstream
@@ -48,8 +49,9 @@ while any open PR still carries a `sync/upstream-` head.
 
 A maintainer runs `bash omp-port/sync-upstream.sh [<target-sha>]` for the same build locally, target
 defaulting to that newest commit, or `bash omp-port/sync-upstream.sh rebuild` to rebuild at the
-current pin after editing `rules.sed`, `patches/`, or `owned.txt`. A target that never touched
-`pstack/` is refused, because the next run has to find that sha again in the path-filtered history.
+current pin after editing `rules.sed`, `patches/`, `owned.txt`, or `excluded.txt`. A target that
+never touched `pstack/` is refused, because the next run has to find that sha again in the
+path-filtered history.
 Then run `bash omp-port/check-port.sh` and commit.
 
 There is nothing to resolve. The build never edits an upstream file in place, so upstream text and
@@ -196,8 +198,9 @@ The marketplace install is the user shape.
 
 That caches the plugin at `~/.omp/plugins/cache/plugins/pstack-omp___pstack___<version>` and links
 it at the same `~/.omp/plugins/node_modules/pstack` path. Verified on omp 18.1.13, 2026-09-07. The
-skills load, `setup-pstack` is among them and the rest hide, and both extensions register from
-`package.json` `omp.extensions`, so `--poteto` injects the reminder in `-p` mode.
+skills load, the ones without `disable-model-invocation` visible and the rest hidden, and both
+extensions register from `package.json` `omp.extensions`, so `--poteto` injects the reminder in
+`-p` mode.
 
 The agents do not load from a marketplace root. omp scans a marketplace plugin's `agents/` directory
 only through the `claude-plugins` discovery provider, which is off by default
@@ -235,9 +238,22 @@ installed.
 the model slugs upstream names first and a catch-all under them whose hits the sync and the gate
 report as `untiered` so they earn a tiered rule. `omp-port/patches/` carries the port's own code as
 unified diffs applied after the rules, which is where a change no substitution can express belongs.
-`omp-port/owned.txt` names three port-owned skills. `pstack-omp` is the sole live task, vibe, eval,
-and runtime contract. `omp-mechanics` keeps only pstack-specific OMP deltas, and `setup-pstack`
-owns model selection and config writes. Upstream syncs preserve these paths without rewriting them.
+`omp-port/owned.txt` names two port-owned skills. `pstack-omp` is the sole live task, vibe, eval,
+and runtime contract. `omp-mechanics` keeps only pstack-specific OMP deltas. Upstream syncs preserve
+these paths without rewriting them.
+
+`omp-port/excluded.txt` names upstream paths the port does not ship, one per line. `extract_upstream`
+deletes each one right after the export, so no rule, patch, or probe sees that text, and a rule that
+only an excluded file matched reads as stale. The `excluded paths` check fails when an excluded path
+is in the tree or a tree file names it. Without that check, a reworded upstream line would ship a
+`/skill:<name>` for a skill that is not installed.
+
+The one entry is `skills/setup-pstack`. Upstream's version writes a Cursor rules file. pstack on omp
+needs no model configuration, because an agent with no override runs on its frontmatter model and
+then on the parent session's model. The Choose models section of `skills/omp-mechanics/SKILL.md`
+says how to set `task.agentModelOverrides` and `modelRoles` by hand, and `rules.sed` points
+poteto-help there. An upstream commit that touches only an excluded path still appears in the drift
+list. Syncing it moves the pin and changes nothing in the tree.
 
 ### A patch rewrites code, never prose
 
@@ -282,25 +298,19 @@ checks are gone. What remains is residue detection: Cursor wire fields and tool 
 transcript layout, model slugs, retired role keys, install paths, a claimed `hub` tool, an unscoped
 `omp cleanse --all` recommended as a diagnostic, and build integrity.
 
-`skills/setup-pstack` is port-owned, so the build restores it from `HEAD` and never rebuilds it from
-upstream. Upstream's version writes a Cursor rules file with no omp meaning, so the fork is
-deliberate, but the drift list alone does not mark it: an upstream edit to that skill shows up as an
-ordinary pstack commit with no patch conflict and no reminder to re-derive it.
+The build never rebuilds an owned path from upstream. It restores the path from the worktree or
+from `HEAD`. When upstream also carries that path, the fork is deliberate, but the drift list alone
+does not mark it. An upstream edit shows up as an ordinary pstack commit with no patch conflict and
+no reminder to re-derive the owned copy.
 `bash omp-port/sync-upstream.sh check` therefore writes a `shadowed <path>:` line per owned path to
 stderr, counting the upstream commits sitting ahead of the pin on that path. That count resets the
-moment the pin moves past the commit, which is how ab1f702's edit to setup-pstack step 3(c) went
-unread through the c742dd6 sync. So `omp-port/owned.txt` also records, per owned path, the upstream
-object a maintainer last read against the owned copy, and `owned drift` fails when upstream's
-object at the target differs. The failure prints both objects and the `git diff` that shows the
-change. Carry what the owned copy needs, then record the new object. The two other owned paths have
-no upstream counterpart and record `-`, so upstream adding one fails the same way.
-
-`skills/setup-pstack/scripts/apply-models.mjs` makes the config write. `omp config set` stores a
-selector the catalog does not have and an alias no role defines without complaint, so a bad value
-used to surface only at spawn. The script checks every alias, effort, and agent value against
-`omp models --json` and the merged `modelRoles` before its first write, preserves every entry pstack
-does not own, and converges on a rerun. Its tests run in the gate against a stub `omp` on `PATH`,
-and the `setup config contract` check asserts the skill still routes through it.
+moment the pin moves past the commit. That is how ab1f702's edit to setup-pstack step 3(c) went
+unread through the c742dd6 sync, while the port still owned setup-pstack. So `omp-port/owned.txt`
+also records, per owned path, the upstream object a maintainer last read against the owned copy, and
+`owned drift` fails when upstream's object at the target differs. The failure prints both objects
+and the `git diff` that shows the change. Carry what the owned copy needs, then record the new
+object. Neither owned path has an upstream counterpart, so both record `-`, and upstream adding one
+fails the same way.
 
 Known deltas the port mirrors faithfully and will not diverge on. The guide says the verification feature map lives at `references/features` while both trees write `features/`. The guide recommends a daily `/maintain-verification-skill` run while both trees state no cadence.
 

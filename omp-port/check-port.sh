@@ -98,21 +98,11 @@ scan() {
 
 scan "$PAT_SLUG" "model-agnostic" slug
 
-model_levers=""
-for f in skills/setup-pstack/SKILL.md skills/poteto-mode/SKILL.md; do
-	grep -Fq 'task.agentModelOverrides' "$f" || model_levers="$model_levers $f"
-done
-if [ -n "$model_levers" ]; then
+if grep -Fq 'task.agentModelOverrides' skills/poteto-mode/SKILL.md; then
+	report "omp model levers" "PASS  poteto-mode names task.agentModelOverrides"
+else
 	report "omp model levers" "FAIL"
-	for f in $model_levers; do violate "$f must name task.agentModelOverrides"; done
-else
-	report "omp model levers" "PASS  setup-pstack and poteto-mode name task.agentModelOverrides"
-fi
-if grep -rIlq '/model' skills/setup-pstack/SKILL.md 2>/dev/null; then
-	report "chat-model lever" "PASS  /model named in setup-pstack"
-else
-	report "chat-model lever" "FAIL"
-	violate "setup-pstack must tell the user to pick the chat model with /model"
+	violate "skills/poteto-mode/SKILL.md must name task.agentModelOverrides"
 fi
 
 # Review diversity is no longer asserted here. These three checks pinned exact sentences inside
@@ -289,41 +279,6 @@ runtime_contract() {
 	else
 		report "one-item role routing" "PASS  every explicit single-spawn line has one-item context"
 	fi
-
-	bad=""
-	setup_skill=skills/setup-pstack/SKILL.md
-	setup_ref=skills/omp-mechanics/references/setup-pstack-config.md
-	expected_aliases=$'pstack_fast_code\npstack_instruction\npstack_judgment'
-	actual_aliases=$(grep -hoE '^[[:space:]]{2,}pstack_[a-z0-9_]+:' "$setup_ref" 2>/dev/null | sed 's/^[[:space:]]*//; s/:$//' | sort -u || true)
-	[ "$actual_aliases" = "$expected_aliases" ] || bad="unexpected pstack-owned modelRoles alias set"$'\n'
-	expected_alias_shapes=$'  pstack_fast_code: "<detected-selector>:<effort>"\n  pstack_instruction: "<detected-selector>:<effort>"\n  pstack_judgment: "<detected-selector>:<effort>"'
-	actual_alias_shapes=$(awk '/^modelRoles:/{roles=1; next} roles && /^task:/{exit} roles && /^  pstack_/{print}' "$setup_ref" | sort || true)
-	[ "$actual_alias_shapes" = "$expected_alias_shapes" ] || bad="$bad"'unexpected pstack alias shape'$'\n'
-	grep -q '^task:$' "$setup_ref" && grep -q '^  agentModelOverrides:$' "$setup_ref" && grep -qF '    <exact discovered agent name>: "@pstack_fast_code"' "$setup_ref" || bad="$bad"'task.agentModelOverrides YAML shape is missing'$'\n'
-	for alias in pstack_fast_code pstack_judgment pstack_instruction; do grep -qF "$alias" "$setup_skill" || bad="$bad$alias is missing from setup-pstack"$'\n'; done
-	setup_keys=$(grep -nE '^[[:space:]]{4,}pstack_[a-z0-9_]+:' "$setup_skill" "$setup_ref" 2>/dev/null || true)
-	[ -z "$setup_keys" ] || bad="$bad$setup_keys"$'\n'
-	old_setup=$(grep -nE '^([[:space:]]{4,})?(feature, refactoring|arena runners|arena cross-judge pool|architect runners|swarm workers|interrogate reviewers|reflect judgment, divergent, synthesizer):|For panel roles .* value is a list' "$setup_skill" 2>/dev/null || true)
-	[ -z "$old_setup" ] || bad="$bad$old_setup"$'\n'
-	grep -Fxq 'A `task.agentModelOverrides` entry is pstack-owned only when its exact key is a discovered agent and its value is one of `@pstack_fast_code`, `@pstack_judgment`, or `@pstack_instruction`.' "$setup_skill" || bad="$bad"'per-agent setup ownership is missing'$'\n'
-	grep -Fxq 'Preserve every unrelated entry in both maps.' "$setup_skill" || bad="$bad"'unrelated setup ownership preservation is missing'$'\n'
-	grep -Fq 'capability, exact discovered agent name' "$setup_skill" || bad="$bad"'setup capability mapping is missing'$'\n'
-	grep -Fq 'The effort ladder is `max > xhigh > high > medium > low > minimal`.' "$setup_skill" || bad="$bad"'setup effort ladder is missing minimal or ordering'$'\n'
-	grep -Fq 'APPLY=$(realpath skill://setup-pstack)/scripts/apply-models.mjs' "$setup_skill" && grep -Fq -- '--dry-run' "$setup_skill" && [ -f skills/setup-pstack/scripts/apply-models.mjs ] || bad="$bad"'setup does not plan and write through scripts/apply-models.mjs'$'\n'
-	grep -Fq 'selected model' "$setup_skill" && grep -Fq '`thinking.efforts`' "$setup_skill" || bad="$bad"'setup does not validate supported model efforts'$'\n'
-	grep -Fq 'An omitted override uses the discovered agent' "$setup_skill" && grep -Fq "frontmatter model first, then the parent session's active or default model" "$setup_skill" || bad="$bad"'setup omission precedence is missing'$'\n'
-	grep -Fq 'Family diversity is optional' "$setup_skill" || bad="$bad"'setup family fallback is missing'$'\n'
-	bad_alias_choices=$(grep -nE 'offer(s|ing).*`(inherit-parent|auto)`| `(inherit-parent|auto)` always pass|omission for parent inheritance|Omit an override to inherit the parent model' "$setup_skill" 2>/dev/null || true)
-	[ -z "$bad_alias_choices" ] || bad="$bad$bad_alias_choices"$'\n'
-	grep -Fq 'exactly one supported effort suffix from `max`, `xhigh`, `high`, `medium`, `low`, and `minimal`' "$setup_ref" || bad="$bad"'setup reference suffix list is missing minimal'$'\n'
-	grep -Fq 'remaining base to equal a selector from `omp models --json`' "$setup_ref" || bad="$bad"'setup reference base-selector validation is missing'$'\n'
-	grep -Fq 'selected model' "$setup_ref" && grep -Fq '`thinking.efforts`' "$setup_ref" || bad="$bad"'setup reference does not validate model efforts'$'\n'
-	if [ -n "$bad" ]; then
-		report "setup config contract" "FAIL"
-		while read -r line; do [ -n "$line" ] && violate "$line"; done <<<"$bad"
-	else
-		report "setup config contract" "PASS  ownership, aliases, model efforts, suffix, base selector, and the apply-models lever"
-	fi
 }
 runtime_contract
 
@@ -350,6 +305,23 @@ if [ -n "$unclaimed" ]; then
 	while read -r c; do [ -n "$c" ] && violate "$c"; done <<<"$unclaimed"
 else
 	report "guide claims" "PASS  ${#guide_skills[@]} skills, prototype and multi-phase-plan playbooks, check-plan.mjs, feature map, /poteto-mode command"
+fi
+
+# The build deletes every path in omp-port/excluded.txt, so one in the tree came back by hand or
+# through owned.txt. A line that names one sends an agent to a skill that is not installed.
+excl=""
+while IFS= read -r p; do
+	[ ! -e "$p" ] || excl="$excl$p is in the tree"$'\n'
+	hits=$(grep -rInF -- "$(basename "$p")" "${SCOPE[@]}" 2>/dev/null |
+		awk -v p="$p" 'index($0, p "/") != 1 && index($0, p ":") != 1' || true)
+	[ -z "$hits" ] || excl="$excl$hits"$'\n'
+done < <(excluded_paths)
+if [ -n "$excl" ]; then
+	report "excluded paths" "FAIL"
+	while read -r e; do [ -n "$e" ] && violate "$e"; done <<<"$excl"
+	violate "omp-port/excluded.txt keeps these out of the build; delete the path, or add a rules.sed rule for the line that names it"
+else
+	report "excluded paths" "PASS  $(excluded_paths | grep -c .) path(s) absent from the tree and named nowhere in it"
 fi
 
 # rules.sed read as data rather than run, so these need no clone and run before the contracts-only

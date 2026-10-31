@@ -27,6 +27,7 @@ run_gate() {
 	[ -d "$dir/patches" ] && patches="$dir/patches"
 	CHECK_PORT_ROOT="$root" RULES="$dir/port/rules.sed" STALE_EXEMPT="$dir/port/stale-exempt.tsv" \
 		SHADOW_EXEMPT="$dir/port/shadow-exempt.tsv" SWALLOW="$dir/port/swallow.tsv" OWNED="$dir/port/owned.txt" \
+		EXCLUDED="$dir/port/excluded.txt" \
 		PATCH_DIR="$patches" CHECK_PORT_CONTRACTS_ONLY="$only" CHECK_PORT_NESTED=1 \
 		bash "$PORT_DIR/check-port.sh" "$@"
 }
@@ -49,7 +50,7 @@ start_case() {
 	dir="$WORK/$((++ncase))"
 	mkdir -p "$dir/port"
 	[ "$mode" != contracts ] || cp -a "$PORT_DIR/../plugins/pstack" "$dir/plugin"
-	cp "$PORT_DIR"/{rules.sed,stale-exempt.tsv,shadow-exempt.tsv,swallow.tsv,owned.txt} "$dir/port/"
+	cp "$PORT_DIR"/{rules.sed,stale-exempt.tsv,shadow-exempt.tsv,swallow.tsv,owned.txt,excluded.txt} "$dir/port/"
 	FIXTURE="$dir/plugin" PORT_FIXTURE="$dir/port" PATCH_FIXTURE="$dir/patches"
 	"$mutation"
 	printf '%s\037%s\037%s\037%s\037%s\n' "$name" "$mode" "$label" "$needle" "$dir" >>"$WORK/cases"
@@ -94,32 +95,15 @@ append() {
 	printf '%s\n' "$2" >>"$1"
 }
 
-mutate_preserve_ownership() {
-	sed -i 's/^Preserve every unrelated entry in both maps\.$/Discard every unrelated entry in both maps./' "$FIXTURE/skills/setup-pstack/SKILL.md"
+# The build deletes an excluded path, so it reaches the tree only by hand or through owned.txt.
+mutate_excluded_path() {
+	mkdir -p "$FIXTURE/skills/setup-pstack"
+	printf -- '---\nname: setup-pstack\n---\n' >"$FIXTURE/skills/setup-pstack/SKILL.md"
 }
 
-mutate_override_ownership() {
-	sed -i 's/^A `task\.agentModelOverrides` entry is pstack-owned only when its exact key is a discovered agent and its value is one of `@pstack_fast_code`, `@pstack_judgment`, or `@pstack_instruction`\.$/A `task.agentModelOverrides` entry is pstack-owned when its key starts with `pstack_`./' "$FIXTURE/skills/setup-pstack/SKILL.md"
-}
-
-mutate_alias_shape() {
-	sed -i '/^modelRoles:/a\  pstack_extra: "<detected-selector>:<effort>"' "$FIXTURE/skills/omp-mechanics/references/setup-pstack-config.md"
-}
-
-mutate_supported_suffixes() {
-	sed -i 's/, and `minimal`//' "$FIXTURE/skills/omp-mechanics/references/setup-pstack-config.md"
-}
-
-mutate_base_selector() {
-	sed -i 's/require the remaining base to equal a selector from `omp models --json`/accept any remaining base/' "$FIXTURE/skills/omp-mechanics/references/setup-pstack-config.md"
-}
-
-mutate_setup_apply_script() {
-	sed -i '/^APPLY=/d' "$FIXTURE/skills/setup-pstack/SKILL.md"
-}
-
-mutate_setup_lever() {
-	sed -i 's/task\.agentModelOverrides/task.model/g' "$FIXTURE/skills/setup-pstack/SKILL.md"
+# A poteto-help line this port shipped before it excluded setup-pstack.
+mutate_excluded_reference() {
+	printf '\n- Now: give them `/skill:setup-pstack` to type, and answer their question too.\n' >>"$FIXTURE/skills/poteto-help/SKILL.md"
 }
 
 mutate_router_lever() {
@@ -251,10 +235,10 @@ mutate_swallow_row_missing() {
 	sed -i '/^s#^- Enter on `\/poteto-mode` attaches/d' "$PORT_FIXTURE/swallow.tsv"
 }
 
-# The upstream setup-pstack tree before ab1f702, which is what owned.txt would still say had nobody
-# read that commit.
+# poteto-mode's upstream tree at the old target, recorded as the object last reviewed. Upstream has
+# changed it since, which is what owned.txt says when nobody read an upstream edit to an owned path.
 mutate_owned_drift() {
-	sed -i 's#^skills/setup-pstack\t.*#skills/setup-pstack\td533da1671e44234a9f72d1d4db8043cedd25eb2#' "$PORT_FIXTURE/owned.txt"
+	append "$PORT_FIXTURE/owned.txt" "skills/poteto-mode"$'\t'"$(git -C "$CANON" rev-parse "$OLD_TARGET:pstack/skills/poteto-mode")"
 }
 
 # A real patch applied a second time. Its hunks are already in, so plain patch asks on the terminal
@@ -286,13 +270,8 @@ mutate_target_only_patch() {
 }
 
 start_case 'baseline' '' '' contracts nothing
-start_case 'unrelated ownership' 'setup config contract' '' contracts mutate_preserve_ownership
-start_case 'per-agent ownership' 'setup config contract' '' contracts mutate_override_ownership
-start_case 'alias shape' 'setup config contract' '' contracts mutate_alias_shape
-start_case 'supported suffix list' 'setup config contract' '' contracts mutate_supported_suffixes
-start_case 'base selector validation' 'setup config contract' '' contracts mutate_base_selector
-start_case 'setup apply script' 'setup config contract' '' contracts mutate_setup_apply_script
-start_case 'setup model lever' 'omp model levers' '' contracts mutate_setup_lever
+start_case 'excluded path in the tree' 'excluded paths' 'skills/setup-pstack is in the tree' contracts mutate_excluded_path
+start_case 'line naming an excluded path' 'excluded paths' '/skill:setup-pstack' contracts mutate_excluded_reference
 start_case 'router model lever' 'omp model levers' '' contracts mutate_router_lever
 start_case 'agent hub api' 'agent hub api' '' contracts mutate_hub_api
 start_case 'install root' 'install root' '' contracts mutate_install_root
@@ -325,7 +304,7 @@ if ensure_canon "$PIN" "$OLD_TARGET" >/dev/null 2>&1; then
 	start_case 'rule behind its own duplicate' 'rule shadowing' 'which each get their own machine' full mutate_shadowed_rule
 	start_case 'swallowed text changed' 'swallow ledger' 'now: **Match the model to the job.**' full mutate_swallow_hash
 	start_case 'wildcard rule with no row' 'swallow ledger' 'has no swallow.tsv row' full mutate_swallow_row_missing
-	start_case 'owned path moved upstream' 'owned drift' 'skills/setup-pstack: upstream moved' full mutate_owned_drift
+	start_case 'owned path moved upstream' 'owned drift' 'skills/poteto-mode: upstream moved' full mutate_owned_drift
 	start_case 'patch that no longer applies' 'reproducible' 'failed, rules or a patch' full mutate_patch_fails
 	if command -v script >/dev/null; then
 		start_case 'patch prompt on a terminal' '' 'hunk FAILED' terminal mutate_patch_fails

@@ -141,9 +141,13 @@ question locally:
 bash omp-port/check-port.sh "" "$(gh api 'repos/cursor/plugins/commits?path=pstack&sha=main&per_page=1' --jq '.[0].sha')"
 ```
 
-The gate runs as its own workflow, `gate.yml`, on every pull request and on every push to `main`. A
-PR opened with `github.token` does not trigger `pull_request` workflows, so the sync PR carries the
-gate output in its body and the `push` to `main` run after the merge is the backstop.
+The gate runs as its own workflow, `gate.yml`, on every pull request and on every push to `main`.
+Neither trigger gated the two syncs the bot merged, #19 and #32. Each PR got a `pull_request` run
+that ended with no jobs a second after the merge, and the merge, made with `github.token`, started
+no `push` run. So `upstream-sync` calls `gate.yml` itself, as a reusable workflow on the sync
+commit, and its `merge` job runs only after that call passes. A sync that fails the build,
+`check-port.sh`, or `gate.yml` stays open for a human, and later runs stop at the open-PR guard
+until someone resolves it.
 
 Never substitute the `backnotprop/pstack` mirror for upstream.
 
@@ -367,7 +371,7 @@ The injected reminder is a pointer, not the playbook. It tells the agent to read
   tool blocks until the next settled job or peer message. These are the sanctioned primitives when
   workers must coordinate instead of running independent. There is no `hub` tool. Probe it rather
   than trusting this line: `grep -a -A40 'src/tools/builtin-names.ts' "$(readlink -f "$(command -v omp)")"`
-  prints the binary's builtin tool list, which on 18.12.6 carries `wait` and no `hub`; the binary's
+  prints the binary's builtin tool list, which on 18.14.1 carries `wait` and no `hub`; the binary's
   only other `hub` is the `/hub` slash command that opens Agent Hub. An earlier tree read a `hub`
   tool with list/send/inbox/wait ops off a stale pi-coding-agent 17.x package, and the gate now
   fails any shipped sentence that names one. Cross-session messaging does not exist locally and
@@ -439,7 +443,7 @@ thinking id for judgment work.
 ### What omp can actually stop
 
 The playbooks say "stop where the human's call begins", and until recently that was advice with
-nothing behind it. Three facts from `omp://approval-mode.md`, on omp 18.4.10, decide what an
+nothing behind it. Three facts from `omp://approval-mode.md`, on omp 18.14.1, decide what an
 instruction is worth here:
 
 - `yolo` auto-approves the `read`, `write`, **and `exec`** tiers. A `gh pr merge` inside a bash

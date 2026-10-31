@@ -9,21 +9,29 @@ on:
     types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to gate. upstream-sync passes its sync commit and merges only after this run passes.
+        type: string
+        required: true
 
 jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
       - name: Shell syntax
         # One bash -n per file, in a loop. `bash -n a.sh b.sh` parses a.sh and passes b.sh through as
         # a positional parameter, so the single-command form checks exactly one file and reports
-        # success for the rest, which is worse than no step: it looks like four scripts are covered.
+        # success for the rest, which is worse than no step: it looks like every script is covered.
         run: |
-          for f in omp-port/*.sh; do
+          for f in $(git ls-files '*.sh'); do
             echo "::group::$f"
             bash -n "$f"
             echo "::endgroup::"
@@ -41,26 +49,29 @@ jobs:
         run: bun run typecheck
       - name: Extension tests
         working-directory: plugins/pstack
-        run: bun test ./extensions/potetomode/index.test.js ./extensions/pstackpolicy/index.test.js
+        run: bun test ./extensions
 
   smoke:
-    # A real omp loads plugins/pstack: every skill directory must register as a command, and the
-    # pin extension must record and reload its state. omp-port/smoke-plugin.mjs names each check.
+    # A real omp loads plugins/pstack through -e, `omp plugin link`, and a local marketplace install,
+    # and runs scripted turns: every skill registers, the pinned prompt names poteto-mode, and
+    # pstackpolicy refuses a merge before gh runs. omp-port/smoke-plugin.mjs names each check.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.4
       - name: Install pinned omp
-        # can1357/oh-my-pi release v18.12.6, asset omp-linux-x64, sha256
-        # 85d9daf3a05fc76e8cd425ae1904eb576af8d21cc85fcf4690742626e07ccfa4. That is the digest
-        # `gh api repos/can1357/oh-my-pi/releases/latest` reports for the asset and the sha256 of the
-        # downloaded file, checked 2026-10-22. A bump changes the tag and the digest together.
+        # can1357/oh-my-pi release v18.14.1, asset omp-linux-x64, sha256
+        # 02d76a0cfeee473ffa387f50cf0378b0de1c44684c83e67ca27ba4d717cfb0d0. That is the digest
+        # `gh release view v18.14.1 -R can1357/oh-my-pi --json assets` reports for the asset and the
+        # sha256 of the downloaded file, checked 2026-10-31. A bump changes the tag and the digest together.
         env:
-          OMP_TAG: v18.12.6
-          OMP_SHA256: 85d9daf3a05fc76e8cd425ae1904eb576af8d21cc85fcf4690742626e07ccfa4
+          OMP_TAG: v18.14.1
+          OMP_SHA256: 02d76a0cfeee473ffa387f50cf0378b0de1c44684c83e67ca27ba4d717cfb0d0
         run: |
           dir="$RUNNER_TEMP/omp"
           mkdir -p "$dir"
@@ -73,3 +84,22 @@ jobs:
         run: OMP_SMOKE_REQUIRED=1 bun omp-port/smoke-plugin.mjs
       - name: Worktree audit against live omp
         run: OMP_AUDIT_LIVE_REQUIRED=1 bash omp-port/test-worktree-audit.sh
+
+  statechart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: plugins/pstack/skills/statechart/scripts
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install test dependencies
+        run: npm install --no-package-lock
+      - name: Statechart tests
+        # The cases that need TLC skip, because the runner sets no TLA2TOOLS.
+        run: npm test

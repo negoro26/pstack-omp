@@ -20,10 +20,13 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    outputs:
+      pr: ${{ steps.build.outputs.pr }}
+      sha: ${{ steps.build.outputs.sha }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -70,7 +73,8 @@ jobs:
           TARGET: ${{ steps.plan.outputs.target }}
         run: bash omp-port/check-port.sh "" "$TARGET"
 
-      - if: steps.plan.outputs.go == 'yes'
+      - id: build
+        if: steps.plan.outputs.go == 'yes'
         env:
           TARGET: ${{ steps.plan.outputs.target }}
           SHORT: ${{ steps.plan.outputs.short }}
@@ -106,8 +110,29 @@ jobs:
           pr=$(gh pr create --base main --head "sync/upstream-$SHORT" \
             --title "sync: upstream pstack $SHORT ($version)" --body-file "$RUNNER_TEMP/body.md" | tail -n1)
           if [ "$code" -eq 0 ] && [ "$gate" -eq 0 ]; then
-            gh pr merge "$pr" --squash --delete-branch
+            printf 'pr=%s\nsha=%s\n' "$pr" "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "left $pr open for a human: sync exit $code, gate exit $gate"
           exit 1
+
+  # A merge made with github.token starts no push run on main, so this job is the only full gate a
+  # sync gets. A red gate skips the merge and leaves the PR open for a human.
+  gate:
+    needs: sync
+    if: needs.sync.outputs.sha != ''
+    permissions:
+      contents: read
+    uses: ./.github/workflows/gate.yml
+    with:
+      ref: ${{ needs.sync.outputs.sha }}
+
+  merge:
+    needs: [sync, gate]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ needs.sync.outputs.pr }}
+      SHA: ${{ needs.sync.outputs.sha }}
+    steps:
+      - run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --squash --delete-branch --match-head-commit "$SHA"

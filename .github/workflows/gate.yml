@@ -54,8 +54,9 @@ jobs:
         run: bun test ./extensions
 
   smoke:
-    # A real omp loads plugins/pstack: every skill directory must register as a command, and the
-    # pin extension must record and reload its state. omp-port/smoke-plugin.mjs names each check.
+    # A real omp loads plugins/pstack through -e, `omp plugin link`, and a local marketplace install,
+    # and runs scripted turns: every skill registers, the pinned prompt names poteto-mode, and
+    # pstackpolicy refuses a merge before gh runs. omp-port/smoke-plugin.mjs names each check.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

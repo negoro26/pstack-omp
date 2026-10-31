@@ -21,9 +21,9 @@ jobs:
       - name: Shell syntax
         # One bash -n per file, in a loop. `bash -n a.sh b.sh` parses a.sh and passes b.sh through as
         # a positional parameter, so the single-command form checks exactly one file and reports
-        # success for the rest, which is worse than no step: it looks like four scripts are covered.
+        # success for the rest, which is worse than no step: it looks like every script is covered.
         run: |
-          for f in omp-port/*.sh; do
+          for f in $(git ls-files '*.sh'); do
             echo "::group::$f"
             bash -n "$f"
             echo "::endgroup::"
@@ -43,7 +43,7 @@ jobs:
         run: bun run typecheck
       - name: Extension tests
         working-directory: plugins/pstack
-        run: bun test ./extensions/potetomode/index.test.js ./extensions/pstackpolicy/index.test.js
+        run: bun test ./extensions
 
   smoke:
     # A real omp loads plugins/pstack: every skill directory must register as a command, and the
@@ -75,3 +75,20 @@ jobs:
         run: OMP_SMOKE_REQUIRED=1 bun omp-port/smoke-plugin.mjs
       - name: Worktree audit against live omp
         run: OMP_AUDIT_LIVE_REQUIRED=1 bash omp-port/test-worktree-audit.sh
+
+  statechart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: plugins/pstack/skills/statechart/scripts
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install test dependencies
+        run: npm install --no-package-lock
+      - name: Statechart tests
+        # The cases that need TLC skip, because the runner sets no TLA2TOOLS.
+        run: npm test

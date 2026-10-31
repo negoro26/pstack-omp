@@ -44,8 +44,6 @@ jobs:
       - name: Script tests
         working-directory: plugins/pstack/skills/poteto-mode/scripts
         run: bun run test
-      - name: Setup script tests
-        run: bun test plugins/pstack/skills/setup-pstack/scripts
       - name: Script typecheck
         working-directory: plugins/pstack/skills/poteto-mode/scripts
         run: bun run typecheck

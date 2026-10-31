@@ -162,6 +162,39 @@ const MUST_BLOCK = [
   // `main;`, which is not trunk.
   ["git push origin main; echo done", "pushing to trunk"],
   ["(git push origin main; true)", "pushing to trunk"],
+  // A subshell still ends its commands, and a substitution inside one still feeds its push.
+  ["(cd x && git push origin main)", "pushing to trunk"],
+  ["(git push origin $(echo feature; echo main))", "pushing to trunk"],
+  // GraphQL names a ref by node ID or inside an input list, so any ref mutation may be trunk.
+  [
+    'gh api graphql -f query=\'mutation{updateRef(input:{refId:"r",oid:"abc",force:true}){clientMutationId}}\'',
+    "through the GraphQL API",
+  ],
+  [
+    'gh api graphql -f query=\'mutation{updateRefs(input:{repositoryId:"r",refUpdates:[{name:"refs/heads/main",afterOid:"abc",force:true}]}){clientMutationId}}\'',
+    "through the GraphQL API",
+  ],
+  [
+    'gh api graphql -f query=\'mutation{deleteRef(input:{refId:"r"}){clientMutationId}}\'',
+    "through the GraphQL API",
+  ],
+  [
+    `curl https://api.github.com/graphql -d '{"query":"mutation{updateRef(input:{refId:\\"r\\",oid:\\"abc\\"}){clientMutationId}}"}'`,
+    "through the GraphQL API",
+  ],
+  // A refspec the shell or git expands is only known when it runs, and it may be trunk.
+  ["git push origin $(git branch --show-current)", "resolves only when it runs"],
+  ["git push origin `git branch --show-current`", "resolves only when it runs"],
+  ['git push origin "${BRANCH}"', "resolves only when it runs"],
+  ['git push -u origin "$BRANCH"', "resolves only when it runs"],
+  ['git push origin HEAD:"$(git branch --show-current)"', "resolves only when it runs"],
+  ["git push origin 'refs/heads/*:refs/heads/*'", "resolves only when it runs"],
+  // A backtick substitution runs the command inside it, the same as `$(...)`.
+  ["echo `git push origin main`", "pushing to trunk"],
+  // A comment ends at its newline whatever quotes it holds, and `$#` is a parameter, not a comment.
+  ["# don't push trunk from here\ngit push origin main", "pushing to trunk"],
+  ["git status # it's clean\ngit push origin HEAD:main", "pushing to trunk"],
+  ["echo $#; git push origin main", "pushing to trunk"],
 ];
 
 const MUST_PASS = [
@@ -213,6 +246,14 @@ const MUST_PASS = [
   "git push origin feature\ngit log -1 HEAD",
   "git push origin feature 2>&1 && git rev-parse HEAD",
   "cat > notes.md <<'EOF'\nPush with git push origin feature.\nEOF\ngit rev-parse HEAD",
+  // A subshell or brace group cuts the same as the commands written without it.
+  "(cd x && git push origin feature && git rev-parse HEAD)",
+  "{ git push origin feature; git rev-parse HEAD; }",
+  // A comment is not an argument, and a redirection target is not a refspec.
+  "git push origin feature # never main",
+  'git push origin feature > "$LOG" 2>&1',
+  // Reading a ref through GraphQL is not moving it.
+  "gh api graphql -f query='query{repository(owner:\"o\",name:\"r\"){ref(qualifiedName:\"main\"){target{oid}}}}'",
 ];
 
 describe("pstackpolicy", () => {
@@ -243,30 +284,30 @@ describe("pstackpolicy", () => {
     expect(ok?.block).toBeUndefined();
   });
 
-  test("an eval cell is gated the same way a bash call is", async () => {
-    // omp://approval-mode.md: eval declares the exec tier and can spawn a shell, so a rule that
-    // only read bash's `command` field was not a rule about the command.
-    for (const [code, rule] of [
-      ["await Bun.$`gh pr merge 12 --squash`", "merging a pull request"],
-      ['subprocess.run(["git", "push", "origin", "HEAD:main"])', "pushing to trunk"],
-      ['await tool.bash({ command: "gh repo delete o/r --yes" })', "deleting the repository"],
-      // A list literal broken over lines is still one command.
-      ['subprocess.run([\n    "git", "push", "origin", "feature",\n    "HEAD:main",\n])', "pushing to trunk"],
-    ]) {
-      const result = await call("eval", { language: "py", code }, { PSTACK_LANDING_GRANT: undefined });
-      expect(result?.block, `should block: ${code}`).toBe(true);
-      expect(result?.reason, `should name the rule: ${code}`).toContain(rule);
-    }
+  // omp://approval-mode.md: eval declares the exec tier and can spawn a shell, so a rule that
+  // only read bash's `command` field was not a rule about the command.
+  test.each([
+    ["await Bun.$`gh pr merge 12 --squash`", "merging a pull request"],
+    ['subprocess.run(["git", "push", "origin", "HEAD:main"])', "pushing to trunk"],
+    ['await tool.bash({ command: "gh repo delete o/r --yes" })', "deleting the repository"],
+    // A list literal broken over lines is still one command, and a comment inside it does not
+    // open a quote that hides the rest.
+    ['subprocess.run([\n    "git", "push", "origin", "feature",\n    "HEAD:main",\n])', "pushing to trunk"],
+    ['subprocess.run([\n    "git", "push", "origin",  # don\'t\n    "HEAD:main",\n])', "pushing to trunk"],
+    ["await Bun.$`git push origin HEAD:main`", "pushing to trunk"],
+  ])("refuses the eval cell %p as %p", async (code, rule) => {
+    const result = await call("eval", { language: "py", code }, { PSTACK_LANDING_GRANT: undefined });
+    expect(result?.block).toBe(true);
+    expect(result?.reason).toContain(rule);
   });
 
-  test("an eval cell with no forge mutation still passes", async () => {
-    for (const code of [
-      'print("git push origin feature/x")',
-      'subprocess.run(["git", "push", "origin", "feature"])\nsubprocess.run(["git", "rev-parse", "HEAD"])',
-    ]) {
-      const ok = await call("eval", { language: "py", code }, { PSTACK_LANDING_GRANT: undefined });
-      expect(ok, `should pass: ${code}`).toBeUndefined();
-    }
+  test.each([
+    'print("git push origin feature/x")',
+    'subprocess.run(["git", "push", "origin", "feature"])\nsubprocess.run(["git", "rev-parse", "HEAD"])',
+    "await Bun.$`git push origin feature`",
+  ])("allows the eval cell %p", async (code) => {
+    expect(await call("eval", { language: "py", code }, { PSTACK_LANDING_GRANT: undefined }))
+      .toBeUndefined();
   });
 
   test("ignores tools that carry no command", async () => {

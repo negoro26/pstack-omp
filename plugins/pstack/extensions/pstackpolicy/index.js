@@ -67,7 +67,7 @@ const GH_API = String.raw`\bgh\b${GH_FLAGS}\s+api\b`;
 // mutations that merge or arm a merge.
 const API_MERGE = String.raw`\/merges?\b|mergePullRequest|mergeBranch|enablePullRequestAutoMerge`;
 
-// Two normalisations, because these rules match text and the text is not always a shell line.
+// Three normalisations, because these rules match text and the text is not always a shell line.
 //
 // Quotes are syntax once the shell or the host language has read them, so `gh "pr" merge 12` is
 // `gh pr merge 12` and `'HEAD:main'` is one refspec. And inside an `eval` cell the command is
@@ -76,9 +76,14 @@ const API_MERGE = String.raw`\/merges?\b|mergePullRequest|mergeBranch|enablePull
 // what separated nothing in a shell line. Both are rewritten to a space. Only the loose direction
 // is taken: an unpaired quote is left alone, and a comma between two branch names becomes two
 // branch names, which this scan already treats as two refspecs.
+//
+// A backtick substitution becomes `$` and its command, the text a `$(...)` leaves once its
+// brackets go. So `` `git push origin main` `` is still a push, and a refspec built from one reads
+// as a value the shell fills in when it runs.
 const normalize = (command) =>
   command
     .replace(/(["'])([^"'\n]*)\1\s*,?/g, "$2 ")
+    .replace(/`([^`]*)`/g, "$$ $1 ")
     .replace(/[()[\]{},]/g, " ");
 
 const FORBIDDEN = [
@@ -104,6 +109,12 @@ const FORBIDDEN = [
     new RegExp(
       String.raw`${GH_API}(?=${CONT}\s(?:-X\s*|--method[= ]\s*)(?!GET\b)[A-Za-z])${CONT}\bgit\/refs\/heads\/(?:${TRUNK_ALT})(?![\w/-])`
     ),
+  ],
+  [
+    "moving or deleting a ref through the GraphQL API, which may be trunk",
+    // GraphQL names the ref by node ID or inside an input list, so no text rule can tell trunk
+    // from a feature branch. Every ref update or delete is refused wherever it points.
+    new RegExp(String.raw`(?:${GH_API}|\bcurl\b)${CONT}\b(?:updateRefs?|deleteRef)\b`),
   ],
   [
     "retargeting a pull request base, which rewrites the whole stack under it",
@@ -215,20 +226,28 @@ function shellTokens(command) {
 /**
  * The simple commands in a command line, cut where the shell ends one: `&&`, `||`, `;`, `|`, `&`
  * and newline. A push's refspecs end with its own command, so `git push origin feature && git
- * rev-parse HEAD` is a feature push and a read, not a push of HEAD.
+ * rev-parse HEAD` is a feature push and a read, not a push of HEAD. A subshell or brace group cuts
+ * the same way, so `(cd x && git push origin feature && git rev-parse HEAD)` reads the same.
  *
- * Every miss leaves text joined, which fails closed. Nothing inside quotes, backticks or brackets
- * is cut, so the `;` in `$(echo; echo main)` and the newlines of a list literal stay with the
- * push they feed, and the `&` of `2>&1` or `&>` is a redirection, not a separator. A heredoc body
- * gets no exception: each line is scanned as its own command, because `bash <<EOF` runs it.
+ * Every miss leaves text joined, which fails closed. Nothing inside quotes, backticks, a
+ * substitution or a list literal is cut, so the `;` in `$(echo; echo main)` and the newlines of a
+ * list literal stay with the push they feed, and the `&` of `2>&1` or `&>` is a redirection, not a
+ * separator. A comment is dropped up to its newline, quotes and all, so the apostrophe in
+ * `# don't` opens nothing. A heredoc body gets no exception: each line is scanned as its own
+ * command, because `bash <<EOF` runs it.
  */
 function simpleCommands(command) {
   const out = [];
+  let kept = "";
   let start = 0;
   let quote = null;
-  let depth = 0;
+  // One entry per open bracket. A subshell or brace group is true, because the shell still
+  // separates the commands inside it. A substitution or list literal is false, because its text
+  // feeds one command.
+  const brackets = [];
   const cut = (at) => {
-    out.push(command.slice(start, at));
+    out.push(kept + command.slice(start, at));
+    kept = "";
     start = at + 1;
   };
   for (let i = 0; i < command.length; i += 1) {
@@ -241,15 +260,20 @@ function simpleCommands(command) {
       if (ch === quote) quote = null;
     } else if (ch === "'" || ch === '"' || ch === "`") {
       quote = ch;
+    } else if (ch === "#" && /^$|[\s;&|()]/.test(command[i - 1] ?? "")) {
+      kept += command.slice(start, i);
+      start = command.indexOf("\n", i);
+      if (start < 0) start = command.length;
+      i = start - 1;
     } else if ("([{".includes(ch)) {
-      depth += 1;
+      brackets.push(ch !== "[" && /^[\s({]*$/.test(kept + command.slice(start, i)));
     } else if (")]}".includes(ch)) {
-      depth = Math.max(0, depth - 1);
-    } else if (depth === 0 && (ch === "\n" || separates(command, i))) {
+      brackets.pop();
+    } else if (brackets.every(Boolean) && (ch === "\n" || separates(command, i))) {
       cut(i);
     }
   }
-  out.push(command.slice(start));
+  out.push(kept + command.slice(start));
   return out;
 }
 
@@ -303,15 +327,40 @@ function eachGitCommand(command, visit) {
   }
 }
 
+// A redirection with its target glued on, and an operator alone, whose target is the next token.
+// The target names a file, not a refspec.
+const REDIRECTION = /^(?:\d+|&)?[<>]/;
+const REDIRECTION_ALONE = /^(?:\d+|&)?[<>]+[&|]?$/;
+
+/**
+ * Why a push destination may be trunk although it names no trunk branch, or null.
+ *
+ * `HEAD` is whatever this checkout is on, which from a trunk checkout is trunk, and `git push
+ * origin HEAD` is the idiom an agent actually writes. `$` opens a parameter or command
+ * substitution, and normalize spells a backtick one with `$` too, so the shell fills the name in
+ * when it runs. `*` is a pattern git matches against every local branch.
+ */
+function unreadable(dest) {
+  if (dest === "HEAD") return "pushing the current branch, which may be trunk";
+  if (/[$*]/.test(dest)) {
+    return "pushing a refspec that resolves only when it runs, which may be trunk";
+  }
+  return null;
+}
+
 /**
  * Why this `git push` is refused, or null.
  *
  * Deliberately blocks every push whose refspec lands on a trunk branch, not only forced ones:
  * the port's own pause list now names "pushing to trunk" as irreversible, and a plain
  * `git push origin HEAD:main` does that with no force flag to key on. A push to a feature branch
- * is the port's normal rebase flow and stays allowed.
+ * is the port's normal rebase flow and stays allowed. A destination this scan cannot read is
+ * refused too, but only once no refspec is certainly trunk, so the reason names the surest one.
  */
-function pushRefuse(args) {
+function pushRefuse(argv) {
+  const args = argv.filter(
+    (token, i) => !REDIRECTION.test(token) && !REDIRECTION_ALONE.test(argv[i - 1] ?? "")
+  );
   const has = (token) => args.includes(token);
   if (has("--dry-run") || has("-n")) return null;
   if (has("--mirror") || has("--all") || has("--tags")) {
@@ -320,6 +369,7 @@ function pushRefuse(args) {
   if (has("--delete")) return "deleting a branch on the forge";
   const forced = args.some((t) => /^--force/.test(t) || t === "-f");
   let sawRefspec = false;
+  let unsure = null;
   // The first bare, colon-free, non-HEAD token is the remote name, not a refspec. Counting it as
   // one made `git push origin` look like a push with a destination.
   const bare = args.filter((t) => !t.startsWith("-"));
@@ -328,31 +378,22 @@ function pushRefuse(args) {
     // `:branch` is git's refspec delete form; it carries no --delete flag.
     if (token.startsWith(":")) return "deleting a branch on the forge";
     if (token.startsWith("-")) continue;
-    if (!token.includes(":")) {
-      if (!remoteSeen) {
-        remoteSeen = true;
-        continue;
-      }
-      // A bare destination, or HEAD, is whatever this checkout is on. From a trunk checkout that
-      // is trunk, and there is nothing in the command to tell, so it is treated as trunk-risky
-      // rather than allowed. `git push origin HEAD` is the idiom an agent actually writes.
-      sawRefspec = true;
-      // A leading `+` is git's own force spelling, and the destination can still be trunk.
-      const bareDest = token.replace(/^\+/, "").replace(/^refs\/heads\//, "");
-      if (bareDest === "HEAD") return "pushing the current branch, which may be trunk";
-      if (TRUNK.has(bareDest)) {
-        return forced ? "rewriting history on a trunk branch" : "pushing to trunk";
-      }
+    if (!remoteSeen && !token.includes(":")) {
+      remoteSeen = true;
       continue;
     }
     sawRefspec = true;
-    const afterColon = token.slice(token.lastIndexOf(":") + 1);
-    const clean = afterColon.replace(/^\+/, "").replace(/^refs\/heads\//, "");
-    if (TRUNK.has(clean)) {
-      return forced ? "rewriting history on a trunk branch" : "pushing to trunk";
-    }
+    // The destination follows the last colon, or is the whole token. A leading `+` is git's own
+    // force spelling, and the destination can still be trunk.
+    const dest = token
+      .slice(token.lastIndexOf(":") + 1)
+      .replace(/^\+/, "")
+      .replace(/^refs\/heads\//, "");
+    if (TRUNK.has(dest)) return forced ? "rewriting history on a trunk branch" : "pushing to trunk";
+    unsure ??= unreadable(dest);
   }
-  // No refspec at all: `git push` with only flags, or `git push origin`. Same reasoning.
+  if (unsure) return unsure;
+  // No refspec at all: `git push` with only flags, or `git push origin`. Same reasoning as HEAD.
   if (!sawRefspec) return "pushing without an explicit refspec, which may be trunk";
   return null;
 }

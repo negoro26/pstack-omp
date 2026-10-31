@@ -23,6 +23,7 @@ jobs:
     outputs:
       pr: ${{ steps.build.outputs.pr }}
       sha: ${{ steps.build.outputs.sha }}
+      branch: ${{ steps.build.outputs.branch }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -110,22 +111,39 @@ jobs:
           pr=$(gh pr create --base main --head "sync/upstream-$SHORT" \
             --title "sync: upstream pstack $SHORT ($version)" --body-file "$RUNNER_TEMP/body.md" | tail -n1)
           if [ "$code" -eq 0 ] && [ "$gate" -eq 0 ]; then
-            printf 'pr=%s\nsha=%s\n' "$pr" "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            printf 'pr=%s\nsha=%s\nbranch=%s\n' "$pr" "$(git rev-parse HEAD)" "sync/upstream-$SHORT" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "left $pr open for a human: sync exit $code, gate exit $gate"
           exit 1
 
   # A merge made with github.token starts no push run on main, so this job is the only full gate a
-  # sync gets. A red gate skips the merge and leaves the PR open for a human.
+  # sync gets. It dispatches gate.yml on the sync branch rather than calling it: the dispatched run
+  # puts `gate`, `smoke`, and `statechart` on the sync commit, which the main ruleset requires before
+  # any merge. A red gate fails this job, skips the merge, and leaves the PR open for a human.
   gate:
     needs: sync
     if: needs.sync.outputs.sha != ''
+    runs-on: ubuntu-latest
     permissions:
-      contents: read
-    uses: ./.github/workflows/gate.yml
-    with:
-      ref: ${{ needs.sync.outputs.sha }}
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ needs.sync.outputs.sha }}
+      BRANCH: ${{ needs.sync.outputs.branch }}
+    steps:
+      - run: |
+          gh workflow run gate.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+          id=""
+          for _ in $(seq 1 30); do
+            id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow gate.yml --event workflow_dispatch \
+              --branch "$BRANCH" --json databaseId,headSha \
+              --jq "[.[] | select(.headSha == \"$SHA\")][0].databaseId // empty")
+            [ -n "$id" ] && break
+            sleep 10
+          done
+          [ -n "$id" ] || { echo "no gate run appeared for $SHA on $BRANCH" >&2; exit 1; }
+          gh run watch "$id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 30
 
   merge:
     needs: [sync, gate]

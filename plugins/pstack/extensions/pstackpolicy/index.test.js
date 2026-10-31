@@ -1,10 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import policy, { DENY_REASONS } from "./index.js";
+import policy from "./index.js";
 
 // The handler is the whole backstop, so it is tested against commands that must be refused and
 // commands that must not be. A rule set that blocks nothing is indistinguishable from no
 // backstop at all until something tries to merge. Every call awaits: the handler is async, and
 // comparing a Promise against undefined would pass for the wrong reason.
+//
+// omp vetoes only from `tool_call`, so the handler is looked up under that name. A fake host that
+// ignored the event name passed every test with the backstop registered on `tool_result`.
+const handlers = new Map();
+policy({ on: (event, fn) => handlers.set(event, fn) });
+const toolCall = handlers.get("tool_call");
+
 async function call(toolName, input, env) {
   const saved = {};
   for (const [k, v] of Object.entries(env ?? {})) {
@@ -12,10 +19,8 @@ async function call(toolName, input, env) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
-  let handler;
-  policy({ on: (_event, fn) => { handler = fn; } });
   try {
-    return await handler({ toolName, input });
+    return await toolCall({ toolName, input });
   } finally {
     for (const [k, v] of Object.entries(saved)) {
       if (v === undefined) delete process.env[k];
@@ -28,87 +33,135 @@ async function run(command, env) {
   return call("bash", { command }, env);
 }
 
+// Each command with a fragment of the reason its own rule gives, so a command refused by the
+// wrong rule fails and a rule another rule shadows cannot hide.
 const MUST_BLOCK = [
   // A refspec this port cannot read is not a refspec. `git push origin HEAD` and a bare
   // `git push` land on whatever the checkout is on, which from a trunk checkout is trunk, and a
   // quoted refspec hid the destination from the colon split.
-  "git push origin HEAD",
-  "git push",
-  "git push origin",
-  "git push --force origin",
-  "git push origin 'HEAD:main'",
-  "gh pr edit 12 \\\n  --base main",
-  "gh pr merge 12 \\\n  --auto",
-  "gh --repo o/r pr merge 12 \\\n  --squash",
+  ["git push origin HEAD", "current branch"],
+  ["git push", "explicit refspec"],
+  ["git push origin", "explicit refspec"],
+  ["git push --force origin", "explicit refspec"],
+  ["git push origin 'HEAD:main'", "pushing to trunk"],
+  ["gh pr edit 12 \\\n  --base main", "retargeting"],
+  ["gh pr merge 12 \\\n  --auto", "merge-when-ready"],
+  ["gh --repo o/r pr merge 12 \\\n  --squash", "merging a pull request"],
   // The forms that defeated the first version of this file.
-  "gh --repo o/r pr merge 12 --squash",
-  "gh --repo o/r pr edit 12 --base main",
-  "gh --repo o/r pr review 12 --approve",
-  "gh --repo o/r issue close 5",
-  "git push origin HEAD:main",
-  "git push origin main:main",
-  "git push origin HEAD:refs/heads/main",
-  "git push origin +main",
-  "git push origin :feature/x",
-  "git push --mirror git@github.com:o/r.git",
-  "git update-ref refs/heads/main abc123",
-  'gh api graphql -f query=\'mutation{mergePullRequest(input:{pullRequestId:"x"}){clientMutationId}}\'',
-  "gh api -X PATCH repos/o/r/pulls/12 -f state=closed",
-  "gh api -X DELETE /repos/o/r/git/refs/heads/main",
+  ["gh --repo o/r pr merge 12 --squash", "merging a pull request"],
+  ["gh --repo o/r pr edit 12 --base main", "retargeting"],
+  ["gh --repo o/r pr review 12 --approve", "posting a review"],
+  ["gh --repo o/r issue close 5", "closing, reopening"],
+  ["git push origin HEAD:main", "pushing to trunk"],
+  ["git push origin main:main", "pushing to trunk"],
+  ["git push origin HEAD:refs/heads/main", "pushing to trunk"],
+  ["git push origin +main", "pushing to trunk"],
+  ["git push origin :feature/x", "deleting a branch on the forge"],
+  ["git push --mirror git@github.com:o/r.git", "mirroring"],
+  ["git update-ref refs/heads/main abc123", "local history"],
+  [
+    'gh api graphql -f query=\'mutation{mergePullRequest(input:{pullRequestId:"x"}){clientMutationId}}\'',
+    "merging through the API",
+  ],
+  ["gh api -X PATCH repos/o/r/pulls/12 -f state=closed", "closing, reopening"],
+  ["gh api -X DELETE /repos/o/r/git/refs/heads/main", "closing, reopening"],
   // The forms it always caught.
-  "gh pr merge 12 --squash --delete-branch",
-  "gh pr merge 12 --squash --auto",
-  "gh pr edit 12 --base main",
-  "gh pr close 12",
-  "gh pr review 12 --approve",
-  "git push --force origin main",
-  "git push origin main --force-with-lease",
-  "git push origin --delete feature/x",
-  "git branch -D feature/x",
-  "gh api repos/o/r/pulls/12/merge -X POST",
-  "gt submit --stack",
-  "if [ -z \"$x\" ]; then gh pr merge 3; fi",
-  "cd /tmp && gh pr merge 9 --squash",
+  ["gh pr merge 12 --squash --delete-branch", "merging a pull request"],
+  ["gh pr merge 12 --squash --auto", "merge-when-ready"],
+  ["gh pr edit 12 --base main", "retargeting"],
+  ["gh pr close 12", "closing, reopening"],
+  ["gh pr review 12 --approve", "posting a review"],
+  ["git push --force origin main", "rewriting history"],
+  ["git push origin main --force-with-lease", "rewriting history"],
+  ["git push origin --delete feature/x", "deleting a branch on the forge"],
+  ["git branch -D feature/x", "local history"],
+  ["gh api repos/o/r/pulls/12/merge -X PUT", "merging through the API"],
+  ["gt submit --stack", "merging through Graphite"],
+  ['if [ -z "$x" ]; then gh pr merge 3; fi', "merging a pull request"],
+  ["cd /tmp && gh pr merge 9 --squash", "merging a pull request"],
   // git's global options between the binary and the subcommand. A push scan keyed on two
   // adjacent raw tokens of exactly `git` then `push` found none of these; the first of them was
   // executed against a real bare remote and created refs/heads/trunk there.
-  "git -C /tmp/bypass/work push -q origin HEAD:trunk",
-  "git -c user.name=bot push origin HEAD:main",
-  "git --git-dir=/tmp/repo/.git push origin main",
-  "git --work-tree=/tmp/wt push origin HEAD:refs/heads/main",
-  "git --namespace=refs/ns push origin master",
-  "git --exec-path=/usr/lib/git-core push origin develop",
-  "/usr/bin/git push origin HEAD:main",
-  "/usr/bin/git -C /tmp/work push origin HEAD",
-  "git --git-dir=/tmp/repo/.git push",
-  "git -c core.hooksPath=/dev/null push origin release",
-  "git --bare push origin HEAD:trunk",
-  "git -C /tmp/repo push -q origin :feature/x",
-  "git -C /tmp/repo push -q --mirror origin",
+  ["git -C /tmp/bypass/work push -q origin HEAD:trunk", "pushing to trunk"],
+  ["git -c user.name=bot push origin HEAD:main", "pushing to trunk"],
+  ["git --git-dir=/tmp/repo/.git push origin main", "pushing to trunk"],
+  ["git --work-tree=/tmp/wt push origin HEAD:refs/heads/main", "pushing to trunk"],
+  ["git --namespace=refs/ns push origin master", "pushing to trunk"],
+  ["git --exec-path=/usr/lib/git-core push origin develop", "pushing to trunk"],
+  ["/usr/bin/git push origin HEAD:main", "pushing to trunk"],
+  ["/usr/bin/git -C /tmp/work push origin HEAD", "current branch"],
+  ["git --git-dir=/tmp/repo/.git push", "explicit refspec"],
+  ["git -c core.hooksPath=/dev/null push origin release", "pushing to trunk"],
+  ["git --bare push origin HEAD:trunk", "pushing to trunk"],
+  ["git -C /tmp/repo push -q origin :feature/x", "deleting a branch on the forge"],
+  ["git -C /tmp/repo push -q --mirror origin", "mirroring"],
   // The same gap defeated the local-history rules.
-  "git -C /tmp/repo branch -D feat",
-  "git --git-dir=/tmp/repo/.git update-ref refs/heads/main abc123",
-  "git -C /tmp/repo reflog expire --expire=now --all",
-  "git --work-tree=/tmp/wt reset --hard origin/main",
+  ["git -C /tmp/repo branch -D feat", "local history"],
+  ["git --git-dir=/tmp/repo/.git update-ref refs/heads/main abc123", "local history"],
+  ["git -C /tmp/repo reflog expire --expire=now --all", "local history"],
+  ["git --work-tree=/tmp/wt reset --hard origin/main", "local history"],
   // The gh verbs the enumeration never listed.
-  "gh repo delete o/r --yes",
-  "gh --repo o/r repo delete --yes",
-  "gh release create v1.2.3",
-  "gh release delete v1.2.3",
-  "gh secret set DEPLOY_TOKEN",
-  "gh variable set FLAG",
-  "gh workflow run deploy.yml --ref main",
-  "gh workflow run deploy.yml --ref=trunk",
+  ["gh repo delete o/r --yes", "deleting the repository"],
+  ["gh --repo o/r repo delete --yes", "deleting the repository"],
+  ["gh release create v1.2.3", "a release"],
+  ["gh release delete v1.2.3", "a release"],
+  ["gh secret set DEPLOY_TOKEN", "a secret"],
+  ["gh variable set FLAG", "a secret"],
+  ["gh workflow run deploy.yml --ref main", "running a workflow"],
+  ["gh workflow run deploy.yml --ref=trunk", "running a workflow"],
   // A quoted subcommand is the same token to gh once the shell strips it.
-  'gh "pr" merge 12',
-  "gh 'pr' merge 12 --squash",
-  'gh "repo" delete o/r --yes',
-  'gh "workflow" run deploy.yml --ref main',
+  ['gh "pr" merge 12', "merging a pull request"],
+  ["gh 'pr' merge 12 --squash", "merging a pull request"],
+  ['gh "repo" delete o/r --yes', "deleting the repository"],
+  ['gh "workflow" run deploy.yml --ref main', "running a workflow"],
   // curl reaches the same endpoints with the token already in the environment.
-  "curl -sS -X PUT https://api.github.com/repos/o/r/pulls/1/merge -d '{}'",
-  "curl --request POST -H 'Authorization: token x' https://api.github.com/repos/o/r/pulls/1/merge",
-  "curl -X PATCH https://api.github.com/repos/o/r/pulls/1 -d state=closed",
-  "curl -X DELETE https://api.github.com/repos/o/r/git/refs/heads/main",
+  ["curl -sS -X PUT https://api.github.com/repos/o/r/pulls/1/merge -d '{}'", "with curl"],
+  [
+    "curl --request POST -H 'Authorization: token x' https://api.github.com/repos/o/r/pulls/1/merge",
+    "with curl",
+  ],
+  ["curl -X PATCH https://api.github.com/repos/o/r/pulls/1 -d state=closed", "with curl"],
+  ["curl -X DELETE https://api.github.com/repos/o/r/git/refs/heads/main", "with curl"],
+  // gh reads flags between the command group and its verb as well, so each of these is the
+  // same call as its `gh -R o/r <group> <verb>` spelling above.
+  ["gh pr -R o/r merge 12", "merging a pull request"],
+  ["gh pr --repo o/r merge 12 --squash", "merging a pull request"],
+  ["gh pr -R o/r merge 12 --auto", "merge-when-ready"],
+  ["gh pr -R o/r edit 12 --base main", "retargeting"],
+  ["gh pr --repo=o/r close 12", "closing, reopening"],
+  ["gh pr -R o/r review 12 --approve", "posting a review"],
+  ["gh issue -R o/r close 5", "closing, reopening"],
+  ["gh release -R o/r create v1.2.3", "a release"],
+  ["gh secret -R o/r set DEPLOY_TOKEN", "a secret"],
+  ["gh workflow -R o/r run deploy.yml --ref main", "running a workflow"],
+  // Merges the API rule never named, and trunk moved without a push.
+  ["gh api repos/o/r/merges -f base=main -f head=feature/x", "merging through the API"],
+  [
+    'gh api graphql -f query=\'mutation{mergeBranch(input:{repositoryId:"r",base:"main",head:"x"}){clientMutationId}}\'',
+    "merging through the API",
+  ],
+  [
+    'gh api graphql -f query=\'mutation{enablePullRequestAutoMerge(input:{pullRequestId:"x"}){clientMutationId}}\'',
+    "merge-when-ready",
+  ],
+  ["gh api -X PATCH repos/o/r/git/refs/heads/main -f sha=abc -F force=true", "moving a trunk branch"],
+  ["gh api --method=PATCH repos/o/r/git/refs/heads/release -f sha=abc", "moving a trunk branch"],
+  [
+    `curl -X POST https://api.github.com/repos/o/r/merges -d '{"base":"main","head":"x"}'`,
+    "with curl",
+  ],
+  ["gt merge", "merging through Graphite"],
+  // Cutting a command line into simple commands must not open a hole. A redirection is not a
+  // separator, a substitution belongs to the push it feeds, and a heredoc body can be run.
+  ["git push origin 2>&1 HEAD:main", "pushing to trunk"],
+  ["git push 2>&1", "explicit refspec"],
+  ["git push origin $(echo feature; echo main)", "pushing to trunk"],
+  ["bash <<'EOF'\ngit push origin HEAD:main\nEOF", "pushing to trunk"],
+  ["cat > land.sh <<'EOF'\ngh pr merge 12 --squash\nEOF", "merging a pull request"],
+  // A separator glued to a refspec is not part of it. Both of these were allowed as a push of
+  // `main;`, which is not trunk.
+  ["git push origin main; echo done", "pushing to trunk"],
+  ["(git push origin main; true)", "pushing to trunk"],
 ];
 
 const MUST_PASS = [
@@ -121,7 +174,7 @@ const MUST_PASS = [
   "bun run test",
   "git push --force-with-lease origin main-menu",
   "git push --force origin feature/main-menu",
-  "git commit -m \"merge main into feature\"",
+  'git commit -m "merge main into feature"',
   "gh pr list --search main",
   "git log main..HEAD",
   // The global-option tolerance must not cost the feature-branch push.
@@ -145,26 +198,37 @@ const MUST_PASS = [
   "curl -X GET https://api.github.com/repos/o/r",
   "gh api repos/o/r/pulls/12",
   "gh api -X GET repos/o/r/branches/main",
+  // Flags after the command group must not turn a read into a mutation.
+  "gh pr -R o/r view 12",
+  "gh pr -R o/r list --search merge",
+  // Reading a trunk ref, or moving a feature ref, is not moving trunk.
+  "gh api repos/o/r/git/refs/heads/main",
+  "gh api -X GET repos/o/r/git/refs/heads/main --jq .object.sha",
+  "gh api -X PATCH repos/o/r/git/refs/heads/feature/main-menu -f sha=abc -F force=true",
+  // A later command's arguments are not the push's refspecs.
+  "git push origin feature && git rev-parse HEAD",
+  "git push origin feature || git rev-parse HEAD",
+  "git push origin feature; git checkout main",
+  "git push origin feature | grep main",
+  "git push origin feature\ngit log -1 HEAD",
+  "git push origin feature 2>&1 && git rev-parse HEAD",
+  "cat > notes.md <<'EOF'\nPush with git push origin feature.\nEOF\ngit rev-parse HEAD",
 ];
 
 describe("pstackpolicy", () => {
-  test("refuses every forge mutation when no grant is set", async () => {
-    for (const command of MUST_BLOCK) {
-      const result = await run(command, { PSTACK_LANDING_GRANT: undefined });
-      expect(result?.block, `should block: ${command}`).toBe(true);
-      expect(result?.reason, `should explain: ${command}`).toContain("PSTACK_LANDING_GRANT");
-    }
+  test.each(MUST_BLOCK)("refuses %p as %p without a grant", async (command, rule) => {
+    const result = await run(command, { PSTACK_LANDING_GRANT: undefined });
+    expect(result?.block).toBe(true);
+    expect(result?.reason).toContain(rule);
+    expect(result?.reason).toContain("PSTACK_LANDING_GRANT");
   });
 
-  test("allows reads and ordinary pushes to pass through", async () => {
-    for (const command of MUST_PASS) {
-      expect(await run(command, { PSTACK_LANDING_GRANT: undefined }), `should pass: ${command}`)
-        .toBeUndefined();
-    }
+  test.each(MUST_PASS)("allows %p", async (command) => {
+    expect(await run(command, { PSTACK_LANDING_GRANT: undefined })).toBeUndefined();
   });
 
   test("an operator grant lifts every rule", async () => {
-    for (const command of MUST_BLOCK) {
+    for (const [command] of MUST_BLOCK) {
       expect(await run(command, { PSTACK_LANDING_GRANT: "1" }), `granted: ${command}`)
         .toBeUndefined();
     }
@@ -182,36 +246,32 @@ describe("pstackpolicy", () => {
   test("an eval cell is gated the same way a bash call is", async () => {
     // omp://approval-mode.md: eval declares the exec tier and can spawn a shell, so a rule that
     // only read bash's `command` field was not a rule about the command.
-    for (const code of [
-      'await Bun.$`gh pr merge 12 --squash`',
-      'subprocess.run(["git", "push", "origin", "HEAD:main"])',
-      'await tool.bash({ command: "gh repo delete o/r --yes" })',
+    for (const [code, rule] of [
+      ["await Bun.$`gh pr merge 12 --squash`", "merging a pull request"],
+      ['subprocess.run(["git", "push", "origin", "HEAD:main"])', "pushing to trunk"],
+      ['await tool.bash({ command: "gh repo delete o/r --yes" })', "deleting the repository"],
+      // A list literal broken over lines is still one command.
+      ['subprocess.run([\n    "git", "push", "origin", "feature",\n    "HEAD:main",\n])', "pushing to trunk"],
     ]) {
-      const result = await call("eval", { language: "js", code }, { PSTACK_LANDING_GRANT: undefined });
+      const result = await call("eval", { language: "py", code }, { PSTACK_LANDING_GRANT: undefined });
       expect(result?.block, `should block: ${code}`).toBe(true);
-      expect(result?.reason, `should explain: ${code}`).toContain("PSTACK_LANDING_GRANT");
+      expect(result?.reason, `should name the rule: ${code}`).toContain(rule);
     }
   });
 
   test("an eval cell with no forge mutation still passes", async () => {
-    const ok = await call(
-      "eval",
-      { language: "py", code: 'print("git push origin feature/x")' },
-      { PSTACK_LANDING_GRANT: undefined }
-    );
-    expect(ok?.block).toBeUndefined();
+    for (const code of [
+      'print("git push origin feature/x")',
+      'subprocess.run(["git", "push", "origin", "feature"])\nsubprocess.run(["git", "rev-parse", "HEAD"])',
+    ]) {
+      const ok = await call("eval", { language: "py", code }, { PSTACK_LANDING_GRANT: undefined });
+      expect(ok, `should pass: ${code}`).toBeUndefined();
+    }
   });
 
   test("ignores tools that carry no command", async () => {
-    let handler;
-    policy({ on: (_e, fn) => { handler = fn; } });
-    expect(await handler({ toolName: "read", input: { command: "gh pr merge 12" } })).toBeUndefined();
-    expect(await handler({ toolName: "bash", input: {} })).toBeUndefined();
-    expect(await handler({ toolName: "eval", input: {} })).toBeUndefined();
-  });
-
-  test("every rule carries a reason the port can assert on", () => {
-    expect(DENY_REASONS.length).toBeGreaterThan(0);
-    for (const why of DENY_REASONS) expect(typeof why).toBe("string");
+    expect(await toolCall({ toolName: "read", input: { command: "gh pr merge 12" } })).toBeUndefined();
+    expect(await toolCall({ toolName: "bash", input: {} })).toBeUndefined();
+    expect(await toolCall({ toolName: "eval", input: {} })).toBeUndefined();
   });
 });

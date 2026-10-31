@@ -144,8 +144,12 @@ bash omp-port/check-port.sh "" "$(gh api 'repos/cursor/plugins/commits?path=psta
 The gate runs as its own workflow, `gate.yml`, on every pull request and on every push to `main`.
 Neither trigger gated the two syncs the bot merged, #19 and #32. Each PR got a `pull_request` run
 that ended with no jobs a second after the merge, and the merge, made with `github.token`, started
-no `push` run. So `upstream-sync` calls `gate.yml` itself, as a reusable workflow on the sync
-commit, and its `merge` job runs only after that call passes. A sync that fails the build,
+no `push` run. So `upstream-sync` dispatches `gate.yml` on the sync branch and its `merge` job runs
+only after that run passes. A dispatch, unlike a reusable call, reports the checks as `gate`,
+`smoke`, and `statechart` on the sync commit. The `main` ruleset requires exactly those three, and a
+personal repository cannot exempt the GitHub Actions bot from a ruleset, so a reusable call's
+`gate / gate` names would leave every bot merge blocked. The ruleset also requires a pull request
+for every change to `main` and forbids force-pushes and deletion. A sync that fails the build,
 `check-port.sh`, or `gate.yml` stays open for a human, and later runs stop at the open-PR guard
 until someone resolves it.
 

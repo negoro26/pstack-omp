@@ -9,20 +9,16 @@ on:
     types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
-  workflow_call:
-    inputs:
-      ref:
-        description: Commit to gate. upstream-sync passes its sync commit and merges only after this run passes.
-        type: string
-        required: true
+  # upstream-sync dispatches this on its sync branch. A dispatched run reports `gate`, `smoke`, and
+  # `statechart` under the same names as a pull request run, so the main ruleset's required checks
+  # cover bot syncs too. A reusable call would report `gate / gate` and never satisfy them.
+  workflow_dispatch:
 
 jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
@@ -59,8 +55,6 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
@@ -93,8 +87,6 @@ jobs:
         working-directory: plugins/pstack/skills/statechart/scripts
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v7
         with:
           node-version: 22

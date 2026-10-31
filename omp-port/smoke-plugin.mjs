@@ -4,7 +4,7 @@
 // pinned turn's system prompt carries the poteto-mode reminder, and pstackpolicy refuses a bash
 // `gh pr merge` before gh runs. Turns go to a scripted model on loopback, so no credential is used.
 //
-//   bun omp-port/smoke-plugin.mjs [plugin-dir]     plugin-dir defaults to plugins/pstack
+//   bun omp-port/smoke-plugin.mjs [checkout]     checkout defaults to this repository
 //
 // No omp on PATH prints SKIPPED and exits 0, unless OMP_SMOKE_REQUIRED=1 makes that a failure.
 import assert from "node:assert";
@@ -16,7 +16,8 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { scriptedModel, text } from "./scripted-model.mjs";
 
-const plugin = resolve(process.argv[2] ?? fileURLToPath(new URL("../plugins/pstack", import.meta.url)));
+const checkout = resolve(process.argv[2] ?? fileURLToPath(new URL("..", import.meta.url)));
+const plugin = join(checkout, "plugins", "pstack");
 
 const omp = Bun.which("omp");
 if (!omp) {
@@ -42,10 +43,16 @@ const MERGE = "gh pr merge 1 --repo pstack-verify/no-such-repo --squash";
 
 // --plugin-dir adds the tree to skill discovery but does not load package.json omp.extensions, so
 // the -e shape passes the directory twice. --no-extensions also drops a linked plugin's skills and
-// extensions, so the link shape leaves discovery on.
+// extensions, so the installed shapes leave discovery on. The marketplace shape runs the README's
+// add and install against the checkout, which omp copies from the working tree, not from GitHub.
 const shapes = [
-  { name: "-e", args: ["--no-extensions", "--plugin-dir", plugin, "-e", plugin] },
-  { name: "omp plugin link", link: true, args: [] },
+  { name: "-e", setup: [], args: ["--no-extensions", "--plugin-dir", plugin, "-e", plugin] },
+  { name: "omp plugin link", setup: [["plugin", "link", plugin]], args: [] },
+  {
+    name: "marketplace install",
+    setup: [["plugin", "marketplace", "add", checkout], ["plugin", "install", "pstack@pstack-omp"]],
+    args: [],
+  },
 ];
 
 const systemPrompt = (body) =>
@@ -83,9 +90,9 @@ async function leg(shape) {
     // credential, every variable that moves omp's roots past the scratch HOME, and the real gh.
     const env = { HOME: home, PATH: `${bin}:/usr/local/bin:/usr/bin:/bin` };
 
-    if (shape.link) {
-      const linked = spawnSync(omp, ["plugin", "link", plugin], { cwd: home, env, encoding: "utf8" });
-      assert(linked.status === 0, `omp plugin link exited ${linked.status}: ${linked.stderr}`);
+    for (const argv of shape.setup) {
+      const ran = spawnSync(omp, argv, { cwd: home, env, encoding: "utf8" });
+      assert(ran.status === 0, `omp ${argv.join(" ")} exited ${ran.status}: ${ran.stderr.trim()}`);
     }
 
     // Under yolo only pstackpolicy's tool_call veto stands between bash and gh. That is its case.

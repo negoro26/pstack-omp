@@ -233,6 +233,7 @@ s#the full Task schema including `environment`#the full Task schema including `i
 s#When a worker must start from a non-default pushed branch, pass `cloud_base_branch`\.#When a worker must start from a non-default base, create its `git worktree` on that base first and point the worker at that path.#
 s#One Cursor cloud agent#One isolated subagent (`isolated: true`)#g
 s#each a Cursor cloud agent#an isolated subagent (`isolated: true`)#g
+s#is a Cursor cloud agent#is an isolated subagent (`isolated: true`)#g
 s#Cloud agents cannot read the local store, so their briefs inline what they need or point at repo paths\.#An isolated worker runs on this machine in its own worktree with no conversation history, so its brief inlines what it needs or points at absolute paths.#
 # Cursor's cloud dashboard -> the live omp agent roster read through history://.
 s#the cloud agent's status in the Cursor dashboard#agent state from `read history://` and `read proc://`#
@@ -382,10 +383,15 @@ s#Leave `model` unset when the value is `auto` or `inherit-parent`\.#An `auto` o
 s#the `interrogate reviewers` line in `~?/?\.cursor/rules/pstack-models\.mdc`#one exact discovered reviewer agent per configured entry in `~/.omp/agent/config.yml`#g
 s#the `architect runners` line in the `task\.agentModelOverrides` entries in `~/\.omp/agent/config\.yml`#the same exact discovered runner agents Arena uses, with the architect role in each brief, in `~/.omp/agent/config.yml`#g
 s#an exact discovered (why investigators|why synthesizer|interrogate reviewers|swarm workers|architect runners|arena runners|arena cross-judge pool|reflect tooling|reflect judgment, divergent, synthesizer) agent#an exact discovered agent filling that role#g
-# A single spawn is still one task call with one item and the required shared context. Matched on
-# the "spawn one <role>" phrase, which is the shape upstream uses everywhere it means one worker,
-# rather than on the sentence around it.
-s#([Ss]pawn) one ([a-z]+)#\1 one \2 in one `task` call with one item in `tasks[]` and the required shared `context`#g
+# A single spawn is still one task call with one item and the required shared context. Each rule
+# appends that clause after the whole sentence, because the noun phrase after "spawn one" varies
+# ("one blinded judge", "one owner per PR") and a word-level match split it.
+s#(Spawn one explainer that explores and explains in one pass, built from `references/explainer-prompt\.md` without the explorer-findings section\.)#\1 Start it in one `task` call with one item in `tasks[]` and the required shared `context`.#
+s#(spawn one explainer with `references/explainer-prompt\.md` and every explorer's findings filled in\.)#\1 Start it in one `task` call with one item in `tasks[]` and the required shared `context`.#
+s#(\*\*Spawn one blinded judge\*\* on a different model family per the \*\*arena\*\* skill's Phase C\.)#\1 Start it in one `task` call with one item in `tasks[]` and the required shared `context`.#
+# Owners run in parallel off trunk (step 3 of the same playbook), so they start together, the same
+# batch shape as the multi-phase plan's owner box.
+s#\*\*Spawn one owner per PR, and keep its work#**Spawn one owner per PR, all in one `task` call with one item per PR in `tasks[]` and the required shared `context`, and keep its work#
 s#, in place of the .(arena|architect|swarm|interrogate) runners. line#.#g
 s#`agent`: an exact discovered (how explorer|how explainer) (agent|line)#`agent`: an exact discovered agent filling that role#g
 
@@ -402,6 +408,9 @@ s#`~?/?\.cursor/rules/pstack-models\.mdc`#`task.agentModelOverrides` in `~/.omp/
 # the config is correct whether or not a path was written, so this matches the bare name too.
 s#the `pstack-models\.mdc` rule#the `task.agentModelOverrides` entries in `~/.omp/agent/config.yml`#g
 s#~/\.cursor/#~/.omp/#g
+# The built plugin carries its version only in its root `package.json`. Cursor's manifest is not
+# shipped, so a selection rule that reads it cannot run.
+s#`\.cursor-plugin/plugin\.json`#`package.json` beside its `skills/` directory#g
 
 ## 9. Install paths. pstack is vendored in Cursor's monorepo and installed as a plugin on omp.
 ## Order is load-bearing: the trunk-read rewrites and the checklist append run before the
@@ -509,7 +518,7 @@ s#The operator's full-autonomy grant plus the root's clean verdict is the merge 
 # The `or` put a hard reset on the same footing as a worktree, and the very next clause handled a
 # dirty branch safely. So the file knew the hazard and still offered the destructive branch first,
 # with no check between the two.
-s#or `git fetch && git reset --hard origin/<branch>` between them\.#or `git fetch && git reset --hard origin/<branch>` between them -- and only after `git status --porcelain` comes back empty, since the next clause is what you do when it does not.#
+s#(or `git fetch && git reset --hard origin/<branch>` between them)\.#\1 -- and only after `git status --porcelain` comes back empty, since the next clause is what you do when it does not.#
 
 ## 12. Graphite. Four playbooks say "Never require Graphite (`gt`)", so no sentence may make `gt`
 ## mandatory or authoritative.
@@ -535,7 +544,7 @@ s#"/architect with checkpoint,"#"/skill:architect with checkpoint,"#
 # `cursor location` is a Cursor composer affordance: the editor injects the caret position. omp is
 # a terminal harness with no editor-state primitive, so an agent following the hint looks for a
 # signal that does not exist.
-s#(open files, recent edits, cursor location, what was just discussed)#(open files, recent edits, what was just discussed)#
+s#open files, recent edits, cursor location, what was just discussed#open files, recent edits, what was just discussed#
 
 # False: a subagent's `tools:` list does not remove MCP tools or server instructions
 # (omp://system-prompt-customization.md). The real restriction on `scout` is the tool set, not MCP.
@@ -548,7 +557,7 @@ s#/\*/subagents/\*\.jsonl#/*/*/*.jsonl#
 
 # No omp system prompt names the session transcript tree; `history://<id>` is the documented
 # surface. The path is correct, the justification for trusting it was not.
-s#(the system prompt names the path)#(`history://<id>` is the documented surface)#
+s#the system prompt names the path#`history://<id>` is the documented surface#
 
 # omp discovers skills one level under the root; the nested shape this prescribes is explicitly
 # not discovered, so the skill it produces silently never registers.
@@ -557,7 +566,7 @@ s#(the system prompt names the path)#(`history://<id>` is the documented surface
 
 # Unqualified force-push blocks the port's own rebase flow, which `pstackpolicy` explicitly permits
 # and `autopilot-stack` prescribes. Scope the pause the way the rest of the port scopes it.
-s#(force-push, delete production data, send external messages)#(force-push to a shared or trunk branch, delete production data, send external messages)#
+s#force-push, delete production data, send external messages#force-push to a shared or trunk branch, delete production data, send external messages#
 
 ## 13. Cursor's `Task` tool name. omp's tool is lowercase `task`, and capitalised it names nothing.
 ## Last on purpose: every sentence rule above quotes the capitalised form in its left-hand side, so

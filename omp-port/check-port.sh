@@ -669,7 +669,15 @@ else
 		mkdir -p "$(dirname "$scratch/$p")"
 		cp -a "$p" "$scratch/$p"
 	done < <(owned_paths)
-	delta=$(for d in "${SCOPE[@]}"; do diff -rq "$scratch/$d" "$d" -x node_modules; done)
+	delta=""
+	for d in "${SCOPE[@]}"; do
+		if comparison=$(diff -rq "$scratch/$d" "$d" -x node_modules 2>&1); then
+			continue
+		else
+			status=$?
+		fi
+		delta="${delta}${d}: diff exited with status $status"$'\n'"$comparison"$'\n'
+	done
 	if [ -n "$delta" ]; then
 		report "reproducible" "FAIL"
 		while read -r l; do [ -n "$l" ] && violate "$l"; done <<<"$delta"

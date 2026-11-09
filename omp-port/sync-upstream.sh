@@ -105,7 +105,7 @@ do_build() {
 }
 
 cmd_sync() {
-	local target="${1:-}" pin touched dirty p
+	local target="${1:-}" pin touched p rel
 	pin=$(read_pin)
 	[ -n "$target" ] || target=$(upstream_head)
 	[[ $target =~ ^[0-9a-f]{40}$ ]] || die "target must be a full 40-hex sha, got '$target'"
@@ -118,14 +118,17 @@ cmd_sync() {
 	fi
 	# Only the built tree is destroyed by a sync, and owned paths are carried across it, so an
 	# uncommitted owned file or an edit anywhere else is not a reason to refuse.
-	dirty=$(git status --porcelain -- plugins/pstack/skills plugins/pstack/agents | sed 's/^...//')
-	while IFS= read -r p; do
-		dirty=$(printf '%s\n' "$dirty" | grep -v "^plugins/pstack/$p" || true)
-	done < <(owned_paths)
-	if [ -n "$(printf '%s' "$dirty" | tr -d '[:space:]')" ]; then
-		printf '%s\n' "$dirty" >&2
-		die "uncommitted changes the build would destroy, commit or stash them first"
-	fi
+	git status --porcelain -z --no-renames --untracked-files=all -- plugins/pstack/skills plugins/pstack/agents |
+		while IFS= read -r -d '' p; do
+			p=${p:3}
+			while IFS= read -r rel; do
+				if [[ "$p" == "plugins/pstack/$rel" || "$p" == "plugins/pstack/$rel/"* ]]; then
+					continue 2
+				fi
+			done < <(owned_paths)
+			printf '%q\n' "$p" >&2
+			die "uncommitted changes the build would destroy, commit or stash them first"
+		done
 	do_build "$target" "$pin" yes
 }
 

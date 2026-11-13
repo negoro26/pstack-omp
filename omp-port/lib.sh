@@ -36,6 +36,41 @@ port_counts() {
 	printf '%s %s %s\n' "$n" "$p" "$k"
 }
 
+# The published version is upstream's X.Y.Z with the port revision r from omp-port/RELEASE folded
+# into the patch as Z*100+r, so 0.15.36 at revision 1 publishes 0.15.3601. omp upgrades a plugin
+# only when Bun.semver.order ranks the catalog version above the installed one. Build metadata
+# (0.15.36+port.1) ranks equal and a prerelease (0.15.36-port.1) ranks lower, so the revision has to
+# live in a number omp compares. A revision of 100 would collide with upstream's next patch.
+RELEASE_FILE="${RELEASE:-$PORT_DIR/RELEASE}"
+read_release() {
+	local r
+	r=$(tr -d '[:space:]' <"$RELEASE_FILE") || return 1
+	[[ $r =~ ^(0|[1-9][0-9]?)$ ]] || {
+		printf '%s must hold one port revision from 0 to 99, got %s\n' "$RELEASE_FILE" "'$r'" >&2
+		return 1
+	}
+	printf '%s\n' "$r"
+}
+
+upstream_version() {
+	git -C "$CANON" show "$1:pstack/.cursor-plugin/plugin.json" | jq -r .version
+}
+
+# <upstream X.Y.Z> <revision> -> the published version.
+port_version() {
+	local up="$1" r="$2" x y z
+	[[ $up =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+		printf 'upstream version %s is not a plain X.Y.Z\n' "'$up'" >&2
+		return 1
+	}
+	x=${BASH_REMATCH[1]} y=${BASH_REMATCH[2]} z=${BASH_REMATCH[3]}
+	[[ $r =~ ^(0|[1-9][0-9]?)$ ]] || {
+		printf 'port revision %s is outside 0 to 99\n' "'$r'" >&2
+		return 1
+	}
+	printf '%s.%s.%s\n' "$x" "$y" "$((z * 100 + r))"
+}
+
 # The port is a build, not a maintained tree. plugins/pstack/{skills,agents} is build_tree(pin)
 # plus the paths in owned.txt, so upstream text can never conflict with port text. rules.sed
 # rewrites mechanics, patches/ carries port-only code, owned.txt carries port-only files.

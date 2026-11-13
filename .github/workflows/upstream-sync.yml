@@ -17,6 +17,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# bash gives every step pipefail. The default `bash -e` lets a failed command before `| tail` pass.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -30,6 +35,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
 
       - id: plan
         env:
@@ -37,26 +45,39 @@ jobs:
         run: |
           export SYNC_TARGET_OUT="$RUNNER_TEMP/target.txt"
           bash omp-port/sync-upstream.sh check > "$RUNNER_TEMP/commits.txt"
-          if [ ! -s "$RUNNER_TEMP/commits.txt" ]; then
-            echo "no upstream pstack change since the pin"
+          target=${SHA_INPUT:-$(cat "$RUNNER_TEMP/target.txt")}
+          [[ $target =~ ^[0-9a-f]{40}$ ]] || {
+            echo "target must be a full 40-hex sha, got '$target'" >&2
+            exit 1
+          }
+          short=${target:0:7}
+          if [ "$target" = "$(tr -d '[:space:]' < omp-port/UPSTREAM)" ]; then
+            echo "already at the pin $short, nothing to sync"
             exit 0
           fi
+          # commits.txt is newest first, so the target's row and every row under it are what the build brings in.
+          awk -F'\t' -v short="$short" '$1 == short { found = 1 } found' "$RUNNER_TEMP/commits.txt" > "$RUNNER_TEMP/planned.txt"
+          if [ ! -s "$RUNNER_TEMP/planned.txt" ]; then
+            echo "target $short is not among the upstream pstack commits after the pin, and a sync never moves the pin back" >&2
+            exit 1
+          fi
+          mv "$RUNNER_TEMP/planned.txt" "$RUNNER_TEMP/commits.txt"
           open=$(gh pr list --state open --json headRefName --jq '[.[] | select(.headRefName | startswith("sync/upstream-"))] | length')
           if [ "$open" -gt 0 ]; then
             gh pr list --state open --json number,headRefName \
               --jq '.[] | select(.headRefName | startswith("sync/upstream-")) | "open sync PR #\(.number) on \(.headRefName), resolve it first"'
             exit 0
           fi
-          target="$SHA_INPUT"
-          [ -n "$target" ] || target=$(cat "$RUNNER_TEMP/target.txt")
-          printf '%s' "$target" | grep -qxE '[0-9a-f]{40}' || {
-            echo "target must be a full 40-hex sha" >&2
-            exit 1
-          }
-          short=${target:0:7}
-          if git ls-remote --exit-code origin "refs/heads/sync/upstream-$short" >/dev/null 2>&1; then
-            echo "sync/upstream-$short already exists on origin"
-            exit 0
+          branch="sync/upstream-$short"
+          refs=$(git ls-remote origin "refs/heads/$branch")
+          if [ -n "$refs" ]; then
+            prior=$(gh pr list --head "$branch" --state all --json number,state --jq '.[] | "#\(.number) (\(.state | ascii_downcase))"')
+            if [ -n "$prior" ]; then
+              echo "$branch already carried PR $prior, delete the branch to sync $short again"
+              exit 0
+            fi
+            # A branch that never got a PR is a run whose `gh pr create` failed after the push.
+            echo "$branch is on origin without a PR, rebuilding it"
           fi
           printf 'target=%s\nshort=%s\ngo=yes\n' "$target" "$short" >> "$GITHUB_OUTPUT"
 
@@ -101,7 +122,7 @@ jobs:
             exit 1
           fi
           git commit -q -m "sync: build upstream pstack $SHORT ($version)"
-          git push -q origin HEAD
+          git push -q --force origin HEAD
           {
             printf 'Upstream commits since the previous pin.\n\n```\n'; cat "$RUNNER_TEMP/commits.txt"
             printf '```\n\nSync output, exit %s.\n\n```\n' "$code"; cat "$RUNNER_TEMP/sync.log"
@@ -110,6 +131,10 @@ jobs:
           } > "$RUNNER_TEMP/body.md"
           pr=$(gh pr create --base main --head "sync/upstream-$SHORT" \
             --title "sync: upstream pstack $SHORT ($version)" --body-file "$RUNNER_TEMP/body.md" | tail -n1)
+          [[ $pr == https://* ]] || {
+            echo "gh pr create printed no PR URL, got '$pr'" >&2
+            exit 1
+          }
           if [ "$code" -eq 0 ] && [ "$gate" -eq 0 ]; then
             printf 'pr=%s\nsha=%s\nbranch=%s\n' "$pr" "$(git rev-parse HEAD)" "sync/upstream-$SHORT" >> "$GITHUB_OUTPUT"
             exit 0

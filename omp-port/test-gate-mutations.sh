@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Each case breaks one thing in its own copy of the tree and the port files, runs check-port.sh on
 # that copy, and expects one named check to FAIL on it. A case that passes, or fails some other
-# check, fails the harness. Cases run in parallel, one directory each.
+# check, fails the harness. A case with no label is a change the gate must accept, and it fails the
+# harness by failing the gate. Cases run in parallel, one directory each.
 set -uo pipefail
 
 PORT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -28,9 +29,17 @@ run_gate() {
 	[ ! -d "$dir/bin" ] || path="$dir/bin:$path"
 	CHECK_PORT_ROOT="$root" RULES="$dir/port/rules.sed" STALE_EXEMPT="$dir/port/stale-exempt.tsv" \
 		SHADOW_EXEMPT="$dir/port/shadow-exempt.tsv" SWALLOW="$dir/port/swallow.tsv" OWNED="$dir/port/owned.txt" \
-		EXCLUDED="$dir/port/excluded.txt" \
+		EXCLUDED="$dir/port/excluded.txt" RELEASE="$dir/port/RELEASE" CHECK_PORT_REPO="$dir/repo" \
 		PATH="$path" PATCH_DIR="$patches" CHECK_PORT_CONTRACTS_ONLY="$only" CHECK_PORT_NESTED=1 \
 		bash "$PORT_DIR/check-port.sh" "$@"
+}
+
+# The release version check compares the repository against the commit HEAD lands on. Each case
+# gets a repository holding the files that check reads, committed once as the base and again after
+# the mutation, so HEAD's parent is the base.
+fixture_git() {
+	git -C "$REPO_FIXTURE" -c init.defaultBranch=main -c user.name=gate -c user.email=gate@localhost \
+		-c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
 }
 
 # Sets up a case, applies <mutation> to it, and starts it in the background.
@@ -43,17 +52,23 @@ run_gate() {
 #               it, which is the one place a prompt reaches a person; the gate sends the build's
 #               output to a file, and patch answers its own prompts there.
 #   <mutation>  a function editing $FIXTURE (the tree, contracts only), $PORT_FIXTURE (the port
-#               files), or $PATCH_FIXTURE (a patch directory that replaces omp-port/patches).
+#               files), $PATCH_FIXTURE (a patch directory that replaces omp-port/patches), or
+#               $REPO_FIXTURE (the repository the release version check reads).
 #   [args]      passed to check-port.sh.
 start_case() {
 	local name=$1 label=$2 needle=$3 mode=$4 mutation=$5 dir
 	shift 5
 	dir="$WORK/$((++ncase))"
-	mkdir -p "$dir/port"
+	mkdir -p "$dir/port" "$dir/repo/plugins/pstack" "$dir/repo/.omp-plugin"
 	[ "$mode" != contracts ] || cp -a "$PORT_DIR/../plugins/pstack" "$dir/plugin"
-	cp "$PORT_DIR"/{rules.sed,stale-exempt.tsv,shadow-exempt.tsv,swallow.tsv,owned.txt,excluded.txt} "$dir/port/"
-	FIXTURE="$dir/plugin" PORT_FIXTURE="$dir/port" PATCH_FIXTURE="$dir/patches"
+	cp "$PORT_DIR"/{rules.sed,stale-exempt.tsv,shadow-exempt.tsv,swallow.tsv,owned.txt,excluded.txt,RELEASE} "$dir/port/"
+	cp "$PORT_DIR"/../plugins/pstack/{package.json,README.md} "$dir/repo/plugins/pstack/"
+	cp "$PORT_DIR/../.omp-plugin/marketplace.json" "$dir/repo/.omp-plugin/"
+	cp "$PORT_DIR/../PORTING.md" "$dir/repo/"
+	FIXTURE="$dir/plugin" PORT_FIXTURE="$dir/port" PATCH_FIXTURE="$dir/patches" REPO_FIXTURE="$dir/repo"
+	fixture_git init -q && fixture_git add -A && fixture_git commit -qm base
 	"$mutation"
+	fixture_git add -A && fixture_git commit -q --allow-empty -m mutation
 	printf '%s\037%s\037%s\037%s\037%s\n' "$name" "$mode" "$label" "$needle" "$dir" >>"$WORK/cases"
 	while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do wait -n; done
 	if [ "$mode" = terminal ]; then
@@ -304,6 +319,43 @@ mutate_target_only_patch() {
 	rm -rf "$tmp"
 }
 
+set_catalog_version() {
+	local f
+	for f in "$REPO_FIXTURE/plugins/pstack/package.json" "$REPO_FIXTURE/.omp-plugin/marketplace.json"; do
+		jq --arg v "$1" 'if .plugins then (.metadata.version = $v | (.plugins[] | select(.name == "pstack")).version = $v) else .version = $v end' \
+			"$f" >"$f.new" && mv "$f.new" "$f"
+	done
+}
+
+# 6c25490's shape: the pstackpolicy fixes shipped under 0.15.36, which every install already had.
+mutate_shipped_unbumped() {
+	printf '\nA line the plugin ships.\n' >>"$REPO_FIXTURE/plugins/pstack/README.md"
+}
+
+mutate_version_lowered() {
+	set_catalog_version 0.0.1
+}
+
+mutate_docs_only() {
+	printf '\nA line only the repository carries.\n' >>"$REPO_FIXTURE/PORTING.md"
+}
+
+mutate_shipped_bumped() {
+	mutate_shipped_unbumped
+	set_catalog_version 999.0.0
+}
+
+# A RELEASE edited without the rebuild that writes its version.
+mutate_release_unbuilt() {
+	if [ "$(tr -d '[:space:]' <"$PORT_FIXTURE/RELEASE")" = 0 ]; then echo 1; else echo 0; fi >"$PORT_FIXTURE/RELEASE.new"
+	mv "$PORT_FIXTURE/RELEASE.new" "$PORT_FIXTURE/RELEASE"
+}
+
+# Revision 100 of 0.15.36 would publish 0.15.3700, which is upstream 0.15.37's first release.
+mutate_release_overflow() {
+	printf '100\n' >"$PORT_FIXTURE/RELEASE"
+}
+
 start_case 'baseline' '' '' contracts nothing
 start_case 'excluded path in the tree' 'excluded paths' 'skills/setup-pstack is in the tree' contracts mutate_excluded_path
 start_case 'line naming an excluded path' 'excluded paths' '/skill:setup-pstack' contracts mutate_excluded_reference
@@ -328,6 +380,10 @@ start_case 'bare & in a replacement' 'rule replacement &' 'git fetch &&' contrac
 start_case 'parentheses as a group' 'rule paren groups' '(the system prompt names the path)' contracts mutate_paren_group
 start_case 'greedy mid-line wildcard' 'rule wildcards' 'Pick each subagent' contracts mutate_greedy_wildcard
 start_case 'swallow row on a plain rule' 'rule wildcards' 'which has no' contracts mutate_swallow_row_plain_rule
+start_case 'shipped change at the same version' 'release version' 'is not above' contracts mutate_shipped_unbumped
+start_case 'version lowered' 'release version' 'catalog version 0.0.1 is not above' contracts mutate_version_lowered
+start_case 'docs-only change' '' '' contracts mutate_docs_only
+start_case 'shipped change at a higher version' '' '' contracts mutate_shipped_bumped
 
 # The upstream probes answer a question about rules.sed and the ledgers against upstream text, so
 # these cases run the whole gate and need the clone. The clone is fetched here, one sha at a time,
@@ -344,6 +400,8 @@ if ensure_canon "$PIN" "$OLD_TARGET" >/dev/null 2>&1; then
 	start_case 'comparison error on stderr' 'reproducible' 'injected comparison I/O error' full mutate_diff_error_stderr
 	start_case 'generated tree differs from the build' 'reproducible' 'reproducibility-mismatch.txt' full mutate_reproducibility_mismatch
 	start_case 'patch that no longer applies' 'reproducible' 'failed, rules or a patch' full mutate_patch_fails
+	start_case 'RELEASE without its rebuild' 'reproducible' 'the build writes' full mutate_release_unbuilt
+	start_case 'RELEASE past 99' 'reproducible' 'from 0 to 99' full mutate_release_overflow
 	if command -v script >/dev/null; then
 		start_case 'patch prompt on a terminal' '' 'hunk FAILED' terminal mutate_patch_fails
 	else
@@ -368,6 +426,14 @@ while IFS=$'\037' read -r name mode label needle dir; do
 	elif [ "$status" = 124 ]; then
 		printf 'mutation tests: %s hung until the deadline, a prompt is waiting for an answer\n' "$name"
 		fail=1
+	elif [ -z "$label" ] && [ "$mode" != terminal ]; then
+		if [ "$status" = 0 ]; then
+			printf 'mutation tests: %s accepted\n' "$name"
+		else
+			printf 'mutation tests: %s unexpectedly failed\n' "$name"
+			cat "$dir/out"
+			fail=1
+		fi
 	elif [ "$status" = 0 ]; then
 		printf 'mutation tests: %s unexpectedly passed\n' "$name"
 		fail=1

@@ -17,11 +17,12 @@
 #   bash omp-port/sync-upstream.sh [<target-sha>]
 #       Rebuilds plugins/pstack at <target-sha> and moves the pin to it. <target-sha> must be a
 #       full 40-hex sha that touched pstack/. Default is the newest such commit. Refuses to run
-#       when the built tree carries uncommitted changes, owned paths excepted.
+#       when the built tree carries uncommitted changes, owned paths excepted. omp-port/RELEASE
+#       resets to 0 when upstream's version changes and goes up by one when it does not.
 #   bash omp-port/sync-upstream.sh rebuild
 #       Rebuilds at the current pin without moving it, which is what a maintainer runs after
-#       editing rules.sed, patches/, or owned.txt. Uncommitted build output is what it replaces,
-#       so unlike a sync it does not refuse a dirty tree.
+#       editing rules.sed, patches/, owned.txt, or RELEASE. Uncommitted build output is what it
+#       replaces, so unlike a sync it does not refuse a dirty tree.
 #
 # Exit 0 clean, 1 failure, including a patch that no longer applies.
 # Override the canonical checkout location with CANON=/path.
@@ -49,11 +50,8 @@ pstack_log() {
 		--jq '.[] | [.sha, .sha[0:7], (.commit.author.date|split("T")[0]), (.commit.message|split("\n")[0])] | @tsv'
 }
 
-upstream_head() { gh api 'repos/cursor/plugins/commits?path=pstack&sha=main&per_page=1' --jq '.[0].sha'; }
-
 commits_since() {
-	local pin="$1" log out st=0
-	log=$(pstack_log)
+	local pin="$1" log="$2" out st=0
 	out=$(printf '%s\n' "$log" |
 		awk -F'\t' -v pin="$pin" '$1==pin { seen=1; exit } { print $2"\t"$3"\t"$4 } END { if (!seen) exit 3 }') || st=$?
 	[ "$st" -eq 0 ] ||
@@ -74,11 +72,18 @@ write_json() {
 # Build at <sha>, install it, refresh the derived fields, and stage everything. The pin lands
 # last and only when <move-pin> is yes, so an interrupted run reruns cleanly instead of latching.
 do_build() {
-	local sha="$1" pin="$2" move="$3" version work n p k
-	ensure_canon "$sha" || die "no canonical checkout at $CANON and cloning $UPSTREAM_URL failed"
+	local sha="$1" pin="$2" move="$3" up rev version work n p k
+	ensure_canon "$sha" "$pin" || die "no canonical checkout at $CANON and cloning $UPSTREAM_URL failed"
 	# Read before the worktree changes, so a lazy blob fetch that fails cannot strand a
 	# rebuilt tree next to an unwritten version.
-	version=$(git -C "$CANON" show "$sha:pstack/.cursor-plugin/plugin.json" | jq -r .version)
+	up=$(upstream_version "$sha")
+	rev=$(read_release) || die "fix $RELEASE_FILE before building"
+	# Upstream lands several commits under one version, so a pin move within it changes what ships
+	# under a version omp already has, and it takes the next revision like a port-only release.
+	if [ "$move" = yes ]; then
+		if [ "$(upstream_version "$pin")" = "$up" ]; then rev=$((rev + 1)); else rev=0; fi
+	fi
+	version=$(port_version "$up" "$rev") || die "no publishable version for upstream $up at revision $rev"
 	work=$(mktemp -d)
 	build_tree "$sha" "$work" || {
 		rm -rf "$work"
@@ -90,14 +95,15 @@ do_build() {
 	read -r n p k < <(port_counts plugins/pstack)
 	write_json plugins/pstack/package.json --arg v "$version" '.version = $v'
 	write_json .omp-plugin/marketplace.json --arg v "$version" \
-		--arg d "$n skills, $p playbooks, $k principles, the poteto-mode pin, and two agents. Upstream cursor/plugins pstack at ${sha:0:7}." \
+		--arg d "$n skills, $p playbooks, $k principles, the poteto-mode pin, and two agents. Upstream cursor/plugins pstack $up at ${sha:0:7}." \
 		'.metadata.version = $v
 		 | (.plugins[] | select(.name == "pstack")) |= (.version = $v | .description = $d)'
+	printf '%s\n' "$rev" >"$RELEASE_FILE"
 	[ "$move" != yes ] || printf '%s\n' "$sha" >"$PIN_FILE"
-	git add -A plugins/pstack "$PIN_FILE" plugins/pstack/package.json .omp-plugin/marketplace.json
+	git add -A plugins/pstack "$PIN_FILE" "$RELEASE_FILE" plugins/pstack/package.json .omp-plugin/marketplace.json
 
-	printf '\npin      %s -> %s\nversion  %s\ncounts   %s skills, %s playbooks, %s principles\nchanged  %s files under plugins/pstack\n' \
-		"${pin:0:7}" "$(cut -c1-7 "$PIN_FILE")" "$version" "$n" "$p" "$k" \
+	printf '\npin      %s -> %s\nversion  %s, upstream %s at port revision %s\ncounts   %s skills, %s playbooks, %s principles\nchanged  %s files under plugins/pstack\n' \
+		"${pin:0:7}" "$(cut -c1-7 "$PIN_FILE")" "$version" "$up" "$rev" "$n" "$p" "$k" \
 		"$(git status --porcelain -- plugins/pstack | wc -l)"
 	# A slug the tiered rules never named still comes out model-agnostic, but it is worth a
 	# tiered rule that names the right capability instead of the generic replacement.
@@ -105,11 +111,11 @@ do_build() {
 }
 
 cmd_sync() {
-	local target="${1:-}" pin touched dirty p
+	local target="${1:-}" pin touched p rel
 	pin=$(read_pin)
-	[ -n "$target" ] || target=$(upstream_head)
-	[[ $target =~ ^[0-9a-f]{40}$ ]] || die "target must be a full 40-hex sha, got '$target'"
 	touched=$(pstack_log | cut -f1)
+	[ -n "$target" ] || target=${touched%%$'\n'*}
+	[[ $target =~ ^[0-9a-f]{40}$ ]] || die "target must be a full 40-hex sha, got '$target'"
 	grep -qxF "$target" <<<"$touched" ||
 		die "target $target does not touch pstack/, the pin must be a commit that touched pstack/"
 	if [ "$pin" = "$target" ]; then
@@ -118,14 +124,17 @@ cmd_sync() {
 	fi
 	# Only the built tree is destroyed by a sync, and owned paths are carried across it, so an
 	# uncommitted owned file or an edit anywhere else is not a reason to refuse.
-	dirty=$(git status --porcelain -- plugins/pstack/skills plugins/pstack/agents | sed 's/^...//')
-	while IFS= read -r p; do
-		dirty=$(printf '%s\n' "$dirty" | grep -v "^plugins/pstack/$p" || true)
-	done < <(owned_paths)
-	if [ -n "$(printf '%s' "$dirty" | tr -d '[:space:]')" ]; then
-		printf '%s\n' "$dirty" >&2
-		die "uncommitted changes the build would destroy, commit or stash them first"
-	fi
+	git status --porcelain -z --no-renames --untracked-files=all -- plugins/pstack/skills plugins/pstack/agents |
+		while IFS= read -r -d '' p; do
+			p=${p:3}
+			while IFS= read -r rel; do
+				if [[ "$p" == "plugins/pstack/$rel" || "$p" == "plugins/pstack/$rel/"* ]]; then
+					continue 2
+				fi
+			done < <(owned_paths)
+			printf '%q\n' "$p" >&2
+			die "uncommitted changes the build would destroy, commit or stash them first"
+		done
 	do_build "$target" "$pin" yes
 }
 
@@ -167,10 +176,11 @@ shadowed_report() {
 case "${1:-}" in
 check)
 	pin=$(read_pin)
-	target=$(upstream_head)
+	log=$(pstack_log)
+	target=${log%%$'\t'*}
 	printf 'target %s\n' "$target" >&2
 	[ -z "${SYNC_TARGET_OUT:-}" ] || printf '%s\n' "$target" >"$SYNC_TARGET_OUT"
-	commits_since "$pin"
+	commits_since "$pin" "$log"
 	shadowed_report "$pin"
 	;;
 rebuild) cmd_rebuild ;;

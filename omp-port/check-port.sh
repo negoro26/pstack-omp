@@ -393,6 +393,62 @@ else
 	report "rule wildcards" "PASS  every mid-line wildcard has a swallow.tsv row, and every row names a wildcard rule"
 fi
 
+# omp upgrades an installed plugin only when Bun.semver.order ranks the catalog version above the
+# installed one, so shipped files that change under an unchanged version never reach anyone who
+# installed the old one. That is how the pstackpolicy fixes in 6c25490 shipped as 0.15.36 to
+# installs that already had 0.15.36. The base is the commit this change lands on: the fork point
+# with origin/main on a branch, HEAD for uncommitted work on main itself (the sync step), and
+# otherwise HEAD's first parent, which is main for a pull request's merge ref, the previous main
+# for a push to main, and main for a sync branch. CI checks out one commit, so a missing parent is
+# fetched.
+VERSION_REPO="${CHECK_PORT_REPO:-$REPO_ROOT}"
+SHIPPED=(plugins/pstack .omp-plugin)
+version_base() {
+	local head fork parent
+	head=$(git -C "$VERSION_REPO" rev-parse HEAD) || return 1
+	fork=$(git -C "$VERSION_REPO" merge-base HEAD refs/remotes/origin/main 2>/dev/null) || fork=""
+	if [ -n "$fork" ] && [ "$fork" != "$head" ]; then
+		printf '%s\n' "$fork"
+		return 0
+	fi
+	if [ -n "$fork" ] && ! git -C "$VERSION_REPO" diff --quiet HEAD -- "${SHIPPED[@]}"; then
+		printf '%s\n' "$head"
+		return 0
+	fi
+	parent=$(git -C "$VERSION_REPO" cat-file -p HEAD | awk '/^$/ { exit } $1 == "parent" { print $2; exit }')
+	[ -n "$parent" ] || return 1
+	git -C "$VERSION_REPO" cat-file -e "$parent^{commit}" 2>/dev/null ||
+		git -C "$VERSION_REPO" fetch -q --depth=1 origin "$parent" >/dev/null 2>&1 || return 1
+	printf '%s\n' "$parent"
+}
+catalog_version() { jq -r '.plugins[] | select(.name == "pstack") | .version'; }
+release_skip() {
+	if [ -n "${CI:-}" ]; then
+		report "release version" "FAIL"
+		violate "$1, CI cannot skip this"
+	else
+		report "release version" "SKIP  $1"
+	fi
+}
+if ! base=$(version_base); then
+	release_skip "no base commit to compare the catalog version against"
+elif git -C "$VERSION_REPO" diff --quiet "$base" -- "${SHIPPED[@]}"; then
+	report "release version" "PASS  nothing under ${SHIPPED[*]} differs from ${base:0:7}"
+elif ! command -v bun >/dev/null; then
+	release_skip "no bun to run Bun.semver.order"
+else
+	now_v=$(catalog_version <"$VERSION_REPO/.omp-plugin/marketplace.json")
+	base_v=$(git -C "$VERSION_REPO" show "$base:.omp-plugin/marketplace.json" | catalog_version)
+	order=$(bun -e 'console.log(Bun.semver.order(process.argv[1], process.argv[2]))' "$now_v" "$base_v" 2>&1)
+	if [ "$order" = 1 ]; then
+		report "release version" "PASS  $base_v at ${base:0:7} -> $now_v"
+	else
+		report "release version" "FAIL"
+		violate "shipped files differ from ${base:0:7} and catalog version $now_v is not above $base_v there, so omp offers no upgrade"
+		violate "raise omp-port/RELEASE by one and run CANON=<clone> bash omp-port/sync-upstream.sh rebuild"
+	fi
+fi
+
 if [ "${CHECK_PORT_CONTRACTS_ONLY:-}" = 1 ]; then
 	echo
 	if [ "$fail" -eq 0 ]; then echo "check-port contracts: PASS"; else echo "check-port contracts: FAIL"; fi
@@ -561,8 +617,8 @@ for f in ../../README.md README.md "$MARKET"; do
 	grep -qF "$nplays playbooks" "$f" 2>/dev/null || stale="$stale$f wants \"$nplays playbooks\""$'\n'
 	grep -qF "$nprinc principle" "$f" 2>/dev/null || stale="$stale$f wants \"$nprinc principle\""$'\n'
 done
-grep -qF "pstack at $pin7." "$MARKET" 2>/dev/null ||
-	stale="$stale$MARKET wants the pinned sha \"pstack at $pin7.\""$'\n'
+grep -qF " at $pin7." "$MARKET" 2>/dev/null ||
+	stale="$stale$MARKET wants the pinned sha \" at $pin7.\""$'\n'
 if [ -n "$stale" ]; then
 	report "counts" "FAIL"
 	while read -r s; do [ -n "$s" ] && violate "$s"; done <<<"$stale"
@@ -678,11 +734,27 @@ else
 		fi
 		delta="${delta}${d}: diff exited with status $status"$'\n'"$comparison"$'\n'
 	done
+	# The published version is build output too, from upstream's version at the pin and RELEASE.
+	up=$(upstream_version "$pin" 2>/dev/null) || up=""
+	if ! rev=$(read_release 2>&1); then
+		vdelta=$rev
+	elif ! want=$(port_version "$up" "$rev" 2>&1); then
+		vdelta=$want
+	else
+		vdelta=$(jq -rs --arg w "$want" --arg p "pstack $up at ${pin:0:7}." '
+			.[0].version as $pkg | .[1] as $m | ($m.plugins[] | select(.name == "pstack")) as $e
+			| (if $pkg != $w then "package.json version \($pkg), the build writes \($w)" else empty end),
+			  (if $m.metadata.version != $w then "marketplace.json metadata.version \($m.metadata.version), the build writes \($w)" else empty end),
+			  (if $e.version != $w then "marketplace.json pstack version \($e.version), the build writes \($w)" else empty end),
+			  (if ($e.description | contains($p)) then empty else "marketplace.json pstack description lacks \"\($p)\"" end)' \
+			package.json "$MARKET")
+	fi
+	delta="$delta${vdelta:+$'\n'$vdelta}"
 	if [ -n "$delta" ]; then
 		report "reproducible" "FAIL"
 		while read -r l; do [ -n "$l" ] && violate "$l"; done <<<"$delta"
 	else
-		report "reproducible" "PASS  tree equals the build at ${pin:0:7}"
+		report "reproducible" "PASS  tree and version $want equal the build at ${pin:0:7}"
 	fi
 fi
 

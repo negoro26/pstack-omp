@@ -5,13 +5,13 @@
   },
   "metadata": {
     "description": "pstack, poteto's engineering methodology for Cursor, ported to oh-my-pi. Model and provider agnostic.",
-    "version": "0.15.36"
+    "version": "0.15.3601"
   },
   "plugins": [
     {
       "name": "pstack",
-      "description": "59 skills, 23 playbooks, 24 principles, the poteto-mode pin, and two agents. Upstream cursor/plugins pstack at c742dd6.",
-      "version": "0.15.36",
+      "description": "59 skills, 23 playbooks, 24 principles, the poteto-mode pin, and two agents. Upstream cursor/plugins pstack 0.15.36 at c742dd6.",
+      "version": "0.15.3601",
       "category": "development",
       "license": "MIT",
       "source": "./plugins/pstack"

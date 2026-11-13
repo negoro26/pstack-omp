@@ -7,10 +7,11 @@ source of truth for the omp port. The old generator flow that built the port fro
 tree is retired, so the files here are the artifact.
 
 The baseline is one file, `omp-port/UPSTREAM`, holding the full 40-hex sha of the upstream commit
-the port is synced to. Nothing else records it. Every derived field is generated from that sha by
-`omp-port/sync-upstream.sh`, which writes the plugin version into `plugins/pstack/package.json` and
-`.omp-plugin/marketplace.json` and regenerates the `pstack` catalog description from the live skill,
-playbook, and principle counts.
+the port is synced to. Nothing else records it. Every derived field is generated from that sha and
+the port revision in `omp-port/RELEASE` by `omp-port/sync-upstream.sh`. It writes the published
+version into `plugins/pstack/package.json` and `.omp-plugin/marketplace.json`, and regenerates the
+`pstack` catalog description from the live skill, playbook, and principle counts and upstream's own
+version and sha.
 
 **`backnotprop/pstack` is a mirror and it is stale. Never use it as the parity baseline again.**
 This port was originally built from that mirror at `18e0e90` (2026-08-19), which was two weeks
@@ -60,6 +61,37 @@ PR open for a human with both outputs in the body and the reason printed in the 
 runs `patch --force`, so a patch that no longer applies also exits 1 when `sync-upstream.sh` prints
 the build to a terminal. Plain `patch` stops there at `File to patch:` or `Assume -R?` and waits,
 and `--batch` answers that second prompt yes and applies the hunk backwards.
+
+### Release version
+
+omp upgrades an installed plugin only when `Bun.semver.order` ranks the catalog version above the
+installed one. A port fix shipped under upstream's own version therefore reaches nobody who already
+installed that version. The pstackpolicy fixes in 6c25490 shipped as `0.15.36` that way, and
+`omp plugin upgrade` reported every 0.15.36 install as up to date.
+
+The published version is upstream's `X.Y.Z` with the port revision `r` from `omp-port/RELEASE`
+folded into the patch number as `Z*100 + r`. Upstream `0.15.36` at revision 1 publishes
+`0.15.3601`, and upstream `0.15.37` at revision 0 publishes `0.15.3700`, which ranks above every
+revision of `0.15.36`. The build refuses a revision outside 0 to 99, because revision 100 of
+`0.15.36` would collide with `0.15.3700`. The catalog description keeps upstream's version and sha,
+as in `Upstream cursor/plugins pstack 0.15.36 at c742dd6.`
+
+Semver offers two other places for a revision, and neither works. Build metadata such as
+`0.15.36+port.1` ranks equal to `0.15.36`, so omp reads it as a reinstall. A prerelease such as
+`0.15.36-port.1` ranks below `0.15.36`, so omp reads it as a downgrade.
+
+Raise `RELEASE` by one in any change to `plugins/pstack` or `.omp-plugin` that does not move the
+pin, then run `bash omp-port/sync-upstream.sh rebuild` to write the version. A sync sets it to 0
+when upstream's version changed, and raises it by one when the new pin carries the same upstream
+version as the old one, since upstream lands several commits under one version.
+
+The `release version` check enforces this. When anything under `plugins/pstack` or `.omp-plugin`
+differs from the commit the change lands on, the catalog version has to rank above that commit's
+under `Bun.semver.order`. That commit is the fork point with `origin/main` on a branch, `HEAD` for
+uncommitted work on `main` (the sync step), and otherwise `HEAD`'s first parent. The first parent
+is `main` for a pull request's merge ref and for a dispatched sync branch, and the previous `main`
+for a push to `main`. CI checks out one commit, so the check fetches that parent. `reproducible`
+holds the written version to the one the build derives from the pin and `RELEASE`.
 
 ### What catches upstream moving
 

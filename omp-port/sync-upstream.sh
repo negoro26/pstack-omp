@@ -50,11 +50,8 @@ pstack_log() {
 		--jq '.[] | [.sha, .sha[0:7], (.commit.author.date|split("T")[0]), (.commit.message|split("\n")[0])] | @tsv'
 }
 
-upstream_head() { gh api 'repos/cursor/plugins/commits?path=pstack&sha=main&per_page=1' --jq '.[0].sha'; }
-
 commits_since() {
-	local pin="$1" log out st=0
-	log=$(pstack_log)
+	local pin="$1" log="$2" out st=0
 	out=$(printf '%s\n' "$log" |
 		awk -F'\t' -v pin="$pin" '$1==pin { seen=1; exit } { print $2"\t"$3"\t"$4 } END { if (!seen) exit 3 }') || st=$?
 	[ "$st" -eq 0 ] ||
@@ -116,9 +113,9 @@ do_build() {
 cmd_sync() {
 	local target="${1:-}" pin touched dirty p
 	pin=$(read_pin)
-	[ -n "$target" ] || target=$(upstream_head)
-	[[ $target =~ ^[0-9a-f]{40}$ ]] || die "target must be a full 40-hex sha, got '$target'"
 	touched=$(pstack_log | cut -f1)
+	[ -n "$target" ] || target=${touched%%$'\n'*}
+	[[ $target =~ ^[0-9a-f]{40}$ ]] || die "target must be a full 40-hex sha, got '$target'"
 	grep -qxF "$target" <<<"$touched" ||
 		die "target $target does not touch pstack/, the pin must be a commit that touched pstack/"
 	if [ "$pin" = "$target" ]; then
@@ -176,10 +173,11 @@ shadowed_report() {
 case "${1:-}" in
 check)
 	pin=$(read_pin)
-	target=$(upstream_head)
+	log=$(pstack_log)
+	target=${log%%$'\t'*}
 	printf 'target %s\n' "$target" >&2
 	[ -z "${SYNC_TARGET_OUT:-}" ] || printf '%s\n' "$target" >"$SYNC_TARGET_OUT"
-	commits_since "$pin"
+	commits_since "$pin" "$log"
 	shadowed_report "$pin"
 	;;
 rebuild) cmd_rebuild ;;

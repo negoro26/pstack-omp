@@ -29,8 +29,8 @@ bash omp-port/sync-upstream.sh check
 Empty output and exit 0 mean no drift since the pin. Each line is an upstream commit that touched
 `pstack/`, newest first, as short sha then date then subject. The resolved target is the newest
 commit that touched `pstack/`, printed to stderr, and written to the file named by
-`SYNC_TARGET_OUT` when that variable is set. The workflow reads it from there instead of resolving
-the head a second time and getting a different answer.
+`SYNC_TARGET_OUT` when that variable is set. Target and list come from one read of upstream's
+history, so the target is the first commit listed, or the pin when the list is empty.
 
 ### How to re-sync
 
@@ -47,6 +47,18 @@ commit that touched `pstack/`, opens a PR carrying the sync and gate output in i
 merges it with `--delete-branch` when both passed. Squash merging is safe because
 `omp-port/UPSTREAM`, not the branch history, carries the base for the next build. It skips the run
 while any open PR still carries a `sync/upstream-` head.
+
+A manual dispatch names its target in the `sha` input, checked before anything else. A target that
+is not a full 40-hex sha fails. A target equal to the pin is a no-op. A target missing from the
+commits since the pin fails, because a sync never moves the pin back. The PR body lists the target
+and the commits under it, which is what the build brings in.
+
+A `sync/upstream-<short>` branch on origin that never had a PR is a run whose `gh pr create` failed
+after the push, so the next run rebuilds it and force-pushes over it. A branch whose PR was closed is
+a human rejection, so the run stays a no-op naming that PR until someone deletes the branch. Every
+step runs under `shell: bash`, which sets pipefail, and the build fails unless `gh pr create` printed
+a PR URL. `bash omp-port/test-upstream-sync.sh` runs the plan and build steps under the shell the
+workflow declares, against stubbed `gh`, `git`, and port scripts, and the gate workflow runs it.
 
 A maintainer runs `bash omp-port/sync-upstream.sh [<target-sha>]` for the same build locally, target
 defaulting to that newest commit, or `bash omp-port/sync-upstream.sh rebuild` to rebuild at the

@@ -34,6 +34,8 @@ jobs:
           done
       - name: Port gate
         run: bash omp-port/check-port.sh
+      - name: Upstream sync workflow steps
+        run: bash omp-port/test-upstream-sync.sh
       - name: Install script test dependencies
         working-directory: plugins/pstack/skills/poteto-mode/scripts
         run: bun install --frozen-lockfile

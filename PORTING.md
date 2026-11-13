@@ -45,6 +45,9 @@ Before a sync replaces the skill and agent trees, it rejects uncommitted changes
 the changed path is owned or is below an owned directory. A similarly named sibling is not owned.
 Run `bash omp-port/test-sync-owned-paths.sh` to check this behavior in isolated repositories.
 
+The `reproducible` check passes only when every tree comparison exits successfully.
+A content difference or a comparison error fails the gate and reports the affected scope.
+
 The `upstream-sync` workflow does this daily. It runs `bash omp-port/check-port.sh` on `main` first,
 so a red trunk stops the run rather than being merged over, then builds at the newest upstream
 commit that touched `pstack/`, opens a PR carrying the sync and gate output in its body, and squash

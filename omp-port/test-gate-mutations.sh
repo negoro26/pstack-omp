@@ -22,14 +22,15 @@ ncase=0
 # harness and the worktree audit. A contracts run reads the case's copy of the tree; a full run
 # reads the real tree, because the counts and the docs it checks sit outside the plugin root.
 run_gate() {
-	local mode=$1 dir=$2 only="" root="" patches="$PORT_DIR/patches"
+	local mode=$1 dir=$2 only="" root="" patches="$PORT_DIR/patches" path="$PATH"
 	shift 2
 	[ "$mode" = contracts ] && only=1 root="$dir/plugin"
 	[ -d "$dir/patches" ] && patches="$dir/patches"
+	[ ! -d "$dir/bin" ] || path="$dir/bin:$path"
 	CHECK_PORT_ROOT="$root" RULES="$dir/port/rules.sed" STALE_EXEMPT="$dir/port/stale-exempt.tsv" \
 		SHADOW_EXEMPT="$dir/port/shadow-exempt.tsv" SWALLOW="$dir/port/swallow.tsv" OWNED="$dir/port/owned.txt" \
 		EXCLUDED="$dir/port/excluded.txt" RELEASE="$dir/port/RELEASE" CHECK_PORT_REPO="$dir/repo" \
-		PATCH_DIR="$patches" CHECK_PORT_CONTRACTS_ONLY="$only" CHECK_PORT_NESTED=1 \
+		PATH="$path" PATCH_DIR="$patches" CHECK_PORT_CONTRACTS_ONLY="$only" CHECK_PORT_NESTED=1 \
 		bash "$PORT_DIR/check-port.sh" "$@"
 }
 
@@ -256,6 +257,40 @@ mutate_owned_drift() {
 	append "$PORT_FIXTURE/owned.txt" "skills/poteto-mode"$'\t'"$(git -C "$CANON" rev-parse "$OLD_TARGET:pstack/skills/poteto-mode")"
 }
 
+mutate_diff_error() {
+	local bin="$PORT_FIXTURE/../bin"
+	mkdir -p "$bin"
+	printf '#!/usr/bin/env bash\nreal_diff=%q\nerror=%q\n' "$(command -v diff)" "${1:-}" >"$bin/diff"
+	cat >>"$bin/diff" <<'EOF'
+if [ "$1" = -rq ] && [ "$3" = skills ]; then
+	[ -z "$error" ] || printf '%s\n' "$error" >&2
+	exit 2
+fi
+"$real_diff" "$@"
+status=$?
+if [ "$1" = -rq ] && [ "$3" = agents ]; then
+	printf '%s\n' "$status" >"$(dirname "$0")/agents-status"
+fi
+exit "$status"
+EOF
+	chmod +x "$bin/diff"
+}
+
+mutate_diff_error_stderr() {
+	mutate_diff_error 'injected comparison I/O error'
+}
+
+mutate_reproducibility_mismatch() {
+	mkdir -p "$PATCH_FIXTURE"
+	cp "$PORT_DIR"/patches/*.patch "$PATCH_FIXTURE/"
+	cat >"$PATCH_FIXTURE/zzzz-reproducibility-mismatch.patch" <<'EOF'
+--- /dev/null
++++ b/agents/reproducibility-mismatch.txt
+@@ -0,0 +1 @@
++This file is not in the checked-in tree.
+EOF
+}
+
 # A real patch applied a second time. Its hunks are already in, so plain patch asks on the terminal
 # whether to reverse them and waits, and --batch answers yes and reverts the first copy.
 mutate_patch_fails() {
@@ -361,6 +396,9 @@ if ensure_canon "$PIN" "$OLD_TARGET" >/dev/null 2>&1; then
 	start_case 'swallowed text changed' 'swallow ledger' 'now: **Match the model to the job.**' full mutate_swallow_hash
 	start_case 'wildcard rule with no row' 'swallow ledger' 'has no swallow.tsv row' full mutate_swallow_row_missing
 	start_case 'owned path moved upstream' 'owned drift' 'skills/poteto-mode: upstream moved' full mutate_owned_drift
+	start_case 'silent comparison error before a successful scope' 'reproducible' 'skills: diff exited with status 2' full mutate_diff_error
+	start_case 'comparison error on stderr' 'reproducible' 'injected comparison I/O error' full mutate_diff_error_stderr
+	start_case 'generated tree differs from the build' 'reproducible' 'reproducibility-mismatch.txt' full mutate_reproducibility_mismatch
 	start_case 'patch that no longer applies' 'reproducible' 'failed, rules or a patch' full mutate_patch_fails
 	start_case 'RELEASE without its rebuild' 'reproducible' 'the build writes' full mutate_release_unbuilt
 	start_case 'RELEASE past 99' 'reproducible' 'from 0 to 99' full mutate_release_overflow
@@ -403,6 +441,9 @@ while IFS=$'\037' read -r name mode label needle dir; do
 		{ [ "$mode" != terminal ] && ! failed_on "$dir/out" "$label" "$needle"; }; then
 		printf 'mutation tests: %s failed for the wrong reason\n' "$name"
 		tr -d '\r' <"$dir/out"
+		fail=1
+	elif [ -x "$dir/bin/diff" ] && [ "$(cat "$dir/bin/agents-status" 2>/dev/null)" != 0 ]; then
+		printf 'mutation tests: %s did not complete the later agents comparison successfully\n' "$name"
 		fail=1
 	else
 		printf 'mutation tests: %s rejected\n' "$name"

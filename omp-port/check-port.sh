@@ -725,7 +725,15 @@ else
 		mkdir -p "$(dirname "$scratch/$p")"
 		cp -a "$p" "$scratch/$p"
 	done < <(owned_paths)
-	delta=$(for d in "${SCOPE[@]}"; do diff -rq "$scratch/$d" "$d" -x node_modules; done)
+	delta=""
+	for d in "${SCOPE[@]}"; do
+		if comparison=$(diff -rq "$scratch/$d" "$d" -x node_modules 2>&1); then
+			continue
+		else
+			status=$?
+		fi
+		delta="${delta}${d}: diff exited with status $status"$'\n'"$comparison"$'\n'
+	done
 	# The published version is build output too, from upstream's version at the pin and RELEASE.
 	up=$(upstream_version "$pin" 2>/dev/null) || up=""
 	if ! rev=$(read_release 2>&1); then

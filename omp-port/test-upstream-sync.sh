@@ -88,6 +88,10 @@ config | switch | add | commit) ;;
 diff) exit 1 ;;
 rev-parse) printf '%s\n' "$BUILT" ;;
 ls-remote)
+	if [ -e "$FIX/ls-remote-fails" ]; then
+		echo "fatal: unable to access 'https://github.com/negoro26/pstack-omp/': Could not resolve host" >&2
+		exit 128
+	fi
 	ref=${*: -1}
 	if grep -qxF "$ref" "$FIX/remote-refs"; then
 		printf '%s\t%s\n' "$BUILT" "$ref"
@@ -182,6 +186,15 @@ run_step plan
 expect "exit 0" exited 0
 expect "no go" no_output go
 expect "names the closed PR" logged "#12"
+
+new_case ls-remote-fails-closed-pr
+drift "$NEW"
+echo "refs/heads/sync/upstream-${NEW:0:7}" >"$C/remote-refs"
+printf '[{"number": 12, "headRefName": "sync/upstream-%s", "state": "CLOSED"}]\n' "${NEW:0:7}" >"$C/prs.json"
+touch "$C/ls-remote-fails"
+run_step plan
+expect "nonzero exit, an unreadable origin is not an absent branch" failed
+expect "no go" no_output go
 
 new_case invalid-sha-no-drift
 run_step plan SHA_INPUT=invalid

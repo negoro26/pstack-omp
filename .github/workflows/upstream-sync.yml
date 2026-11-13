@@ -66,7 +66,8 @@ jobs:
             exit 0
           fi
           branch="sync/upstream-$short"
-          if [ -n "$(git ls-remote origin "refs/heads/$branch")" ]; then
+          refs=$(git ls-remote origin "refs/heads/$branch")
+          if [ -n "$refs" ]; then
             prior=$(gh pr list --head "$branch" --state all --json number,state --jq '.[] | "#\(.number) (\(.state | ascii_downcase))"')
             if [ -n "$prior" ]; then
               echo "$branch already carried PR $prior, delete the branch to sync $short again"

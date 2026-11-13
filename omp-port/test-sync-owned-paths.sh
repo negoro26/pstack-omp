@@ -41,6 +41,19 @@ git() {
 	command git "$@"
 }
 export -f git
+chmod() {
+	if [[ ${1:-} == --reference=* ]]; then
+		case "${SYNC_FIXTURE_CHMOD:-}" in
+		fail)
+			printf 'fixture chmod failure\n' >&2
+			return 1
+			;;
+		kill) kill -KILL $$ ;;
+		esac
+	fi
+	command chmod "$@"
+}
+export -f chmod
 
 mkdir -p "$WORK/template/"{omp-port/patches,plugins/pstack,.omp-plugin}
 cp "$PORT_DIR/"{sync-upstream.sh,lib.sh} "$WORK/template/omp-port/"
@@ -64,17 +77,33 @@ init_repo "$WORK/template"
 git -C "$WORK/template" add .
 git -C "$WORK/template" commit -qm 'Fixture port'
 
+run_sync() {
+	local dir="$1"
+	CANON="$WORK/canon" RULES="$dir/omp-port/rules.sed" OWNED="$dir/omp-port/owned.txt" \
+		EXCLUDED="$dir/omp-port/excluded.txt" PATCH_DIR="$dir/omp-port/patches" \
+		bash "$dir/omp-port/sync-upstream.sh" "$TARGET"
+}
+
+report() {
+	local name="$1" ok="$2" detail="$3" dir="$WORK/$1"
+	if [ "$ok" -eq 1 ]; then
+		printf 'sync owned paths: %s PASS\n' "$name"
+	else
+		printf 'sync owned paths: %s FAIL, %s\n' "$name" "$detail"
+		cat "$dir/out"
+		fail=1
+	fi
+}
+
 run_case() {
-	local name="$1" expected="$2" mutation="$3" dir="$WORK/$1" status=0 ok=1 p reviewed
+	local name="$1" expected="$2" mutation="$3" verify="${4:-}" dir="$WORK/$1" status=0 ok=1 p reviewed
 	local status_fail=0
 	cp -a "$WORK/template" "$dir"
 	FIXTURE="$dir"
 	"$mutation"
 	cp -a "$dir/plugins/pstack" "$dir/before"
 	cp "$dir/omp-port/UPSTREAM" "$dir/pin.before"
-	CANON="$WORK/canon" RULES="$dir/omp-port/rules.sed" OWNED="$dir/omp-port/owned.txt" \
-		EXCLUDED="$dir/omp-port/excluded.txt" PATCH_DIR="$dir/omp-port/patches" SYNC_FIXTURE_STATUS_FAIL="$status_fail" \
-		bash "$dir/omp-port/sync-upstream.sh" "$TARGET" >"$dir/out" 2>&1 || status=$?
+	SYNC_FIXTURE_STATUS_FAIL="$status_fail" run_sync "$dir" >"$dir/out" 2>&1 || status=$?
 	if [ "$expected" != allow ]; then
 		if [ "$expected" = reject ]; then
 			[ "$status" -ne 0 ] || ok=0
@@ -94,14 +123,33 @@ run_case() {
 			diff -r "$dir/before/$p" "$dir/plugins/pstack/$p" >>"$dir/out" 2>&1 || ok=0
 		done <"$dir/omp-port/owned.txt"
 	fi
-	if [ "$ok" -eq 1 ]; then
-		printf 'sync owned paths: %s PASS\n' "$name"
-	else
-		printf 'sync owned paths: %s FAIL, expected %s, exit %s\n' "$name" "$expected" "$status"
-		cat "$dir/out"
-		fail=1
-	fi
+	[ -z "$verify" ] || "$verify"
+	report "$name" "$ok" "expected $expected, exit $status"
 }
+
+# The first sync fails partway through installing, the retry runs with the cause removed, and the
+# result must be the uninterrupted baseline's index with nothing left unstaged.
+run_resume() {
+	local name="$1" interrupt="$2" recover="$3" dir="$WORK/$1" first=0 status=0 ok=1
+	local chmod_mode=''
+	cp -a "$WORK/template" "$dir"
+	FIXTURE="$dir"
+	"$interrupt"
+	SYNC_FIXTURE_CHMOD="$chmod_mode" run_sync "$dir" >"$dir/out" 2>&1 || first=$?
+	"$recover"
+	run_sync "$dir" >>"$dir/out" 2>&1 || status=$?
+	[ "$first" -ne 0 ] || ok=0
+	[ "$status" -eq 0 ] || ok=0
+	[ "$(cat "$dir/omp-port/UPSTREAM")" = "$TARGET" ] || ok=0
+	[ "$(git -C "$dir" write-tree)" = "$(git -C "$WORK/baseline" write-tree)" ] || ok=0
+	git -C "$dir" diff --quiet -- plugins .omp-plugin omp-port || ok=0
+	[ -z "$(git -C "$dir" ls-files --others -- plugins .omp-plugin omp-port)" ] || ok=0
+	if compgen -G "$dir/plugins/pstack/package.json.*" >/dev/null; then ok=0; fi
+	[ ! -e "$(marker "$dir")" ] || ok=0
+	report "$name" "$ok" "first run exit $first, retry exit $status"
+}
+
+marker() { git -C "$1" rev-parse --path-format=absolute --git-path pstack-sync; }
 
 nothing() { :; }
 
@@ -158,6 +206,29 @@ agent_edit() {
 	printf 'local agent edit\n' >>"$FIXTURE/plugins/pstack/agents/example.md"
 }
 
+two_unowned_edits() {
+	agent_edit
+	printf 'local upstream edit\n' >>"$FIXTURE/plugins/pstack/skills/upstream/rename.txt"
+}
+
+lists_both() {
+	grep -qxF plugins/pstack/agents/example.md "$dir/out" || ok=0
+	grep -qxF plugins/pstack/skills/upstream/rename.txt "$dir/out" || ok=0
+}
+
+foreign_marker() {
+	agent_edit
+	printf '%s %s 0\n' "$PIN" "$PIN" >"$(marker "$FIXTURE")"
+}
+
+chmod_failure() { chmod_mode=fail; }
+
+chmod_kill() { chmod_mode=kill; }
+
+index_lock() { : >"$FIXTURE/.git/index.lock"; }
+
+drop_index_lock() { rm -f "$FIXTURE/.git/index.lock"; }
+
 run_case baseline allow nothing
 run_case untracked-prefix-sibling reject untracked_prefix_sibling
 run_case owned-edit allow owned_edit
@@ -171,6 +242,11 @@ run_case rename-out-of-owned reject rename_out_of_owned
 run_case rename-into-owned reject rename_into_owned
 run_case rename-within-owned allow rename_within_owned
 run_case agent-edit reject agent_edit
+run_case two-unowned-edits reject two_unowned_edits lists_both
+run_case foreign-marker reject foreign_marker
+run_resume write-json-failure chmod_failure nothing
+run_resume index-lock index_lock drop_index_lock
+run_resume hard-kill chmod_kill nothing
 run_case status-error status-error status_failure
 
 [ "$fail" -eq 0 ] || exit 1

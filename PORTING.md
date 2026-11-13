@@ -43,7 +43,17 @@ change in `rules.sed`, in a patch, or in an owned path instead.
 
 Before a sync replaces the skill and agent trees, it rejects uncommitted changes within them unless
 the changed path is owned or is below an owned directory. A similarly named sibling is not owned.
-Run `bash omp-port/test-sync-owned-paths.sh` to check this behavior in isolated repositories.
+The refusal lists every such path.
+
+A sync that fails or is killed after it starts replacing the tree can be finished by running the
+same sync again with the same target. Just before it replaces the tree, the sync writes the target,
+the pin, and `omp-port/RELEASE` it started from to `pstack-sync` in the git directory
+(`git rev-parse --git-path pstack-sync`), and it removes that file once the result is staged. When
+the file names the requested target, the rerun skips the dirty-tree refusal and the "already at"
+exit, and it builds again from the recorded pin and revision, so the result matches an
+uninterrupted run. That rebuild overwrites every hand edit made to the tree between the failure and
+the retry. A marker for a different target is ignored, so the refusal still applies. Run
+`bash omp-port/test-sync-owned-paths.sh` to check this behavior in isolated repositories.
 
 The `upstream-sync` workflow does this daily. It runs `bash omp-port/check-port.sh` on `main` first,
 so a red trunk stops the run rather than being merged over, then builds at the newest upstream

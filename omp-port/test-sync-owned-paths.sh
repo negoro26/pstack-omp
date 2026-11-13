@@ -54,6 +54,7 @@ printf 'owned file\n' >"$WORK/template/plugins/pstack/skills/local-file"
 printf '%s\t-\n' skills/pstack-omp skills/omp-mechanics 'skills/local[.]owner' skills/local-file \
 	>"$WORK/template/omp-port/owned.txt"
 printf '%s\n' "$PIN" >"$WORK/template/omp-port/UPSTREAM"
+printf '0\n' >"$WORK/template/omp-port/RELEASE"
 cp "$PORT_DIR/rules.sed" "$WORK/template/omp-port/rules.sed"
 : >"$WORK/template/omp-port/excluded.txt"
 printf '{"version":"1.0.0"}\n' >"$WORK/template/plugins/pstack/package.json"

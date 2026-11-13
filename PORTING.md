@@ -91,7 +91,9 @@ under `Bun.semver.order`. That commit is the fork point with `origin/main` on a 
 uncommitted work on `main` (the sync step), and otherwise `HEAD`'s first parent. The first parent
 is `main` for a pull request's merge ref and for a dispatched sync branch, and the previous `main`
 for a push to `main`. CI checks out one commit, so the check fetches that parent. `reproducible`
-holds the written version to the one the build derives from the pin and `RELEASE`.
+holds the written version to the one the build derives from the pin and `RELEASE`. The check
+compares a push to `main` against its first parent, which is why `main`'s ruleset disallows rebase
+merges.
 
 ### What catches upstream moving
 

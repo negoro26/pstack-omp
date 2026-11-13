@@ -17,8 +17,10 @@
 #   bash omp-port/sync-upstream.sh [<target-sha>]
 #       Rebuilds plugins/pstack at <target-sha> and moves the pin to it. <target-sha> must be a
 #       full 40-hex sha that touched pstack/. Default is the newest such commit. Refuses to run
-#       when the built tree carries uncommitted changes, owned paths excepted. omp-port/RELEASE
-#       resets to 0 when upstream's version changes and goes up by one when it does not.
+#       when the built tree carries uncommitted changes, owned paths excepted, and lists every
+#       such path. Rerunning a sync that stopped partway, with the same target, finishes it even
+#       though the tree it left looks dirty. omp-port/RELEASE resets to 0 when upstream's
+#       version changes and goes up by one when it does not.
 #   bash omp-port/sync-upstream.sh rebuild
 #       Rebuilds at the current pin without moving it, which is what a maintainer runs after
 #       editing rules.sed, patches/, owned.txt, or RELEASE. Uncommitted build output is what it
@@ -31,6 +33,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PIN_FILE=omp-port/UPSTREAM
+SYNC_MARKER=$(git rev-parse --git-path pstack-sync)
 
 die() { printf 'sync-upstream: %s\n' "$*" >&2; exit 1; }
 
@@ -59,25 +62,30 @@ commits_since() {
 	[ -z "$out" ] || printf '%s\n' "$out"
 }
 
+# The temp file lives in the git directory, so a run killed mid-write cannot leave it where
+# `git add -A plugins/pstack` stages it.
 write_json() {
-	local path="$1"
+	local path="$1" tmp
 	shift
-	local tmp
-	tmp=$(mktemp "$path.XXXXXX")
-	jq --indent 2 "$@" "$path" >"$tmp"
-	chmod --reference="$path" "$tmp"
-	mv "$tmp" "$path"
+	tmp=$(mktemp "$SYNC_MARKER.XXXXXX")
+	jq --indent 2 "$@" "$path" >"$tmp" && chmod --reference="$path" "$tmp" && mv "$tmp" "$path" || {
+		rm -f "$tmp"
+		return 1
+	}
 }
 
-# Build at <sha>, install it, refresh the derived fields, and stage everything. The pin lands
-# last and only when <move-pin> is yes, so an interrupted run reruns cleanly instead of latching.
+# Build at <sha>, install it, refresh the derived fields, and stage everything. A sync writes its
+# target, starting pin, and starting revision to SYNC_MARKER before it replaces the tree and
+# removes the marker once everything is staged. A run that stops in between, killed or not,
+# leaves the marker, and cmd_sync reruns the build from those inputs.
 do_build() {
-	local sha="$1" pin="$2" move="$3" up rev version work n p k
+	local sha="$1" pin="$2" move="$3" up base rev version work n p k
 	ensure_canon "$sha" "$pin" || die "no canonical checkout at $CANON and cloning $UPSTREAM_URL failed"
 	# Read before the worktree changes, so a lazy blob fetch that fails cannot strand a
 	# rebuilt tree next to an unwritten version.
 	up=$(upstream_version "$sha")
-	rev=$(read_release) || die "fix $RELEASE_FILE before building"
+	base=$(read_release) || die "fix $RELEASE_FILE before building"
+	rev=$base
 	# Upstream lands several commits under one version, so a pin move within it changes what ships
 	# under a version omp already has, and it takes the next revision like a port-only release.
 	if [ "$move" = yes ]; then
@@ -89,6 +97,7 @@ do_build() {
 		rm -rf "$work"
 		die "build at ${sha:0:7} failed, see the output above"
 	}
+	[ "$move" != yes ] || printf '%s %s %s %s\n' "$sha" "$pin" "$base" "$(git rev-parse HEAD)" >"$SYNC_MARKER"
 	install_tree "$work" || die "installing the built tree failed"
 	rm -rf "$work"
 
@@ -101,6 +110,7 @@ do_build() {
 	printf '%s\n' "$rev" >"$RELEASE_FILE"
 	[ "$move" != yes ] || printf '%s\n' "$sha" >"$PIN_FILE"
 	git add -A plugins/pstack "$PIN_FILE" "$RELEASE_FILE" plugins/pstack/package.json .omp-plugin/marketplace.json
+	rm -f "$SYNC_MARKER"
 
 	printf '\npin      %s -> %s\nversion  %s, upstream %s at port revision %s\ncounts   %s skills, %s playbooks, %s principles\nchanged  %s files under plugins/pstack\n' \
 		"${pin:0:7}" "$(cut -c1-7 "$PIN_FILE")" "$version" "$up" "$rev" "$n" "$p" "$k" \
@@ -111,20 +121,33 @@ do_build() {
 }
 
 cmd_sync() {
-	local target="${1:-}" pin touched p rel
+	local target="${1:-}" pin touched p rel bad marked='' from base head=''
 	pin=$(read_pin)
 	touched=$(pstack_log | cut -f1)
 	[ -n "$target" ] || target=${touched%%$'\n'*}
 	[[ $target =~ ^[0-9a-f]{40}$ ]] || die "target must be a full 40-hex sha, got '$target'"
 	grep -qxF "$target" <<<"$touched" ||
 		die "target $target does not touch pstack/, the pin must be a commit that touched pstack/"
+	[ ! -f "$SYNC_MARKER" ] || read -r marked from base head <"$SYNC_MARKER" || true
+	# An interrupted sync never commits, so a marker written at another HEAD belongs to a sync that
+	# was finished or abandoned by hand and says nothing about this tree.
+	[ "$head" = "$(git rev-parse HEAD)" ] || marked=''
+	# A marker for this target means an earlier run stopped after it began replacing the tree. The
+	# tree is that run's partial output and the pin and RELEASE may already have moved, so neither
+	# the dirty check nor the pin says anything about this run.
+	if [ "$marked" = "$target" ]; then
+		printf 'sync-upstream: finishing the interrupted sync to %s\n' "$target" >&2
+		printf '%s\n' "$base" >"$RELEASE_FILE"
+		do_build "$target" "$from" yes
+		return 0
+	fi
 	if [ "$pin" = "$target" ]; then
 		printf 'sync-upstream: already at %s, nothing to do\n' "$target"
 		return 0
 	fi
 	# Only the built tree is destroyed by a sync, and owned paths are carried across it, so an
 	# uncommitted owned file or an edit anywhere else is not a reason to refuse.
-	git status --porcelain -z --no-renames --untracked-files=all -- plugins/pstack/skills plugins/pstack/agents |
+	bad=$(git status --porcelain -z --no-renames --untracked-files=all -- plugins/pstack/skills plugins/pstack/agents |
 		while IFS= read -r -d '' p; do
 			p=${p:3}
 			while IFS= read -r rel; do
@@ -132,9 +155,12 @@ cmd_sync() {
 					continue 2
 				fi
 			done < <(owned_paths)
-			printf '%q\n' "$p" >&2
-			die "uncommitted changes the build would destroy, commit or stash them first"
-		done
+			printf '%q\n' "$p"
+		done) || exit
+	if [ -n "$bad" ]; then
+		printf '%s\n' "$bad" >&2
+		die "uncommitted changes the build would destroy, commit or stash them first"
+	fi
 	do_build "$target" "$pin" yes
 }
 
@@ -184,6 +210,6 @@ check)
 	shadowed_report "$pin"
 	;;
 rebuild) cmd_rebuild ;;
--h | --help) sed -n '2,25p' "$0" ;;
+-h | --help) sed -n '2,27p' "$0" ;;
 *) cmd_sync "${1:-}" ;;
 esac

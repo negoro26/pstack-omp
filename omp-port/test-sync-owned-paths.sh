@@ -149,6 +149,26 @@ run_resume() {
 	report "$name" "$ok" "first run exit $first, retry exit $status"
 }
 
+# A sync stopped by index.lock leaves its marker, a maintainer finishes it by hand and commits, and
+# a later sync to the same target must treat the commit as the pin and touch nothing.
+run_stale() {
+	local name="$1" after="$2" check="$3" dir="$WORK/$1" status=0 ok=1
+	cp -a "$WORK/template" "$dir"
+	FIXTURE="$dir"
+	index_lock
+	run_sync "$dir" >"$dir/out" 2>&1 || true
+	[ -e "$(marker "$dir")" ] || ok=0
+	drop_index_lock
+	git -C "$dir" add -A
+	git -C "$dir" commit -qm 'Finish the sync by hand'
+	"$after"
+	run_sync "$dir" >>"$dir/out" 2>&1 || status=$?
+	[ "$status" -eq 0 ] || ok=0
+	grep -qF "already at $TARGET, nothing to do" "$dir/out" || ok=0
+	"$check"
+	report "$name" "$ok" "exit $status"
+}
+
 marker() { git -C "$1" rev-parse --path-format=absolute --git-path pstack-sync; }
 
 nothing() { :; }
@@ -218,7 +238,22 @@ lists_both() {
 
 foreign_marker() {
 	agent_edit
-	printf '%s %s 0\n' "$PIN" "$PIN" >"$(marker "$FIXTURE")"
+	printf '%s %s 0 %s\n' "$PIN" "$PIN" "$(git -C "$FIXTURE" rev-parse HEAD)" >"$(marker "$FIXTURE")"
+}
+
+empty_marker() { : >"$(marker "$FIXTURE")"; }
+
+agent_edit_kept() { grep -qF 'local agent edit' "$dir/plugins/pstack/agents/example.md" || ok=0; }
+
+port_release() {
+	printf '2\n' >"$FIXTURE/omp-port/RELEASE"
+	printf '{"version":"1.0.2"}\n' >"$FIXTURE/plugins/pstack/package.json"
+	git -C "$FIXTURE" commit -qam 'Port-only release'
+}
+
+port_release_kept() {
+	[ "$(cat "$dir/omp-port/RELEASE")" = 2 ] || ok=0
+	grep -qF '"version":"1.0.2"' "$dir/plugins/pstack/package.json" || ok=0
 }
 
 chmod_failure() { chmod_mode=fail; }
@@ -244,9 +279,12 @@ run_case rename-within-owned allow rename_within_owned
 run_case agent-edit reject agent_edit
 run_case two-unowned-edits reject two_unowned_edits lists_both
 run_case foreign-marker reject foreign_marker
+run_case empty-marker allow empty_marker
 run_resume write-json-failure chmod_failure nothing
 run_resume index-lock index_lock drop_index_lock
 run_resume hard-kill chmod_kill nothing
+run_stale stale-marker-edit agent_edit agent_edit_kept
+run_stale stale-marker-release port_release port_release_kept
 run_case status-error status-error status_failure
 
 [ "$fail" -eq 0 ] || exit 1

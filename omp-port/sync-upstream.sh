@@ -97,7 +97,7 @@ do_build() {
 		rm -rf "$work"
 		die "build at ${sha:0:7} failed, see the output above"
 	}
-	[ "$move" != yes ] || printf '%s %s %s\n' "$sha" "$pin" "$base" >"$SYNC_MARKER"
+	[ "$move" != yes ] || printf '%s %s %s %s\n' "$sha" "$pin" "$base" "$(git rev-parse HEAD)" >"$SYNC_MARKER"
 	install_tree "$work" || die "installing the built tree failed"
 	rm -rf "$work"
 
@@ -121,14 +121,17 @@ do_build() {
 }
 
 cmd_sync() {
-	local target="${1:-}" pin touched p rel bad marked='' from base
+	local target="${1:-}" pin touched p rel bad marked='' from base head=''
 	pin=$(read_pin)
 	touched=$(pstack_log | cut -f1)
 	[ -n "$target" ] || target=${touched%%$'\n'*}
 	[[ $target =~ ^[0-9a-f]{40}$ ]] || die "target must be a full 40-hex sha, got '$target'"
 	grep -qxF "$target" <<<"$touched" ||
 		die "target $target does not touch pstack/, the pin must be a commit that touched pstack/"
-	[ ! -f "$SYNC_MARKER" ] || read -r marked from base <"$SYNC_MARKER"
+	[ ! -f "$SYNC_MARKER" ] || read -r marked from base head <"$SYNC_MARKER" || true
+	# An interrupted sync never commits, so a marker written at another HEAD belongs to a sync that
+	# was finished or abandoned by hand and says nothing about this tree.
+	[ "$head" = "$(git rev-parse HEAD)" ] || marked=''
 	# A marker for this target means an earlier run stopped after it began replacing the tree. The
 	# tree is that run's partial output and the pin and RELEASE may already have moved, so neither
 	# the dirty check nor the pin says anything about this run.

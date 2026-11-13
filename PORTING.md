@@ -41,6 +41,10 @@ upstream text at the pinned sha minus the paths in `omp-port/excluded.txt`, with
 check, which rebuilds the pin and diffs it against the tree, and the next build deletes it. Put the
 change in `rules.sed`, in a patch, or in an owned path instead.
 
+Before a sync replaces the skill and agent trees, it rejects uncommitted changes within them unless
+the changed path is owned or is below an owned directory. A similarly named sibling is not owned.
+Run `bash omp-port/test-sync-owned-paths.sh` to check this behavior in isolated repositories.
+
 The `upstream-sync` workflow does this daily. It runs `bash omp-port/check-port.sh` on `main` first,
 so a red trunk stops the run rather than being merged over, then builds at the newest upstream
 commit that touched `pstack/`, opens a PR carrying the sync and gate output in its body, and squash

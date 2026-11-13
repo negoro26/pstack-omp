@@ -32,6 +32,8 @@ jobs:
             bash -n "$f"
             echo "::endgroup::"
           done
+      - name: Sync owned-path regressions
+        run: bash omp-port/test-sync-owned-paths.sh
       - name: Port gate
         run: bash omp-port/check-port.sh
       - name: Upstream sync workflow steps

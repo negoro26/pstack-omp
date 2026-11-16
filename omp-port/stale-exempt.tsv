@@ -4,7 +4,7 @@
 # rule above it and an exemption that silently stops applying turns the gate green for a reason
 # nobody can reconstruct.
 #
-# Re-checked at: c742dd6 (pin). Every rule below was applied in isolation to the raw upstream
+# Re-checked at: bf0c7cd (pin). Every rule below was applied in isolation to the raw upstream
 # extract and confirmed to change nothing. That is the intersection that distinguishes stale from
 # merely shadowed. `d`, `a` and addressed rules are probed on their address the same way.
 #
@@ -20,11 +20,10 @@ So `small` turns `claude-[a-z0-9.-]+` into `claude-[a-z0-9	forward-compat net: t
 ^- `readonly`: `true`$	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 ^- `readonly`: `false` \(agent mode\)\. \*\*Do not use rea	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 ^- `readonly`: `false` \(agent mode\)\. The synthesizer's 	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
-Work like a careful, cautious, precise investigator\.	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-Spawn one Task subagent that explores and explains in one 	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-Once all explorers have returned, spawn one Task subagent 	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-Spawn one synthesizer subagent:	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-Launch all matching investigators in a single message so t	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
+Work like a careful, cautious, precise investigator\.	upstream removed why's investigator prompt at bf0c7cd; retain the read-only brief if that sentence returns.
+Once all explorers have returned, spawn one Task subagent 	upstream removed how's explorer synthesis at bf0c7cd; retain the one-item call translation if that sentence returns.
+Spawn one synthesizer subagent:	upstream removed why's synthesizer step at bf0c7cd; retain the one-item call translation if that sentence returns.
+Launch all matching investigators in a single message so t	upstream removed why's investigator fan-out at bf0c7cd; retain the one-call batch translation if that sentence returns.
 ^Spawn one reviewer per configured model to adversarially 	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 Spawn all N subagents in one message with `run_in_backgrou	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 Reviewers need MCP access for context lookups \(tickets, c	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
@@ -33,9 +32,8 @@ there is no task `readonly` field\.  Use	forward-compat net: the left side is a 
 The synthesizer returns a structured Accepted / Rejected /	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 ^- `model`: the configured `interrogate reviewers` entry, 	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 `subagent_type`: `([^`]+)`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
-^Spawn one investigator per category that has a matching M	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
+^Spawn one investigator per category that has a matching M	upstream removed why's investigator fan-out at bf0c7cd; retain the assignment translation if that sentence returns.
 One subagent per PR, not batched, each a Cursor cloud agen	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-`claude-fable-[0-9.-]+(-(thinking-)?[a-z]+)?`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 `gpt-[0-9.]+-sol-[a-z]+`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 `cursor-grok-[0-9.]+-([a-z]+-)?fast`	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 One Cursor cloud agent	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
@@ -61,12 +59,12 @@ the `arena cross-judge pool` line in the `pstack-models\.m	forward-compat net: t
 the `swarm workers` model and speed \(your fast code model	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 the `interrogate reviewers` line in the `pstack-models\.md	forward-compat net: the left side is a Cursor wire token or path that upstream does not emit today. The rule earns its place by not firing, because it is the only thing standing between that text and a Cursor API in the tree.
 the `architect runners` line in the `task\.agentModelOverr	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-`agent`: an exact discovered (how explorer|how explainer) 	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
+`agent`: an exact discovered (how explorer|how explainer) 	upstream removed the how explorer and explainer role lines at bf0c7cd; retain the second-order rewrite if either line returns.
 re-read this playbook from trunk with `git show origin/mai	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 Re-read the execution playbook from trunk and the armed /g	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 - `Read` tool calls against any	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 - `Task` prompts that name a skill path	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-Use Glob to find directories and files, Grep to find key s	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
+Use Glob to find directories and files, Grep to find key s	upstream removed how's explorer prompt at bf0c7cd; retain the lowercase tool names if that sentence returns.
 If the bottom PR is mergeable now, squash it with	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 push with `--force-with-lease` only after an `ls-remote` c	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 4\. \*\*Prepare only the bottom PR\.\*\* Fetch current tru	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
@@ -100,3 +98,19 @@ irreversible actions \(force-push to shared branches, deploys, deletions, closin
 PR closes and retargets go through the stacker only\.	upstream removed Orchestrate's stacker routing sentence at c742dd6; retain the consent clause if that sentence returns.
 s#the full Task schema#the live `task` schema#g	upstream removed every "the full Task schema" phrase at c742dd6; retain the lowercase `task` translation if that phrase returns.
 /^- `subagent_type`: `generalPurpose`$/d	forward-compat net: deletes the Cursor role bullet the how and why skills carried, which upstream does not emit today. If it returns, the `subagent_type` token rules would otherwise turn it into an `agent`: `generalPurpose` line naming an agent omp does not have.
+Every spawn is a Task subagent with `subagent_type: generalPurpose`	upstream removed how's spawn-contract paragraph at bf0c7cd, when how became one explainer; retain the one-call translation if that paragraph returns.
+Every spawn is `generalPurpose` with `readonly: false`	upstream removed why's spawn-contract paragraph at bf0c7cd, when why became one paragraph; retain the MCP-inheritance translation if that paragraph returns.
+`why investigators` line, default `[^`]+`\.	upstream removed why's inline investigator model at bf0c7cd; retain the exact-agent translation if that sentence returns.
+`why synthesizer` line, default `[^`]+`\.	upstream removed why's inline synthesizer model at bf0c7cd; retain the exact-agent translation if that sentence returns.
+Each spawn below names a role line in the `pstack-models	upstream removed why's per-spawn model paragraph at bf0c7cd; retain the live-roster translation if that paragraph returns.
+Spawn all explorers in a single message,	upstream removed how's explorer fan-out at bf0c7cd; retain the one-call batch translation if that sentence returns.
+`model`: the `([^`]+)` line#`agent`	upstream removed the last `model`: the <role> line field, in why, at bf0c7cd; retain the token net if that field returns.
+matching MCP, all in a single message	upstream removed why's investigator fan-out at bf0c7cd; retain the one-call batch translation if that sentence returns.
+Spawn one synthesizer\.#	upstream removed why's synthesizer step at bf0c7cd; retain the one-item call translation if that sentence returns.
+`grok-[0-9.]+-([a-z]+-)?fast(-[a-z]+)?`	upstream replaced every grok default with Claude and Gemini slugs at bf0c7cd; retain the fast-code tier if a grok slug returns.
+list the available MCPs from the Cursor environment	upstream removed why's MCP discovery step at bf0c7cd; retain the mcp.json translation if that sentence returns.
+the `how (explorer|explainer)` line	upstream removed the how explorer and explainer role lines at bf0c7cd; retain the exact-agent translation if either line returns.
+(Spawn one explainer that explores and explains in one pass, built from	upstream removed how's simple path at bf0c7cd; retain the one-item call translation if that sentence returns.
+(spawn one explainer with `references/explainer-prompt	upstream removed how's explorer synthesis at bf0c7cd; retain the one-item call translation if that sentence returns.
+Use Read, Grep, and Glob as needed	upstream removed how's explainer prompt at bf0c7cd; retain the lowercase tool names if that sentence returns.
+open files, recent edits, cursor location, what was just discussed	upstream removed why's vague-target step at bf0c7cd; retain the editor-free context list if that sentence returns.

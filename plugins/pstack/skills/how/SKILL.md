@@ -6,31 +6,16 @@ disable-model-invocation: true
 
 # How
 
-Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
-
-Every delegation uses one `task` call with the required shared `context` and all independent items in `tasks[]`. Resolve exact agent names against the live roster, not configuration keys. Repository explorers use a discovered `scout`; explainers use a discovered explainer or omit `agent` for the default worker with the explainer brief. Each item's `task` is standalone and carries its angle and prompt template. All work is read-only. Models, reasoning, and speed come from agent frontmatter or `task.agentModelOverrides[<exact-name>]`, never per-call model fields or family fallbacks. Overrides cannot create agents.
-
-## 1. Assess complexity
+Explore the codebase to answer "how does X work?" questions.
 
 If the scope is ambiguous, state your interpretation and explore. The user can redirect.
 
-- **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. Spawn one explainer that explores and explains in one pass, built from `references/explainer-prompt.md` without the explorer-findings section. Start it in one `task` call with one item in `tasks[]` and the required shared `context`. Go to step 4.
-- **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): go to step 2.
+## 1. Explain
 
-When in doubt, take the simple path.
+Start one explainer in one `task` call with one item in `tasks[]` and the required shared `context`. Use an exact discovered explainer agent when the live roster has one; otherwise omit `agent` for the default worker. It explores and explains in one pass, and its brief carries read-only posture, since there is no task `readonly` field. Give it the user's question and this brief:
 
-## 2. Explore (complex only)
+> You are writing an architectural explanation for a senior engineer. Explore the codebase and write an explanation that a senior engineer unfamiliar with this area could read and walk away with a solid mental model. They should understand the architecture well enough to start working in it confidently. You have read-only access to the codebase.
 
-Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Start all explorers in one `task` call with the required shared `context` and all independent items in `tasks[]`, each with `references/explorer-prompt.md` and its angle filled in.
+## 2. Present
 
-## 3. Synthesize (complex only)
-
-Once all explorers have returned, spawn one explainer with `references/explainer-prompt.md` and every explorer's findings filled in. Start it in one `task` call with one item in `tasks[]` and the required shared `context`.
-
-## 4. Present
-
-Present the explainer's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
-
-## Output format
-
-The explanation uses the sections defined in `references/explainer-prompt.md`, dropping any that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas.
+Present the subagent's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.

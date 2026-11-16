@@ -150,7 +150,7 @@ Each live lane runs in its own subagent at the PR head, asking for a private wor
 
 ## Appendix D. Links and reading list
 
-<Docs to read before editing. Which PRs get `~/.omp/plugins/node_modules/pstack/skills/how/SKILL.md` and `~/.omp/plugins/node_modules/pstack/skills/interrogate/SKILL.md`. The trail per `~/.omp/plugins/node_modules/pstack/skills/show-me-your-work/SKILL.md`.>
+<Docs to read before editing. Which PRs get `~/.omp/plugins/node_modules/pstack/skills/interrogate/SKILL.md`. The trail per `~/.omp/plugins/node_modules/pstack/skills/show-me-your-work/SKILL.md`.>
 ````
 
 **Reply:** the plan path, the PR ids with their dependencies and the review-gated set, what the prototypes proved and what stays unproven, and the check script's output.

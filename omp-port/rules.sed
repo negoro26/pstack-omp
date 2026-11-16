@@ -187,6 +187,8 @@ s#Spawn one investigator subagent per source, in agent mode because readonly str
 
 ## 2. Model slugs. Tiered by capability first, then a catch-all for anything upstream adds later.
 
+# Cursor's fast slug in a Claude family, effort token in the middle -> the fast code capability.
+s#`claude-[a-z]+-[0-9.-]+-([a-z]+-)?fast`#your fast code model#g
 # Cursor's strongest reasoning slug -> the judgment capability the operator binds.
 s#`claude-fable-[0-9.-]+(-(thinking-)?[a-z]+)?`#your strongest judgment model#g
 # Cursor's second reasoning family -> the same judgment capability.
@@ -197,8 +199,6 @@ s#`gpt-[0-9.]+-sol-[a-z]+`#your strongest instruction-following model#g
 s#`grok-[0-9.]+-([a-z]+-)?fast(-[a-z]+)?`#your fast code model#g
 # The same family under Cursor's provider prefix, effort token in the middle.
 s#`cursor-grok-[0-9.]+-([a-z]+-)?fast`#your fast code model#g
-# Cursor's fast slug in a Claude family, effort token in the middle -> the fast code capability.
-s#`claude-[a-z]+-[0-9.-]+-([a-z]+-)?fast`#your fast code model#g
 # Cursor's third-vendor panel slug -> the capability a panel uses it for.
 s#`gemini-[0-9.]+-[a-z]+-[a-z]+`#your strongest model from another vendor#g
 # Catch-all for a slug no tier above knows. Two hyphen groups required, so a short illustrative

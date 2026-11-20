@@ -133,7 +133,7 @@ mutate_hub_api() {
 }
 
 mutate_install_root() {
-	sed -i 's#~/\.omp/plugins/node_modules/pstack/skills#~/.agents/skills#' "$FIXTURE/skills/poteto-mode/playbooks/multi-phase-plan.md"
+	sed -i 's#~/\.omp/agent/skills#~/.agents/skills#' "$FIXTURE/skills/reflect/SKILL.md"
 }
 
 # negoro26/pstack-omp#20: `omp cleanse --all` detects and fixes repo-wide, so it is no diagnostic.
@@ -145,9 +145,9 @@ mutate_general_purpose() {
 	printf '\nSpawn every explorer as a `generalPurpose` worker.\n' >>"$FIXTURE/skills/how/SKILL.md"
 }
 
-# Restores the upstream wording rules.sed rewrites in the reflect reviewer templates.
+# Restores the upstream wording rules.sed rewrites in the poteto-agent definition.
 mutate_task_tool() {
-	sed -i 's/a `task` item whose brief names its path/a `Task` prompt naming its path/' "$FIXTURE/skills/reflect/references/judgment-reviewer.md"
+	sed -i 's/every `task` spawn/every Task spawn/' "$FIXTURE/agents/poteto-agent.md"
 }
 
 mutate_transcript_layout() {
@@ -199,9 +199,10 @@ mutate_shadow_row_no_rule() {
 }
 
 # 73f30d9 rule 512: its replacement quoted `git fetch && git reset`, and each & spliced the matched
-# sentence back in, three copies on one line of opening-a-pr.md.
+# sentence back in, three copies on one line of opening-a-pr.md. Upstream removed that sentence at
+# 0b46ec3 and the rule with it, so the case appends the rule as it shipped.
 mutate_bare_ampersand() {
-	replace_rule 'git fetch && git reset --hard origin/<branch>` between them' \
+	append "$PORT_FIXTURE/rules.sed" \
 		's#or `git fetch && git reset --hard origin/<branch>` between them\.#or `git fetch && git reset --hard origin/<branch>` between them -- and only after `git status --porcelain` comes back empty, since the next clause is what you do when it does not.#'
 }
 
@@ -215,8 +216,8 @@ mutate_paren_group() {
 # 4275556 rule 34: `(\b.*)?\.` ran to the last period on the line and deleted two sentences after
 # the one it was written for.
 mutate_greedy_wildcard() {
-	replace_rule "s#Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section" \
-		"s#Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section(\\b.*)?\\.#Use the reasoning and speed already selected by agent frontmatter or exact \`task.agentModelOverrides\` entries. Do not change operator configuration to satisfy a skill example.#g"
+	replace_rule "s#Pick each subagent's reasoning level( for the job,)? per the Subagents section" \
+		"s#Pick each subagent's reasoning level( for the job,)? per the Subagents section(\\b.*)?\\.#Use the reasoning level already selected by agent frontmatter or exact \`task.agentModelOverrides\` entries. Do not change operator configuration to satisfy a skill example.#g"
 }
 
 mutate_swallow_row_plain_rule() {

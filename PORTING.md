@@ -232,9 +232,16 @@ Everything below `pstack/skills` and `pstack/agents` is outside this port. The b
 
 - **Added** `skills/make-bot-ui/` (webhook-driven Grok Bot UI skill). Listed in the README skill
   table and installed as a skill here.
-- **Deleted** `skills/poteto-mode/references/plan.md`. Canonical replaced the prose reference with an
-  executable checker, `skills/poteto-mode/scripts/check-plan.mjs`. Both moves are reflected on disk
-  in this port.
+- **Deleted** `skills/poteto-mode/references/plan.md`, then its replacement. Canonical first swapped
+  the prose reference for an executable checker, `skills/poteto-mode/scripts/check-plan.mjs`, and
+  at 0b46ec3 deleted the checker and the plan template it enforced. The multi-phase plan playbook
+  now describes the plan in five steps, and `omp-mechanics` says no checker ships.
+- **Deleted** at 0b46ec3: the Orchestrate playbook, architect's three references, and reflect's
+  four reviewer and synthesizer prompts. Architect and reflect are now one paragraph each and spawn
+  nothing. The rules, exemptions, and gate fixtures that served only those files went with them.
+- **Added** at 0b46ec3: `skills/poteto-mode/worker.md`, the operator rules the router tells every
+  kickoff to read first. It ships as upstream wrote it apart from its stop list, which `rules.sed`
+  widens to the same forge actions the router's pause list names.
 - **Not carried** `assets/logo.png` and its `"logo": "assets/logo.png"` field. They are a Cursor
   marketplace image with no omp consumer. An earlier tree vendored the manifest beside it so that
   future drift diffs would show only real changes; that ended when the build narrowed to the two
@@ -486,10 +493,9 @@ thinking id for judgment work.
 
 ## Honest limitations, still open
 
-- **Graphite is not installed.** `command -v gt` finds nothing on this machine, so every `gt` stack
-  step in Shipping, Babysit, Autopilot-stack and Orchestrate is unexecutable as written. `gh` is
-  installed and authenticated, so single-PR flows work. Canonical now lands through GitHub by
-  default, which reduces the exposure, but the stacking commands still name `gt`.
+- **Graphite is not installed.** `command -v gt` finds nothing on this machine. No playbook needs
+  it any more. Babysit, Shipping, and Autopilot-full say "Never require Graphite (`gt`)" and land
+  through `gh` or Origin, and `gh` is installed and authenticated.
 - **`isolated: true` is opt-in per spawn, and the gate is open.** `task.isolation.enabled` is `true` in `~/.omp/agent/config.yml`, so the field reaches the task tool instead of being stripped. Two facts verified live. Absent the flag a worker shares the parent checkout, so each swarm brief must request it. And the parent must run from inside a git checkout, since isolated preparation builds a worktree from it. Outside a repo the spawn fails fast with a clear error rather than silently sharing. omp's task tool also rejects `environment`, `cloud_base_branch`, and a per-spawn `model`. Per-spawn model choice is only `task.agentModelOverrides`, keyed by agent name.
 - **The agents have no marketplace path.** The skills and the extension install through the
   marketplace; `disable-model-invocation: true` maps to `hide` and the extra frontmatter keys

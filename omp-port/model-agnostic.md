@@ -16,6 +16,8 @@ Name the capability you need. Never name a vendor, a family, or a slug.
 | Role | Write this | Never this |
 |---|---|---|
 | Hardest judgment, vague intent, cross-cutting design | your strongest judgment model | a named thinking model |
+| Default code, prose, and judgment, below the strongest tier | your default judgment model | a named default model |
+| A panel seat from another vendor | your strongest model from another vendor | a named vendor model |
 | A precisely specified sequence to execute to the letter | your strongest instruction-following model | a named instruction model |
 | Trivial mechanical edits, bulk collection | your fast code model | a named fast model |
 | Prose, reviews, synthesis | your prose model | a named prose model |

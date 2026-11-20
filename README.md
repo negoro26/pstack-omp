@@ -3,7 +3,7 @@
 pstack-omp ports Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) from
 Cursor to [oh-my-pi](https://github.com/can1357/oh-my-pi) (`omp`). It is for omp users who want
 pstack's `poteto-mode` router, its playbooks for bug fixes, features, reviews, and shipping, and its
-review panels. The plugin carries 59 skills, with 23 playbooks and 24 principle leaves, and two
+review panels. The plugin carries 59 skills, with 22 playbooks and 24 principle leaves, and two
 extensions.
 
 ## Install

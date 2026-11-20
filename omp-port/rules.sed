@@ -13,7 +13,7 @@
 
 # Comment Sicko's actual upstream name is the lowercase agent id, and it has to match before the
 # generic field-token rules below rewrite `subagent_type` out from under it.
-s#^1\. Spawn `Task` with `subagent_type: "comment-sicko"`\..*$#1. Start one `task` call with one item in `tasks[]` and the required shared `context`. Use the exact discovered `comment-sicko` agent when present; otherwise omit `agent` for the default worker. Resolve the loaded `skill://no-comments` path to its plugin root and put the comment-reviewer role, scope, and absolute `<plugin-root>/agents/comment-sicko.md` pointer in the brief. Agent frontmatter or its exact override selects its reasoning level. Do not restate the reviewer's rules.#
+s#^1\. Spawn `Task` with `subagent_type: "comment-sicko"`\..*$#1. Start one `task` call with one item in `tasks[]` and the required shared `context`. Use the exact discovered `comment-sicko` agent when present; otherwise omit `agent` for the default worker. Resolve the loaded `skill://no-comments` path to its plugin root and put the comment-reviewer role, scope, and absolute `<plugin-root>/agents/comment-sicko.md` pointer in the brief. Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill. Do not restate the reviewer's rules.#
 # The how and why contracts are one paragraph upstream, not role bullets. Cursor's `generalPurpose`
 # agent does not exist on omp, so the whole paragraph goes, before the token rules see it.
 s#^Every spawn is a Task subagent with `subagent_type: generalPurpose`.*$#Every delegation uses one `task` call with the required shared `context` and all independent items in `tasks[]`. Resolve exact agent names against the live roster, not configuration keys. Repository explorers use a discovered `scout`; explainers use a discovered explainer or omit `agent` for the default worker with the explainer brief. Each item's `task` is standalone and carries its angle and prompt template. All work is read-only. Models, reasoning, and speed come from agent frontmatter or `task.agentModelOverrides[<exact-name>]`, never per-call model fields or family fallbacks. Overrides cannot create agents.#
@@ -29,12 +29,11 @@ s#^\| Reviewer A \| `[^`]+` \|$#| Reviewer A | discovered reviewer agent or defa
 s#^\| Reviewer B \| `[^`]+` \|$#| Reviewer B | independently configured reviewer agent or default worker; report unavailable diversity |#
 s#Read the `interrogate reviewers` line in place of `arena runners`\.#Use exact discovered review-capable agents in place of Arena's runners. Each agent's frontmatter or `task.agentModelOverrides[<exact-name>]` selects its model.#
 s#Spawn each adversary as `generalPurpose`\.#Use exact discovered review-capable agents, or omit `agent` for the default worker with the adversary brief.#
-# Reasoning level is a configured role property, not a routed-skill task field. The router's
-# paragraph tunes a per-call Cursor slug and retries a family default on rejection; omp's task item
-# takes no model, and its only per-spawn knob is the gated `effort` field. Arena writes the sentence
-# without "for the job,".
-s#Pick each subagent's reasoning level( for the job,)? per the Subagents section[^.]*\.#Use the reasoning level already selected by agent frontmatter or exact `task.agentModelOverrides` entries. Do not change operator configuration to satisfy a skill example.#g
-s#^\*\*Match the model to the job\.\*\*.*$#**Match the role to the job.** Resolve the required capability against the live agent roster and use that agent's configured reasoning and speed. Pass a per-spawn `effort` only when the live task schema exposes it. When it does, panel seats keep their configured level, any other role goes up one level for the hardest or subtlest work, down one for judgment, and down two or more for routine work, and no role runs above `xhigh`. Verification runs on the agent the swarm worker role resolves to. Agent frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model. Do not adjust a per-call slug, retry a family default, or change operator configuration to satisfy an example. Report unavailable diversity honestly.#
+# The router's model paragraph tunes a per-call Cursor slug and retries a family default on
+# rejection. omp's task item takes no model, and its only per-spawn knob is the gated `effort`
+# field. Upstream's per-site "Pick each subagent's reasoning level" pointer needs no rule, because
+# the Subagents section it names is this replacement.
+s#^\*\*Match the model to the job\.\*\*.*$#**Match the role to the job.** Resolve the required capability against the live agent roster and use that agent's configured reasoning and speed. Pass a per-spawn `effort` only when the live task schema exposes it. When it does, panel seats keep their configured level, any other role goes up one level for the hardest or subtlest work, down one for judgment, and down two or more for routine work, and no role runs above `xhigh`. Verification always runs on the agent the swarm worker role resolves to. Agent frontmatter or `task.agentModelOverrides[<exact-name>]` selects the model. Do not adjust a per-call slug, retry a family default, or change operator configuration to satisfy an example. Report unavailable diversity honestly.#
 # Poteto help's install, model defaults, pin UI, and guide links describe Cursor. On omp the install
 # is the marketplace, the model map is config.yml, and the pin is the potetomode extension's
 # `/poteto-mode on|off|status`, `alt+shift+t`, and `--poteto` flag. These run before the
@@ -425,9 +424,10 @@ s#^\*\*Always pause\*\* for irreversible writes: force-push to shared branches, 
 # autonomy switch for reversible work.
 s#^\*\*Session overrides:\*\* "Don't stop" / "going to bed" / "run until done" / "be fully autonomous" → keep going\.$#**Session overrides:** "Don't stop" / "going to bed" / "run until done" / "be fully autonomous" → keep going on reversible work. They never waive the pause list above; a request to be autonomous is not authorisation to land.#
 
-# The worker kickoff's stop list (poteto-mode/worker.md) omits the forge actions the router's pause
-# list holds and pstackpolicy refuses, so a worker read it as licence to merge or push to trunk.
-s#Stop only for a deploy, deleted data, a force-push to a shared branch, or a message to someone outside the run\.#Stop only for a push to trunk, a pull request merge, a base retarget, a force-push to a shared or trunk branch, closing a pull request, issue, or review thread, posting a review, a deploy, deleted data, or a message to someone outside the run.#
+# The worker kickoff's stop list (poteto-mode/worker.md) is upstream's copy of the router's pause
+# list. It names the port's pause list verbatim and in order, so a worker stops for every forge
+# action the router pauses for and pstackpolicy refuses.
+s#Stop only for a deploy, deleted data, a force-push to a shared branch, or a message to someone outside the run\.#Stop only for pushing to trunk, merging a pull request, retargeting a pull request base, force-pushing a shared or trunk branch, closing a pull request, an issue, or a review thread, posting a review or review comment, resolving a review thread, deleting a branch on the forge, deploys, data deletion, or customer messages.#
 
 # Leftover mode vocabulary. The four Cursor modes are gone, so naming one here contradicts the
 # playbook this index points at.

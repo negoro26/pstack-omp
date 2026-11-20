@@ -11,7 +11,7 @@ UPSTREAM_URL=https://github.com/cursor/plugins
 
 PAT_SLUG='\b(claude-[a-z0-9.-]+|gpt-[0-9][a-z0-9.-]*|grok-[a-z0-9.-]+|gemini-[a-z0-9.-]+|opus-[a-z0-9.-]+)\b'
 PAT_CAPS='omp (has no|does not support|cannot|lacks) [A-Za-z`_.:-]+'
-PAT_RESIDUE='cursor-team-kit|/deslop|run_in_background|<agent-transcripts>|~/\.cursor/|AskQuestion|cloud_base_branch|~/\.omp/skills/|~/\.omp/pstack/|environment: "cloud"'
+PAT_RESIDUE='cursor-team-kit|/deslop|run_in_background|<agent-transcripts>|~/\.cursor/|AskQuestion|cloud_base_branch|~/\.omp/skills/|~/\.omp/pstack/|environment: "cloud"|\bcloud VM\b|Project (tracker|store)|Cursor dashboard|\bCloud agents?\b|\bcloud (spawns|work|default)\b|via create-skill|git show origin/main:'
 # Every conflict git writes is bracketed by <<<<<<< and >>>>>>>, so a bare ======= needs no
 # branch of its own and a seven-character setext underline stops being a false positive.
 PAT_MARKER='^(<{7} |\|{7}( |$)|>{7} )'

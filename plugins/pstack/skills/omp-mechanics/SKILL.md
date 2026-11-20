@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 ## Review workflows
 
-The `architect`, `arena`, `interrogate`, and `reflect` workflows need independent contexts. Resolve their canonical roles through `skill://pstack-omp`. Prefer configured model-family diversity when the roster and operator policy provide it, and record the resolved model or fallback evidence. If only one family is available, keep the independent contexts and report weaker diversity. If independent execution is unavailable, report the blocked gate.
+The `arena` and `interrogate` workflows need independent contexts. `architect` hands a large or contested design to `arena`, and `reflect` runs as one agent. Resolve their canonical roles through `skill://pstack-omp`. Prefer configured model-family diversity when the roster and operator policy provide it, and record the resolved model or fallback evidence. If only one family is available, keep the independent contexts and report weaker diversity. If independent execution is unavailable, report the blocked gate.
 
 ## LSP and debugging
 

@@ -241,7 +241,7 @@ Everything below `pstack/skills` and `pstack/agents` is outside this port. The b
   nothing. The rules, exemptions, and gate fixtures that served only those files went with them.
 - **Added** at 0b46ec3: `skills/poteto-mode/worker.md`, the operator rules the router tells every
   kickoff to read first. It ships as upstream wrote it apart from its stop list, which `rules.sed`
-  widens to the same forge actions the router's pause list names.
+  replaces with the router's pause list, naming the same actions in the same order.
 - **Not carried** `assets/logo.png` and its `"logo": "assets/logo.png"` field. They are a Cursor
   marketplace image with no omp consumer. An earlier tree vendored the manifest beside it so that
   future drift diffs would show only real changes; that ended when the build narrowed to the two
@@ -376,8 +376,9 @@ correct tree. They now derive the name the way the preamble tells the agent to.
 The gate used to assert that port-authored prose sat *inside* upstream's playbooks, which is the
 opposite of mirroring upstream and made every one of those assertions a rule that went stale. Those
 checks are gone. What remains is residue detection: Cursor wire fields and tool names, Cursor's
-transcript layout, model slugs, retired role keys, install paths, a claimed `hub` tool, an unscoped
-`omp cleanse --all` recommended as a diagnostic, and build integrity.
+transcript layout, Cursor's cloud VM, dashboard, and Project vocabulary, model slugs, retired role
+keys, install paths, a claimed `hub` tool, an unscoped `omp cleanse --all` recommended as a
+diagnostic, and build integrity.
 
 The build never rebuilds an owned path from upstream. It restores the path from the worktree or
 from `HEAD`. When upstream also carries that path, the fork is deliberate, but the drift list alone

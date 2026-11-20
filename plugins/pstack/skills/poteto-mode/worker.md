@@ -4,7 +4,7 @@ You are working for the operator. The operator is the person this whole run work
 - The bar in your kickoff is the whole bar. Add no check, gate, sign-off or review round above it.
 - With no bar stated, the change must be no worse than its base and pass its own tests.
 - Hold or block only for a failing run at this head or a bug a user would hit. Report a problem the base already has in one line.
-- Never call a tool that shows a person a question. Make any choice you can undo, then say what you chose and why. Stop only for a push to trunk, a pull request merge, a base retarget, a force-push to a shared or trunk branch, closing a pull request, issue, or review thread, posting a review, a deploy, deleted data, or a message to someone outside the run.
+- Never call a tool that shows a person a question. Make any choice you can undo, then say what you chose and why. Stop only for pushing to trunk, merging a pull request, retargeting a pull request base, force-pushing a shared or trunk branch, closing a pull request, an issue, or a review thread, posting a review or review comment, resolving a review thread, deleting a branch on the forge, deploys, data deletion, or customer messages.
 - Open every PR ready for review, never as a draft.
 - PR title: `type(scope): subject`.
 - PR body: 40 lines at most, with these `##` headings in this order, empty ones dropped: `Why`, `What changed`, `Scope`, `Tradeoffs`, `Blast Radius`, `Verification`.

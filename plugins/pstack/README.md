@@ -1,6 +1,6 @@
 # pstack for oh-my-pi
 
-Lauren Tan's pstack methodology, ported to omp. 59 skills, 23 playbooks, 24 principle
+Lauren Tan's pstack methodology, ported to omp. 59 skills, 22 playbooks, 24 principle
 leaves, the `poteto-mode` pin, and the `poteto-agent` and `comment-sicko` agents.
 57 skills are built from upstream. `omp-mechanics` and `pstack-omp` are port-owned.
 

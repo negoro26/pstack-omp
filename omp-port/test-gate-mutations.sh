@@ -133,7 +133,7 @@ mutate_hub_api() {
 }
 
 mutate_install_root() {
-	sed -i 's#~/\.omp/plugins/node_modules/pstack/skills#~/.agents/skills#' "$FIXTURE/skills/poteto-mode/playbooks/multi-phase-plan.md"
+	sed -i 's#~/\.omp/agent/skills#~/.agents/skills#' "$FIXTURE/skills/reflect/SKILL.md"
 }
 
 # negoro26/pstack-omp#20: `omp cleanse --all` detects and fixes repo-wide, so it is no diagnostic.
@@ -145,9 +145,9 @@ mutate_general_purpose() {
 	printf '\nSpawn every explorer as a `generalPurpose` worker.\n' >>"$FIXTURE/skills/how/SKILL.md"
 }
 
-# Restores the upstream wording rules.sed rewrites in the reflect reviewer templates.
+# Restores the upstream wording rules.sed rewrites in the poteto-agent definition.
 mutate_task_tool() {
-	sed -i 's/a `task` item whose brief names its path/a `Task` prompt naming its path/' "$FIXTURE/skills/reflect/references/judgment-reviewer.md"
+	sed -i 's/every `task` spawn/every Task spawn/' "$FIXTURE/agents/poteto-agent.md"
 }
 
 mutate_transcript_layout() {
@@ -199,9 +199,10 @@ mutate_shadow_row_no_rule() {
 }
 
 # 73f30d9 rule 512: its replacement quoted `git fetch && git reset`, and each & spliced the matched
-# sentence back in, three copies on one line of opening-a-pr.md.
+# sentence back in, three copies on one line of opening-a-pr.md. Upstream removed that sentence at
+# 0b46ec3 and the rule with it, so the case appends the rule as it shipped.
 mutate_bare_ampersand() {
-	replace_rule 'git fetch && git reset --hard origin/<branch>` between them' \
+	append "$PORT_FIXTURE/rules.sed" \
 		's#or `git fetch && git reset --hard origin/<branch>` between them\.#or `git fetch && git reset --hard origin/<branch>` between them -- and only after `git status --porcelain` comes back empty, since the next clause is what you do when it does not.#'
 }
 
@@ -213,10 +214,16 @@ mutate_paren_group() {
 }
 
 # 4275556 rule 34: `(\b.*)?\.` ran to the last period on the line and deleted two sentences after
-# the one it was written for.
+# the one it was written for. That rule went at 0b46ec3, so the case plants the same tail on
+# interrogate's sentence rule, which upstream also follows with more sentences on its line.
 mutate_greedy_wildcard() {
-	replace_rule "s#Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section" \
-		"s#Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section(\\b.*)?\\.#Use the reasoning and speed already selected by agent frontmatter or exact \`task.agentModelOverrides\` entries. Do not change operator configuration to satisfy a skill example.#g"
+	replace_rule 's#Read the `interrogate reviewers` line in place of `arena runners`' \
+		"s#Read the \`interrogate reviewers\` line in place of \`arena runners\`(\\b.*)?\\.#Use exact discovered review-capable agents in place of Arena's runners.#"
+}
+
+# The cloud-worker sentence upstream deleted at 0b46ec3, together with the rule that translated it.
+mutate_cloud_vm() {
+	printf '\nRun workers on a new cloud VM unless the work needs this machine.\n' >>"$FIXTURE/skills/poteto-mode/worker.md"
 }
 
 mutate_swallow_row_plain_rule() {
@@ -366,6 +373,7 @@ start_case 'unscoped cleanup' 'runtime unscoped-cleanup' '' contracts mutate_uns
 start_case 'generalPurpose agent' 'runtime per-call-model' '' contracts mutate_general_purpose
 start_case 'capitalised Task tool' 'cursor tool names' '' contracts mutate_task_tool
 start_case 'cursor transcript layout' 'runtime history-layout' '' contracts mutate_transcript_layout
+start_case 'cloud VM residue' 'cursor residue' 'skills/poteto-mode/worker.md:' contracts mutate_cloud_vm
 start_case 'guide prototype playbook' 'guide claims' '' contracts mutate_guide_playbook
 start_case 'guide feature map' 'guide claims' 'feature map' contracts mutate_guide_feature_map
 start_case 'readonly after another' 'readonly posture' 'another readonly' contracts mutate_readonly_another
@@ -378,7 +386,7 @@ start_case 'whitespace exemption row' 'stale exemptions' 'blank' contracts mutat
 start_case 'shadow row naming no rule' 'shadow exemptions' 'matches no rule' contracts mutate_shadow_row_no_rule
 start_case 'bare & in a replacement' 'rule replacement &' 'git fetch &&' contracts mutate_bare_ampersand
 start_case 'parentheses as a group' 'rule paren groups' '(the system prompt names the path)' contracts mutate_paren_group
-start_case 'greedy mid-line wildcard' 'rule wildcards' 'Pick each subagent' contracts mutate_greedy_wildcard
+start_case 'greedy mid-line wildcard' 'rule wildcards' 'interrogate reviewers' contracts mutate_greedy_wildcard
 start_case 'swallow row on a plain rule' 'rule wildcards' 'which has no' contracts mutate_swallow_row_plain_rule
 start_case 'shipped change at the same version' 'release version' 'is not above' contracts mutate_shipped_unbumped
 start_case 'version lowered' 'release version' 'catalog version 0.0.1 is not above' contracts mutate_version_lowered

@@ -4,7 +4,7 @@
 # rule above it and an exemption that silently stops applying turns the gate green for a reason
 # nobody can reconstruct.
 #
-# Re-checked at: bf0c7cd (pin). Every rule below was applied in isolation to the raw upstream
+# Re-checked at: 0b46ec3 (pin). Every rule below was applied in isolation to the raw upstream
 # extract and confirmed to change nothing. That is the intersection that distinguishes stale from
 # merely shadowed. `d`, `a` and addressed rules are probed on their address the same way.
 #
@@ -41,7 +41,6 @@ Cloud-agent PR tools default to draft, so set `draft: fals	superseded: upstream 
 Fan out N parallel cloud workers\.	upstream removed Swarm's standalone overview at eb4db2b; retain the cloud-worker translation if that sentence returns.
 N is total workers, not the cloud concurrency limit\.	upstream removed Swarm's Set N step at eb4db2b; retain the omp concurrency setting if that step returns.
 Restacks run in cloud\. A local restack at this scale take	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-Cloud agents cannot read the local store, so their briefs 	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 A local root arms each tick as a real terminal `/loop`\. T	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 A cloud root uses the existing cloud-sleeper wake chain in	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 In a local session, a real terminal `/loop`\. In a cloud r	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
@@ -81,22 +80,8 @@ Each reviewer gets `subagent_type: generalPurpose`	upstream removed interrogate'
 ^\| Reviewer B \| `[^`]+` \|$	upstream removed interrogate's reviewer model table at ab1f702; retain the runtime-agent column if that table returns.
 Launch all reviewers in a single message with the Task tool, one per entry on the `interrogate reviewers` line	upstream removed interrogate's reviewer launch sentence at ab1f702; retain the one-call batch translation if that sentence returns.
 If the Task tool rejects a configured entry, run that reviewer on its family	upstream removed interrogate's reviewer slug fallback at ab1f702; retain the missing-reviewer translation if that sentence returns.
-the full Task schema including `environment`	upstream removed Orchestrate's full Task schema sentence at c742dd6; retain the `isolated` translation if that sentence returns.
-the cloud agent's status in the Cursor dashboard	upstream removed Orchestrate's cloud status probe at c742dd6; retain the history:// and proc:// translation if that sentence returns.
-s#cloud spawns#isolated spawns#g	upstream removed Orchestrate's cloud spawn budget at c742dd6; retain the isolated-spawn translation if that phrase returns.
-its spawn budget with the cloud default and the local exception list	upstream removed Orchestrate's sub-coordinator spawn budget at c742dd6; retain the shared-checkout exception translation if that sentence returns.
-After a Cursor restart: local agents are dead, cloud work is not\.	upstream removed Orchestrate's restart recovery at c742dd6; retain the omp restart translation if that sentence returns.
-reattach cloud work by PR and branch rather than agent id	upstream removed Orchestrate's restart recovery at c742dd6; retain the pushed-work translation if that sentence returns.
-s#Cloud agent#Isolated subagent#g	upstream removed the capitalised "Cloud agent" from Orchestrate at c742dd6; retain the isolated-subagent translation if that phrase returns.
-a frontier watcher wake \(arm it via the loop skill, with a long heartbeat fallback\)	upstream removed Orchestrate's frontier watcher wake at c742dd6; retain the named-process translation if that sentence returns.
-local transcripts under `agent-transcripts/`	upstream removed Orchestrate's agent-transcripts reference at c742dd6; retain the session-store translation if that phrase returns.
-Agents are spawned, resumed, and drained only through the Task tool\.	upstream removed Orchestrate's spawn-and-drain sentence at c742dd6; retain the `agent://` resume translation if that sentence returns.
 one per entry on the `interrogate reviewers` line in `~?/?(\.	upstream removed interrogate's per-entry reviewer line at ab1f702; retain the config.yml translation if that phrase returns.
 the `interrogate reviewers` line in `~?/?\.cursor/rules/pstack-models\.mdc`	upstream removed interrogate's per-entry reviewer line at ab1f702; retain the config.yml translation if that phrase returns.
-Mechanically landing a verified unit \(fast-forward or clean cherry-pick of a worker	upstream removed Orchestrate's coordinator landing sentence at c742dd6; retain the landing-grant translation if that sentence returns.
-irreversible actions \(force-push to shared branches, deploys, deletions, closing someone else	upstream removed Orchestrate's irreversible-action escalation list at c742dd6; retain the widened list if that sentence returns.
-PR closes and retargets go through the stacker only\.	upstream removed Orchestrate's stacker routing sentence at c742dd6; retain the consent clause if that sentence returns.
-s#the full Task schema#the live `task` schema#g	upstream removed every "the full Task schema" phrase at c742dd6; retain the lowercase `task` translation if that phrase returns.
 /^- `subagent_type`: `generalPurpose`$/d	forward-compat net: deletes the Cursor role bullet the how and why skills carried, which upstream does not emit today. If it returns, the `subagent_type` token rules would otherwise turn it into an `agent`: `generalPurpose` line naming an agent omp does not have.
 Every spawn is a Task subagent with `subagent_type: generalPurpose`	upstream removed how's spawn-contract paragraph at bf0c7cd, when how became one explainer; retain the one-call translation if that paragraph returns.
 Every spawn is `generalPurpose` with `readonly: false`	upstream removed why's spawn-contract paragraph at bf0c7cd, when why became one paragraph; retain the MCP-inheritance translation if that paragraph returns.
@@ -114,3 +99,20 @@ the `how (explorer|explainer)` line	upstream removed the how explorer and explai
 (spawn one explainer with `references/explainer-prompt	upstream removed how's explorer synthesis at bf0c7cd; retain the one-item call translation if that sentence returns.
 Use Read, Grep, and Glob as needed	upstream removed how's explainer prompt at bf0c7cd; retain the lowercase tool names if that sentence returns.
 open files, recent edits, cursor location, what was just discussed	upstream removed why's vague-target step at bf0c7cd; retain the editor-free context list if that sentence returns.
+agent mode \(`readonly: false`\)#full tools per spawn	forward-compat net: the Cursor agent-mode field as a phrase. Upstream removed its last use, reflect's reviewer spawn, at 0b46ec3; retain the token net if that field returns.
+s#`readonly: false`#full tools per spawn#g	forward-compat net: the Cursor `readonly: false` field. Upstream removed its last use, reflect's reviewer spawn, at 0b46ec3; retain the token net if that field returns.
+readonly strips MCPs\.#nothing strips MCPs here	forward-compat net: Cursor's readonly-strips-MCP clause. Upstream removed its last use, reflect's spawn lines, at 0b46ec3; retain the net if that clause returns.
+Spawn one readonly judge subagent( on that model)?	superseded: upstream reworded arena's judge sentence at 0b46ec3 and the arena cross-judge rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
+`model` from the `([^`]+)` line#`agent` from	forward-compat net: the Cursor `model` from the <role> line field. Upstream removed its last use, reflect's synthesizer spawn, at 0b46ec3; retain the token net if that field returns.
+`claude-opus-[0-9.-]+(-(thinking-)?[a-z]+)?`	upstream moved every Opus slug to its `-fast` form at 0b46ec3, which the fast tiers above claim; retain the judgment tier if a non-fast Opus slug returns.
+s#a Cursor restart#an omp restart#g	upstream removed the router's Pause safely entry at 0b46ec3; retain the omp restart translation if that phrase returns.
+s#"/loop until X"#"run until X"#g	upstream removed the router's show-me-your-work trigger quote at 0b46ec3; retain the translation if that phrase returns.
+s#<agent-transcripts>#~/.omp/agent/sessions	forward-compat net: Cursor's transcript-directory placeholder. Upstream removed its last use, reflect's locate step, at 0b46ec3; retain the token net if that placeholder returns.
+s#/\*/subagents/\*\.jsonl#	forward-compat net: Cursor's subagent transcript layout. Upstream removed its last use, reflect's locate step, at 0b46ec3; retain the token net if that layout returns.
+the `(architect|arena|swarm|interrogate) runners` line in the `pstack-models\.mdc` rule	forward-compat net: Cursor's runner role label. Upstream removed its last use, architect's runner line, at 0b46ec3; retain the net if that label returns.
+, in place of the .(arena|architect|swarm|interrogate) runners. line	forward-compat net: Cursor's runner role label. Upstream removed its last use, architect's runner line, at 0b46ec3; retain the net if that clause returns.
+s#the `pstack-models\.mdc` rule#the	forward-compat net: Cursor's model rule file named without a path. Upstream removed its last uses, in architect and reflect, at 0b46ec3; retain the net if that name returns.
+Set `model` to that line.s value, or to the default	forward-compat net: Cursor's per-role model instruction. Upstream removed its last use, reflect's spawn table, at 0b46ec3; retain the net if that sentence returns.
+s#Leave `model` unset when the value is `auto`	forward-compat net: Cursor's per-role model instruction. Upstream removed its last use, reflect's spawn table, at 0b46ec3; retain the net if that sentence returns.
+s#`git show origin/main:pstack/#	forward-compat net: a trunk read of Cursor's vendored pstack path. Upstream removed its last use, the multi-phase plan template, at 0b46ec3; retain the install-path translation if that path returns.
+s#([^/])pstack/skills/#	forward-compat net: Cursor's vendored pstack path. Upstream removed its last use, the multi-phase plan template, at 0b46ec3; retain the install-path translation if that path returns.

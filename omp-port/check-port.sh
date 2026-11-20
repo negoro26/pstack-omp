@@ -287,7 +287,7 @@ runtime_contract
 # count the guide states is asserted by `playbook parity`, from the index, not restated here.
 unclaimed=""
 guide_skills=(create-verification-skill maintain-verification-skill swarm poteto-mode teach how why recall technical-writing unslop architect)
-guide_files=(skills/poteto-mode/playbooks/prototype.md skills/poteto-mode/playbooks/multi-phase-plan.md skills/poteto-mode/scripts/check-plan.mjs)
+guide_files=(skills/poteto-mode/playbooks/prototype.md skills/poteto-mode/playbooks/multi-phase-plan.md)
 for s in "${guide_skills[@]}"; do
 	[ -f "skills/$s/SKILL.md" ] || unclaimed="$unclaimed""guide names /$s, not installed"$'\n'
 done
@@ -304,7 +304,7 @@ if [ -n "$unclaimed" ]; then
 	report "guide claims" "FAIL"
 	while read -r c; do [ -n "$c" ] && violate "$c"; done <<<"$unclaimed"
 else
-	report "guide claims" "PASS  ${#guide_skills[@]} skills, prototype and multi-phase-plan playbooks, check-plan.mjs, feature map, /poteto-mode command"
+	report "guide claims" "PASS  ${#guide_skills[@]} skills, prototype and multi-phase-plan playbooks, feature map, /poteto-mode command"
 fi
 
 # The build deletes every path in omp-port/excluded.txt, so one in the tree came back by hand or
@@ -515,13 +515,21 @@ parity() {
 # parentheses or names its file, and otherwise its title kebab-cases to the leaf. Upstream dropped
 # the literal per-entry slug in favor of that rule, so a check that greps for the slug reads every
 # entry as unnamed. Deriving the name is what the router tells the agent to do, so it is also the
-# only reading that survives the next rewording. Prints one bare leaf name per index entry.
+# only reading that survives the next rewording. At 0b46ec3 the Playbooks index became one
+# sentence of comma-separated titles under a preamble that says to kebab-case them, so a line with
+# no markup that lists titles is read the same way. Prints one bare leaf name per index entry.
 index_names() {
 	awk -v section="$1" '
+		function kebab(title) {
+			gsub(/[^A-Za-z0-9 -]/, "", title)
+			title = tolower(title)
+			gsub(/ /, "-", title)
+			return title
+		}
 		$0 == "## " section { inside = 1; next }
 		/^## / { inside = 0 }
-		!inside || !/^- \*\*/ { next }
-		{
+		!inside { next }
+		/^- \*\*/ {
 			# An explicit name wins over the title: (**principle-x**) or File: `playbooks/x.md`.
 			name = ""
 			if (match($0, "[*][*][a-z-]+[*][*]")) {
@@ -534,13 +542,15 @@ index_names() {
 				title = $0
 				sub(/^- \*\*/, "", title)
 				sub(/\*\*.*/, "", title)
-				gsub(/[^A-Za-z0-9 -]/, "", title)
-				title = tolower(title)
-				gsub(/ /, "-", title)
-				name = title
+				name = kebab(title)
 			}
 			sub(/^principle-/, "", name)
 			print name
+			next
+		}
+		!/[`*]/ && /, / && /\.$/ {
+			n = split(substr($0, 1, length($0) - 1), titles, /, /)
+			for (i = 1; i <= n; i++) print kebab(titles[i])
 		}
 	' "$ROUTER" | grep .
 }

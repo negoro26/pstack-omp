@@ -395,7 +395,7 @@ s#`/setup-pstack`#the Choose models section of `skill://omp-mechanics`#g
 # forgot: upstream added eighteen skills after it was written and every one of them shipped a bare
 # /name the gate could not accept. Adding a skill upstream now means adding its name to the
 # alternation, once.
-s#`/(teach|recall|reflect|tdd|swarm|arena|interrogate|correct|automate-me|figure-it-out|show-me-your-work|benchmark-checklist|blast-radius|ketchup-video|ketchup|bro|make-bot-ui|poteto-help|no-comments|unslop|create-verification-skill|maintain-verification-skill|create-formal-verification-skill|maintain-formal-verification-skill|statechart|architect|why|how|technical-writing|sharpen|in-your-own-words|typescript-best-practices|poteto-mode|principle-[a-z-]+)`#`/skill:\1`#g
+s#`/(teach|recall|reflect|reframe|tdd|swarm|arena|interrogate|correct|automate-me|figure-it-out|show-me-your-work|benchmark-checklist|blast-radius|ketchup-video|ketchup|bro|make-bot-ui|poteto-help|no-comments|unslop|create-verification-skill|maintain-verification-skill|create-formal-verification-skill|maintain-formal-verification-skill|statechart|architect|why|how|technical-writing|sharpen|in-your-own-words|typescript-best-practices|poteto-mode|principle-[a-z-]+)`#`/skill:\1`#g
 # One verdict vocabulary. pstack-omp and swarm both name PASS/ISSUES/BLOCKED; shipping named a
 # different three, and its landing rule tested for a different set, so a verifier told by one file
 # and checked by another could not satisfy both.

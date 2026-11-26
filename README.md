@@ -57,15 +57,6 @@ check the model each panel agent resolves to before you trust a panel verdict.
 - The `potetomode` extension pins `poteto-mode` per session. `/poteto-mode on|off|status`,
   `alt+shift+t`, and `omp --poteto` set the pin, and a resumed session keeps its saved state.
 
-## Other OMP ports
-
-[dsebban/skills](https://github.com/dsebban/skills) is Daniel Sebban's OMP port of pstack. You clone
-it and list its `skills/` directory under `skills.customDirectories`. It ships skills this port does
-not, such as `setup-pstack` for guided model configuration and `orchestrate-omp`. The `pstack-omp`
-runtime adapter here incorporates his OMP routing work, which resolves the live task or vibe surface
-without a fixed agent roster. [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) carries his license
-notice.
-
 ## More
 
 `PORTING.md` records every substitution and the re-sync procedure. Licensed MIT, same as upstream,

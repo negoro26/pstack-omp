@@ -22,14 +22,14 @@ Inspect the tools and schemas exposed in this session, not a version number or a
 | explorer | scout | fast | Read-only repository reconnaissance and artifact reduction. |
 | watcher | scout | fast | Observe one generation and event, then finish. |
 | planner | designer | good | Technical architecture and competing shapes. |
-| designer | designer | good | Visual, interaction, and product design. |
+| designer | designer | good | User-facing look, flow, and interaction. |
 | reviewer | reviewer | good | Independent code or behavioral verdict. |
 | security reviewer | security-reviewer | good | Read-only security lane, separate from ordinary review. |
 | researcher | librarian | fast | Source-verified external research. |
 | synthesizer | reviewer | good | Adjudicate frozen evidence, not new implementation. |
 | implementer | default worker | good | Bounded implementation with explicit write ownership. |
 | owner | default worker | good | Retain context for one coupled workstream. |
-| mechanical | sonic | fast | Fully specified low-judgment edits. |
+| mechanical | sonic | fast | Edits whose every step the brief already spells out. |
 
 The live roster is authoritative. Never invent missing specialists. When a preferred specialist is absent, use an available worker with the role explicitly in its brief; omit `agent` for the default worker. `poteto-agent` and `comment-sicko` are optional bundled custom agents. Use their exact names only when discovered. Otherwise include their skill/agent instructions as file pointers in an available worker's brief.
 

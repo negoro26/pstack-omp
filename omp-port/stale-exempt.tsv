@@ -64,10 +64,6 @@ Re-read the execution playbook from trunk and the armed /g	superseded: upstream 
 - `Read` tool calls against any	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 - `Task` prompts that name a skill path	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 Use Glob to find directories and files, Grep to find key s	upstream removed how's explorer prompt at bf0c7cd; retain the lowercase tool names if that sentence returns.
-If the bottom PR is mergeable now, squash it with	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-push with `--force-with-lease` only after an `ls-remote` c	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-4\. \*\*Prepare only the bottom PR\.\*\* Fetch current tru	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
-The operator's full-autonomy grant plus the root's clean v	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 - Workers never rebase and never run `gt`\.	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 s#The strict `scout` definition has no MCP grant, so never a	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.
 s#an exact discovered full-access worker for citation spot-c	superseded: upstream reworded this sentence and a different rule now covers the current phrasing. Kept because the reword is cheap for upstream to undo.

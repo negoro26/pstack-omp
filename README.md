@@ -45,9 +45,14 @@ check the model each panel agent resolves to before you trust a panel verdict.
 - `.github/workflows/upstream-sync.yml` syncs once a day. It runs `check-port.sh` on `main` and
   against the new upstream commit, builds the sync, runs the gate again on the result, and merges the
   sync pull request only when the build and the gate pass.
-- The `pstackpolicy` extension refuses the forge mutations the playbooks otherwise only ask for in
-  prose, such as `gh pr merge`, closing or retargeting a pull request, posting a review, and a push to
-  `main`. It allows them only when omp starts with `PSTACK_LANDING_GRANT=1`. The full list is in
+- The `pstackpolicy` extension is active from install. It refuses two actions from upstream's pause
+  list that a command can show: a force-push to the default branch or to `main`, `master`, or
+  `trunk`, and deleting the repository. A forced push whose destination the shell fills in, such as
+  `$BRANCH`, is refused too, because the command cannot show it is not trunk. Write the branch name
+  out literally and it passes. Everything else passes, merges included, because the port follows
+  upstream's pause list and your prompt is the permission to land. The extension reads the checked-out
+  branch from the tool call's directory, the session cwd or the call's own `cwd`, and does not follow
+  a `cd x && git push` inside the command line. It does not enforce the playbooks. The details are in
   [`plugins/pstack/README.md`](plugins/pstack/README.md).
 - The `potetomode` extension pins `poteto-mode` per session. `/poteto-mode on|off|status`,
   `alt+shift+t`, and `omp --poteto` set the pin, and a resumed session keeps its saved state.

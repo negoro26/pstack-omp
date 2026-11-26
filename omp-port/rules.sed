@@ -45,7 +45,7 @@ s#When the model rule is missing and it matters,#When required role overrides ar
 s#^- Now: give them `/setup-pstack` to type, and answer their question too\.$#- Now: point them to [Choose models](../omp-mechanics/SKILL.md\#choose-models), and answer their question too.#
 s#^- Later: answer their question, and add one line saying every role keeps its default model until they run `/setup-pstack`\.$#- Later: answer their question, and say agent frontmatter or parent inheritance remains in effect until they configure exact role overrides.#
 s#^If cost is the worry, say where the tokens go and how to spend fewer\..*$#If cost is the worry, explain that extra workers and review panels spend more tokens. To spend fewer, pick a lower effort or cheaper available models per [Choose models](../omp-mechanics/SKILL.md\#choose-models). An agent without a model override uses its frontmatter or inherits the chat model. Never write `auto` or `inherit-parent` as an OMP model selector. Save `/poteto-mode` for work that needs rigor.#
-s#Installing changes nothing until the user invokes a skill\. Only `/setup-pstack` loads from the user's words\.#Skills run when invoked or routed. The installed extension also provides the session pin commands.#
+s#Installing changes nothing until the user invokes a skill\. Only `/setup-pstack` loads from the user's words\.#Skills run when invoked or routed. The installed `potetomode` extension provides the session pin commands. The installed `pstackpolicy` extension is active from install and refuses two things: a force-push to the default branch, main, master, or trunk, and deleting the repository. Merges and every other forge action are not gated, because pstack follows upstream's pause list and the operator's prompt is the permission to land.#
 s#^Whether `/poteto-mode` stays on depends on how the user starts it:$#Choose whether to invoke the router once or pin it for the session:#
 s#^- Enter on `/poteto-mode` attaches.*$#- `/skill:poteto-mode` invokes the router for a task; it does not enable the persistent pin.#
 s#^- Option\+Enter on Mac or Alt\+Enter on Windows,.*$#- `/poteto-mode on` pins the router for every turn, `/poteto-mode off` unpins it, and `/poteto-mode status` reports the current pin. These are the installed extension's OMP commands, not Cursor's Custom Mode UI.#
@@ -399,30 +399,8 @@ s#stop at the first one without `PASS` or `PASS\+NOTES`\.#stop at the first one 
 # Cursor's help names another harness's install commands and an adapter the port does not ship.
 s#^pstack is built for Cursor, and it also installs in Claude Code with .*a one-line note\.$#pstack installs in omp with `/marketplace add negoro26/pstack-omp`, then `/marketplace install pstack@pstack-omp`. Invoke skills as `/skill:<name>`, such as `/skill:poteto-mode`. Read `skill://pstack-omp` for the live task and runtime contract and `skill://omp-mechanics` for pstack-specific OMP differences.#
 
-## 10. Irreversible actions, and what the runtime actually enforces. Every replacement below
-## exists because the original either contradicted another sentence in the same tree, named a
-## surface omp does not have, or told an agent to do something the harness cannot stop. The
-## machine half is plugins/pstack/extensions/pstackpolicy, which refuses the forge mutations
-## unless the operator set PSTACK_LANDING_GRANT; prose alone cannot, because yolo auto-approves
-## the exec tier and every pstack owner is a headless subagent.
-
-# Landing is the one action the port routes a human toward and then never gated. The --auto branch
-# of this same step already carries "and the user asked"; the immediate branch did not, so an agent
-# reading step 5 alone had licence to merge under yolo with nothing to stop it.
-s#If the bottom PR is mergeable now, squash it with#Merge only on an explicit request. If the bottom PR is mergeable now and the user asked to land, ship, or merge it, squash it with#
-
-# The pause list is the port's only global gate and it omitted every forge action its own
-# autopilots perform, so those actions fell through it entirely.
-s#^\*\*Always pause\*\* for irreversible writes: force-push to shared branches, deploys, data deletion, customer messages\.$#**Always pause** for irreversible writes: pushing to trunk, merging a pull request, retargeting a pull request base, force-pushing a shared or trunk branch, closing a pull request, an issue, or a review thread, posting a review or review comment, resolving a review thread, deleting a branch on the forge, deploys, data deletion, customer messages.#
-
-# Two lines below an unqualified "keep going" reads as "do not pause". It is not; it is the
-# autonomy switch for reversible work.
-s#^\*\*Session overrides:\*\* "Don't stop" / "going to bed" / "run until done" / "be fully autonomous" → keep going\.$#**Session overrides:** "Don't stop" / "going to bed" / "run until done" / "be fully autonomous" → keep going on reversible work. They never waive the pause list above; a request to be autonomous is not authorisation to land.#
-
-# The worker kickoff's stop list (poteto-mode/worker.md) is upstream's copy of the router's pause
-# list. It names the port's pause list verbatim and in order, so a worker stops for every forge
-# action the router pauses for and pstackpolicy refuses.
-s#Stop only for a deploy, deleted data, a force-push to a shared branch, or a message to someone outside the run\.#Stop only for pushing to trunk, merging a pull request, retargeting a pull request base, force-pushing a shared or trunk branch, closing a pull request, an issue, or a review thread, posting a review or review comment, resolving a review thread, deleting a branch on the forge, deploys, data deletion, or customer messages.#
+## 10. Policy text is never rewritten in this table. The Autonomy section, the session-override
+## line, and worker.md ship as upstream wrote them.
 
 # Leftover mode vocabulary. The four Cursor modes are gone, so naming one here contradicts the
 # playbook this index points at.
@@ -431,20 +409,6 @@ s#\*\*You own the merge frontier\. Declare a mode, clear one PR at a time, stop 
 ## 11. Residual accuracy fixes. Each of these is a sentence that was wrong, incomplete, or
 ## contradicted another sentence in the same tree. None is a Cursor residue; they are the port's
 ## own claims about itself, which is the class nothing upstream can fix for us.
-
-# autopilot-stack grants --force-with-lease and base retarget but omits the one line its sibling
-# carries verbatim, so an agent reading only this playbook has licence to rewrite any branch in the
-# chain, including one a human pushed to.
-s#push with `--force-with-lease` only after an `ls-remote` check, and set the PR base to the parent branch\.#push with `--force-with-lease` only after an `ls-remote` check, and set the PR base to the parent branch. Never force-push a shared branch.#
-
-# shipping step 4 retargets a base with no consent clause, and step 7 re-runs steps 3-6 for every PR
-# in the stack, so an unguarded retarget here reaches the whole chain.
-s#4\. \*\*Prepare only the bottom PR\.\*\* Fetch current trunk\.#4. **Prepare only the bottom PR**, and retarget only on the operator's explicit go: an operator approval to land a PR is not approval to rewrite the base of every PR above it. Fetch current trunk.#
-
-# The autonomy sentence contradicted the pause-list scope added in section 10, and the index routes
-# "full autopilot" straight here, so the trigger phrase the operator types is the phrase that clause
-# disqualified.
-s#The operator's full-autonomy grant plus the root's clean verdict is the merge authorization that babysitting alone never has\.#A full-autonomy grant authorises the owner to keep working without checking in; the root's clean verdict authorises a merge only inside that grant. Neither is implied by "go faster", and both still require the operator to have armed PSTACK_LANDING_GRANT for the merge itself.#
 
 # `trash` is macOS, so the step could not be followed on this host, and the sentence forbade the one
 # fallback that would work. Handled in zz-live-runtime-routing.patch instead, because that line is
@@ -482,10 +446,6 @@ s#the system prompt names (the|this) path#`history://<id>` is the documented sur
 
 # omp discovers skills one level under the root; the nested shape this prescribes is explicitly
 # not discovered, so the skill it produces silently never registers.
-
-# Unqualified force-push blocks the port's own rebase flow, which `pstackpolicy` explicitly permits
-# and `autopilot-stack` prescribes. Scope the pause the way the rest of the port scopes it.
-s#force-push, delete production data, send external messages#force-push to a shared or trunk branch, delete production data, send external messages#
 
 ## 13. Cursor's `Task` tool name. omp's tool is lowercase `task`, and capitalised it names nothing.
 ## Last on purpose: every sentence rule above quotes the capitalised form in its left-hand side, so

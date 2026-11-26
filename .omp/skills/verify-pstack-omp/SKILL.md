@@ -7,7 +7,7 @@ description: Drive the pstack plugin inside a real, isolated omp TUI and the por
 
 Users meet this repo in two places.
 
-- The plugin tree `plugins/pstack` loaded into omp. Users type skills as `/skill:<name>`, pin poteto-mode with the `potetomode` extension, and run under the `pstackpolicy` extension, which refuses forge mutations in model-issued `bash` and `eval` calls unless `PSTACK_LANDING_GRANT=1`. This is the primary target.
+- The plugin tree `plugins/pstack` loaded into omp. Users type skills as `/skill:<name>`, pin poteto-mode with the `potetomode` extension, and run under the `pstackpolicy` extension, which refuses a force-push to the default branch or to main, master, or trunk, and repository deletion, in model-issued `bash` and `eval` calls. Everything else, merges included, is the playbooks' work and passes. This is the primary target.
 - The maintainer's port CLI, `omp-port/check-port.sh` and `omp-port/sync-upstream.sh`.
 
 `omp-port/smoke-plugin.mjs` is CI's RPC check for registration and the pin. This skill reuses its isolation recipe (scratch HOME, stripped environment, `--plugin-dir` plus `-e` on the same tree, a local provider in `models.yml`) and adds a TUI in tmux plus a scripted model, so a drive can make omp issue real tool calls.
@@ -22,15 +22,15 @@ P=.omp/skills/verify-pstack-omp/prompts
 ## Launch
 
 ```bash
-$C launch <run> [--grant] [-- <extra omp flags>]
+$C launch <run> [-- <extra omp flags>]
 ```
 
 `<run>` is 1 to 40 characters of `[a-z0-9-]`, one per drive. Launch refuses a run id whose scratch dir or tmux server already exists. It does this:
 
-1. Creates scratch `${TMPDIR:-/tmp}/verify-pstack-omp-<run>/` with `home/` as omp's HOME, `work/` as its cwd, and `bin/gh`, a shim that appends its argv to `gh-calls.log` and never touches the network.
+1. Creates scratch `${TMPDIR:-/tmp}/verify-pstack-omp-<run>/` with `home/` as omp's HOME, `work/` as its cwd, `bin/gh`, a shim that appends its argv to `gh-calls.log` and never touches the network, and `bin/git`, a shim that logs any `push` to `git-calls.log` and exits without pushing, and runs the real git for every other command.
 2. Writes `home/.omp/agent/config.yml` with `setupVersion: 2`, which skips omp's first-run login wizard.
 3. Starts a private tmux server, `tmux -L verify-pstack-omp-<run> -f /dev/null`. Session `model` runs `scripts/scripted-model.mjs` on a free loopback port. `models.yml` names it as provider `verify`, model `scripted`.
-4. Starts session `omp` under `env -i` with only HOME, USER, TERM, LANG, SHELL, and PATH, with the scratch `bin` first. `--grant` adds `PSTACK_LANDING_GRANT=1`. The flags are `--no-session --no-title --no-lsp --no-rules --no-extensions --plugin-dir <plugin> -e <plugin> --model verify/scripted --approval-mode yolo`. yolo is the mode pstackpolicy exists for.
+4. Starts session `omp` under `env -i` with only HOME, USER, TERM, LANG, SHELL, and PATH, with the scratch `bin` first. The flags are `--no-session --no-title --no-lsp --no-rules --no-extensions --plugin-dir <plugin> -e <plugin> --model verify/scripted --approval-mode yolo`. yolo is the mode pstackpolicy exists for.
 5. Waits up to 30s for the status line to name `scripted`, which means omp accepts input. It took about 2s on this host. Launch then writes `launch.txt` to the evidence dir and prints the attach command.
 
 Overrides are `VERIFY_OMP_BIN` (default `omp` on PATH), `VERIFY_PSTACK_PLUGIN` (default this checkout's `plugins/pstack`), and `VERIFY_PSTACK_EVIDENCE` (the evidence root).
@@ -47,7 +47,7 @@ Teardown is [Cleanup](#cleanup).
 $C doctor <run>
 ```
 
-Read-only. It prints one `ok` or `FAIL` line per check and exits 1 on any FAIL. It checks that both tmux sessions exist, the omp pane is alive and runs `VERIFY_OMP_BIN` at the printed version, omp loads the expected plugin path, omp's HOME is the scratch home, omp's environment holds no credential or omp root variable, the scripted model answers `/health`, and the status line names `scripted`. The last line reports `grant armed` or `grant absent`. Run it first, and again whenever a drive surprises you.
+Read-only. It prints one `ok` or `FAIL` line per check and exits 1 on any FAIL. It checks that both tmux sessions exist, the omp pane is alive and runs `VERIFY_OMP_BIN` at the printed version, omp loads the expected plugin path, omp's HOME is the scratch home, omp's environment holds no credential or omp root variable, the scripted model answers `/health`, the status line names `scripted`, and omp's environment holds no `PSTACK_` variable. Run it first, and again whenever a drive surprises you.
 
 ## Drive
 
@@ -69,7 +69,7 @@ $C capture <run> <name>                # evidence snapshot, see below
 
 `wait` reads the whole pane with scrollback and succeeds only when it holds more matching lines than it did at the last `press`. So a second `wait 'tool result received'` waits for the second turn instead of matching the first. Wait on output the action produces, never on text you typed, because the typed text moves from the editor into the transcript and the count does not grow.
 
-Type a prompt that names a forge mutation with `type-file`. When the agent driving this skill runs omp with pstack installed, pstackpolicy reads that agent's own bash command line too, so `$C type <run> '...gh pr merge...'` is refused in the driver's session and never reaches tmux. `prompts/` holds every such prompt.
+Type a prompt that names a force-push to trunk or a repository delete with `type-file`. When the agent driving this skill runs omp with pstack installed, pstackpolicy reads that agent's own bash command line too, so `$C type <run> '...git push --force origin main...'` is refused in the driver's session and never reaches tmux. `prompts/` holds every such prompt.
 
 Editor handles that the recipes rely on:
 
@@ -82,11 +82,12 @@ Editor handles that the recipes rely on:
 
 Evidence goes to `${VERIFY_PSTACK_EVIDENCE:-${XDG_STATE_HOME:-$HOME/.local/state}/verify-pstack-omp}/<run>/`. It is outside the repository and the scratch dir, and cleanup never removes it. `$C evidence <run>` creates and prints it.
 
-- `launch.txt` names the run, the omp binary and version, the plugin path, its git HEAD with a dirty-file count, the grant, the extra flags, and the scratch path.
+- `launch.txt` names the run, the omp binary and version, the plugin path, its git HEAD with a dirty-file count, the extra flags, and the scratch path.
 - `actions.log` timestamps every launch, type, type-file, press, capture, clone, and cleanup.
 - `<name>.pane.txt` is the whole pane with scrollback, so it holds the typed prompt, the tool block, and its output.
 - `<name>.model-requests.jsonl` is every request omp sent the model, so it holds the system prompt and the tool result the agent got back.
 - `<name>.gh-calls.log` is the argv of every `gh` call that reached a shell. An empty file means none did.
+- `<name>.git-calls.log` is the argv of every `git push` that reached a shell. An empty file means none did.
 - `omp-logs/` is omp's own log directory, copied at cleanup.
 
 For the port CLI, `tee` the command's stdout and stderr into the evidence dir, append its exit code, and save `git status --porcelain` before and after.
@@ -95,8 +96,8 @@ Proof standards:
 
 - Drive through the TUI the way a user does, with typed prompts and slash commands. Importing an extension module is the unit tests' job (`plugins/pstack/extensions/*/index.test.js`), not this skill's.
 - Capture the action and the resulting state. The pane shows the prompt and the result, and the model log shows what the agent received.
-- Verify side effects. A refusal proof needs an empty `gh-calls.log` plus a control in which the same launch reaches the shim, through an allowed command or the same command under `--grant`. Without the control, an empty log could also mean the shim was never on PATH.
-- The scripted model and the `gh` shim are the only stand-ins. The model replaces the provider at its HTTP boundary. The shim replaces `gh` on PATH, so a gate failure cannot reach the forge. omp, the plugin, both extensions, and the bash and eval tools are real.
+- Verify side effects. A refusal proof needs an empty `git-calls.log` or `gh-calls.log` for the refused command plus a control in which the same launch reaches the shim through an allowed command. Without the control, an empty log could also mean the shim was never on PATH.
+- The scripted model and the `gh` and `git` shims are the only stand-ins. The model replaces the provider at its HTTP boundary. The shims replace `gh` and the push half of `git` on PATH, so a gate failure cannot reach the forge. omp, the plugin, both extensions, and the bash and eval tools are real.
 - Skip model requests whose `tools` list is empty when asserting. Those are omp compressing skill descriptions in the background.
 - `sync-upstream.sh <sha>` and `rebuild` rewrite the checkout. Run them only inside `$C clone <run>`, and read the result with `git status --porcelain` and `git diff --stat` there.
 

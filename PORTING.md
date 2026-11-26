@@ -240,8 +240,8 @@ Everything below `pstack/skills` and `pstack/agents` is outside this port. The b
   four reviewer and synthesizer prompts. Architect and reflect are now one paragraph each and spawn
   nothing. The rules, exemptions, and gate fixtures that served only those files went with them.
 - **Added** at 0b46ec3: `skills/poteto-mode/worker.md`, the operator rules the router tells every
-  kickoff to read first. It ships as upstream wrote it apart from its stop list, which `rules.sed`
-  replaces with the router's pause list, naming the same actions in the same order.
+  kickoff to read first. It ships as upstream wrote it, stop list included. The port follows
+  upstream's pause list and does not rewrite it, as the next section records.
 - **Not carried** `assets/logo.png` and its `"logo": "assets/logo.png"` field. They are a Cursor
   marketplace image with no omp consumer. An earlier tree vendored the manifest beside it so that
   future drift diffs would show only real changes; that ended when the build narrowed to the two
@@ -451,11 +451,11 @@ The injected reminder is a pointer, not the playbook. It tells the agent to read
 - **Never-block.** Subagents run `approvalMode: yolo`, so a worker cannot stop to ask. **Nothing
   here vetoes a malformed subagent result.** The plugin ships two extensions, `potetomode` and
   `pstackpolicy`, and neither one registers a `session_stop`; `pstackpolicy` vetoes at `tool_call`
-  and only for the forge mutations, so a result that is merely wrong still gets through. What
-  pstack relies on for that is the root's own acceptance discipline: `skill://pstack-omp` requires
-  the root to read each result and accept or reject it, and a `judge`/`verifier` role is the
-  independent check on a worker's claim. That is the whole backstop for a malformed result. Landing
-  is a separate gate and it is enforced in process rather than in prose; see
+  and only for a force-push to the default branch and repository deletion, so a result that is
+  merely wrong still gets through. What pstack relies on for that is the root's own acceptance
+  discipline: `skill://pstack-omp` requires the root to read each result and accept or reject it,
+  and a `judge`/`verifier` role is the independent check on a worker's claim. That is the whole
+  backstop for a malformed result. The two refusals are described in
   [What omp can actually stop](#what-omp-can-actually-stop) below.
   Returning `{"decision":"block"}` from `session_stop` is the one native veto contract, and
   `~/.omp/agent/extensions/proofgate/` implements it, dormant unless `$OMP_PROOF_FILE` is set, so
@@ -538,12 +538,22 @@ thinking id for judgment work.
 
 ### What omp can actually stop
 
-The playbooks say "stop where the human's call begins", and until recently that was advice with
-nothing behind it. Three facts from `omp://approval-mode.md`, on omp 18.14.1, decide what an
-instruction is worth here:
+The port follows upstream's pause list and does not widen it. `poteto-mode` ships the Autonomy
+section as upstream wrote it: "**Always pause** for irreversible writes: force-push to shared
+branches, deploys, data deletion, customer messages." and the session-override line that lets "going
+to bed", "run until done", and "be fully autonomous" mean keep going. `worker.md` ships its stop
+list unchanged: a deploy, deleted data, a force-push to a shared branch, or a message to someone
+outside the run. Merge permission is the operator's prompt. Upstream's README example is "land the
+stack even if ci flakes. i want everything merged by morning", and in upstream Shipping and
+Autopilot-full owners merge while Babysit stops at merge-ready. An earlier revision widened the
+list to merging, trunk pushes, retargeting, closing, reviews and branch deletion, told the router
+that autonomy "is not authorisation to land", and refused those commands unless omp started with an
+environment grant. That contradicted upstream's own owners, who merge, so it was removed.
 
-- `yolo` auto-approves the `read`, `write`, **and `exec`** tiers. A `gh pr merge` inside a bash
-  call is an `exec` call, so it runs with no prompt.
+Three facts from `omp://approval-mode.md`, on omp 18.14.1, decide what an instruction is worth here:
+
+- `yolo` auto-approves the `read`, `write`, **and `exec`** tiers, so a command inside a bash call
+  runs with no prompt.
 - Subagents run headless with `tools.approvalMode: yolo`, and "the parent `task` approval is the
   authorization boundary". Every pstack owner is a subagent, so the boundary is the spawn, not the
   instruction.
@@ -551,15 +561,24 @@ instruction is worth here:
   to answer it. A backstop therefore has to *refuse*, not prompt.
 
 bash's built-in critical-pattern list covers `rm -rf /`, fork bombs, remote-fetch-then-execute,
-`/etc/passwd`, and host shutdown. **A merge is not on it.** So is not a force-push to trunk, a base
-retarget, a PR close, or a review comment.
+`/etc/passwd`, and host shutdown. A force-push to trunk and a repository delete are not on it.
 
-That is why the port now ships `plugins/pstack/extensions/pstackpolicy`, a second extension beside
-the mode pin. It registers `tool_call` and refuses the forge mutations outright unless the operator
-set `PSTACK_LANDING_GRANT=1`. The grant is an environment variable rather than a flag or a slash
-command because a flag an agent can pass is not a grant a human made, and an agent cannot set its
-own process environment. Refusals name the variable, so the operator is told exactly what to set.
+So `plugins/pstack/extensions/pstackpolicy`, a second extension beside the mode pin, refuses at
+`tool_call` the two items of upstream's pause list that a command can show. One is a force-push
+(`--force`, `-f`, `--force-with-lease`, a `+` refspec, `--mirror`) to the repository's default branch
+or to `main`, `master`, or `trunk`. The other is deleting the repository, with `gh repo delete` or
+`gh api -X DELETE repos/<owner>/<repo>` and no further path. The refusal tells the agent to stop and
+return the step to the operator, which is what "Always pause" asks for. Everything else passes,
+including `gh pr merge`, merge APIs, closing, reviews, retargeting, branch deletion, and plain
+pushes. Deploys, data deletion and customer messages have no command shape to read, so they stay
+with the prose. The extension does not enforce the playbooks. It is a backstop for two irreversible
+actions, not a sandbox, and it reads only `bash` and `eval` calls.
 
-A force push to a **feature** branch stays allowed: that is the port's own rebase flow, and blocking
-it would fail every stack owner mid-rebase and make the extension unusable without a grant. A force
-push that names a trunk ref is refused, which is the case the playbooks keep escalating.
+A force push to a **feature** branch stays allowed: that is the port's own rebase flow. The one
+exception is a forced destination the shell fills in, such as `$BRANCH` or
+`$(git branch --show-current)`. The command cannot show it is not trunk, so the refusal tells the
+agent to write the branch name out literally and retry, where a real trunk force-push is told to
+stop and return to the operator. The branch the checked-out rules read comes from `ctx.cwd`, the
+session's directory, moved by the call's own `cwd` and each `git -C`. omp's launch directory is not
+that directory for an isolated owner in a worktree. A `cd x && git push` inside the command line is
+not tracked.

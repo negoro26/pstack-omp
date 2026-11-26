@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Drives the pstack plugin inside a real, isolated omp TUI. ../SKILL.md is the workflow.
 #
-#   control-pstack launch <run> [--grant] [-- <extra omp flags>]
+#   control-pstack launch <run> [-- <extra omp flags>]
 #   control-pstack doctor <run>
 #   control-pstack type <run> <text>            types literal text into the omp editor
 #   control-pstack type-file <run> <file>       types the file's first line
@@ -61,10 +61,9 @@ wait_for() {
 }
 
 launch() {
-	local grant=() extra=()
+	local extra=()
 	while [ $# -gt 0 ]; do
 		case $1 in
-		--grant) grant=(PSTACK_LANDING_GRANT=1) ;;
 		--) shift; extra=("$@"); break ;;
 		*) die "launch: unknown argument '$1'" ;;
 		esac
@@ -78,7 +77,9 @@ launch() {
 	mkdir -p "$scratch"/{home/.omp/agent,work,bin} "$evidence"
 	printf 'setupVersion: 2\n' >"$scratch/home/.omp/agent/config.yml"
 	printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>%q\necho "gh-shim: $*"\n' "$scratch/gh-calls.log" >"$scratch/bin/gh"
-	chmod +x "$scratch/bin/gh"
+	printf '#!/bin/sh\nfor a in "$@"; do\n\tif [ "$a" = push ]; then printf "%%s\\n" "$*" >>%q; echo "git-shim: $*"; exit 0; fi\ndone\nexec %q "$@"\n' \
+		"$scratch/git-calls.log" "$(command -v git)" >"$scratch/bin/git"
+	chmod +x "$scratch/bin/gh" "$scratch/bin/git"
 
 	tm new-session -d -s model -x 200 -y 10 \
 		env -i "$marker" PATH=/usr/local/bin:/usr/bin:/bin "$(command -v bun)" "$here/scripted-model.mjs" "$scratch"
@@ -97,15 +98,15 @@ launch() {
 
 	tm new-session -d -s omp -x 200 -y 50 -c "$scratch/work" \
 		env -i "$marker" USER="$USER" TERM=tmux-256color LANG="${LANG:-C.UTF-8}" SHELL=/bin/bash \
-		PATH="$scratch/bin:/usr/local/bin:/usr/bin:/bin" "${grant[@]}" \
+		PATH="$scratch/bin:/usr/local/bin:/usr/bin:/bin" \
 		"$omp_bin" --no-session --no-title --no-lsp --no-rules --no-extensions \
 		--plugin-dir "$plugin" -e "$plugin" --model verify/scripted --approval-mode yolo "${extra[@]}"
-	note launch "grant=${grant[*]:-none}" "extra=${extra[*]:-none}"
+	note launch "extra=${extra[*]:-none}"
 	wait_for ' scripted > ' 30
-	printf 'run\t%s\nomp\t%s %s\nplugin\t%s\nplugin_head\t%s\ngrant\t%s\nextra\t%s\nscratch\t%s\n' \
+	printf 'run\t%s\nomp\t%s %s\nplugin\t%s\nplugin_head\t%s\nextra\t%s\nscratch\t%s\n' \
 		"$run" "$omp_bin" "$("$omp_bin" --version)" "$plugin" \
 		"$(git -C "$plugin" rev-parse HEAD) $(git -C "$plugin" status --porcelain -- . | wc -l) dirty" \
-		"${grant[*]:-none}" "${extra[*]:-none}" "$scratch" >"$evidence/launch.txt"
+		"${extra[*]:-none}" "$scratch" >"$evidence/launch.txt"
 	printf 'ready: tmux -L verify-pstack-omp-%s attach -t omp\nevidence: %s\n' "$run" "$evidence"
 }
 
@@ -127,7 +128,7 @@ doctor() {
 	check "scripted model answers on port $(cat "$scratch/model.port" 2>/dev/null)" \
 		'[ "$(curl -fsS "http://127.0.0.1:$(cat "$scratch/model.port")/health")" = ok ]'
 	check "status line shows the scripted model" 'pane | grep -q " scripted > "'
-	printf 'grant %s\n' "$(grep -q '^PSTACK_LANDING_GRANT=1$' <<<"$env" && echo armed || echo absent)"
+	check "omp env carries no PSTACK_ variable" '! grep -q "^PSTACK_" <<<"$env"'
 	exit $bad
 }
 
@@ -137,6 +138,7 @@ capture() {
 	pane >"$evidence/$name.pane.txt"
 	cp "$scratch/model-requests.jsonl" "$evidence/$name.model-requests.jsonl" 2>/dev/null || : >"$evidence/$name.model-requests.jsonl"
 	cp "$scratch/gh-calls.log" "$evidence/$name.gh-calls.log" 2>/dev/null || : >"$evidence/$name.gh-calls.log"
+	cp "$scratch/git-calls.log" "$evidence/$name.git-calls.log" 2>/dev/null || : >"$evidence/$name.git-calls.log"
 	note capture "$name"
 	wc -l "$evidence/$name".*
 }

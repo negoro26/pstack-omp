@@ -117,6 +117,6 @@ Observe one branch/head/generation and one exact predicate, with stop conditions
 
 ## Root ownership
 
-The root keeps user interaction, scope, approvals, integration, external-write authorization, merges, deletion decisions, and final verification acceptance. Ordinary workers skip shared formatting, linting, and project-wide suites unless their brief explicitly assigns that verification lane. Do not race validation against unfinished sibling edits.
+The root keeps user interaction, scope, integration, and final verification acceptance. A step a playbook gives to an owner stays with that owner, such as an Autopilot-full owner merging its own PR. Ordinary workers skip shared formatting, linting, and project-wide suites unless their brief explicitly assigns that verification lane. Do not race validation against unfinished sibling edits.
 
 A new commit, rebase, conflict resolution, or applied patch requires rechecking the evidence generation. Preserve patch-id exceptions only when the Shipping playbook explicitly permits them. Report PASS, ISSUES, or BLOCKED with exact paths, generation, executed commands, results, deviations, and remaining gaps. A successful worker exit is not artifact acceptance.

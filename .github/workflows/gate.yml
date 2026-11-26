@@ -54,7 +54,7 @@ jobs:
   smoke:
     # A real omp loads plugins/pstack through -e, `omp plugin link`, and a local marketplace install,
     # and runs scripted turns: every skill registers, the pinned prompt names poteto-mode, and
-    # pstackpolicy refuses a merge before gh runs. omp-port/smoke-plugin.mjs names each check.
+    # pstackpolicy refuses a force-push to main and `gh pr merge` still reaches gh. omp-port/smoke-plugin.mjs names each check.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

@@ -43,15 +43,18 @@ const gh = (group, verbs) =>
 const REPO_DELETE = new RegExp(gh("repo", "delete"));
 
 // Quotes are syntax once the shell or the host language has read them, so `gh "repo" delete` is
-// `gh repo delete` and `'HEAD:main'` is one refspec. Inside an `eval` cell the command is usually
-// a list literal, `subprocess.run(["git", "push", "origin", "HEAD:main"])`, where a comma and a
-// bracket separate what separated nothing in a shell line. Both become a space. Only the loose
-// direction is taken: an unpaired quote is left alone. A backtick substitution becomes `$` and
-// its command, the text a `$(...)` leaves once its brackets go, so a refspec built from one reads
-// as a value the shell fills in when it runs.
+// `gh repo delete` and `'HEAD:main'` is one refspec. A quoted piece joins the text beside it as
+// the shell joins it, so `"HEAD":main`, `"ma"in` and `m""ain` stay one word and quotes never
+// split one. Inside an `eval` cell the command is usually a list literal,
+// `subprocess.run(["git", "push", "origin", "HEAD:main"])`, where a comma and a bracket separate
+// what separated nothing in a shell line. Both become a space. A backslash-newline is a line
+// continuation the shell deletes. Only the loose direction is taken: an unpaired quote is left
+// alone. A backtick substitution becomes `$` and its command, the text a `$(...)` leaves once its
+// brackets go, so a refspec built from one reads as a value the shell fills in when it runs.
 const normalize = (command) =>
   command
-    .replace(/(["'])([^"'\n]*)\1\s*,?/g, "$2 ")
+    .replace(/\\\n/g, "")
+    .replace(/(["'])([^"'\n]*)\1(\s*,)?/g, (_, _quote, body, comma) => (comma ? `${body} ` : body))
     .replace(/`([^`]*)`/g, "$$ $1 ")
     .replace(/[()[\]{},]/g, " ");
 
@@ -211,9 +214,9 @@ function gitSubcommand(tokens, start) {
   return -1;
 }
 
-/** The directory `git` runs in: the session directory, moved by each `-C <dir>` in turn. */
-function gitDirectory(tokens, start, at) {
-  let dir = process.cwd();
+/** The directory `git` runs in: the tool call's directory, moved by each `-C <dir>` in turn. */
+function gitDirectory(tokens, start, at, base) {
+  let dir = base;
   for (let i = start + 1; i < at; i += 1) {
     if (tokens[i] === "-C" && i + 1 < at) {
       dir = resolve(dir, tokens[i + 1]);
@@ -224,14 +227,14 @@ function gitDirectory(tokens, start, at) {
 }
 
 /** Every `git <subcommand>` in the command, with the arguments its own simple command gives it. */
-function eachGitCommand(command, visit) {
+function eachGitCommand(command, base, visit) {
   for (const simple of simpleCommands(command)) {
     const tokens = shellTokens(normalize(simple));
     for (let i = 0; i < tokens.length; i += 1) {
       if (!isGit(tokens[i])) continue;
       const at = gitSubcommand(tokens, i);
       if (at < 0) continue;
-      visit(tokens[at], tokens.slice(at + 1), gitDirectory(tokens, i, at));
+      visit(tokens[at], tokens.slice(at + 1), gitDirectory(tokens, i, at, base));
     }
   }
 }
@@ -262,6 +265,7 @@ const REDIRECTION = /^(?:\d+|&)?[<>]/;
 const REDIRECTION_ALONE = /^(?:\d+|&)?[<>]+[&|]?$/;
 
 const REASON_TRUNK = "force-pushing a default or trunk branch";
+const REASON_SHELL_NAMED = `${REASON_TRUNK} that the shell names at run time`;
 
 /**
  * Why this `git push` is a force-push to the default branch or to main, master, or trunk, or
@@ -302,7 +306,7 @@ function pushRefuse(argv, dir) {
       .slice(token.lastIndexOf(":") + 1)
       .replace(/^\+/, "")
       .replace(/^refs\/heads\//, "");
-    if (dest.startsWith("$")) return `${REASON_TRUNK} that the shell names at run time`;
+    if (dest.startsWith("$")) return REASON_SHELL_NAMED;
     if (dest === "*") return "force-pushing every branch, including the default branch";
     if (dest === "HEAD") {
       if (onTrunk(currentBranch(dir), remote)) return `${REASON_TRUNK} through HEAD`;
@@ -316,9 +320,9 @@ function pushRefuse(argv, dir) {
   return null;
 }
 
-function pushOffence(command) {
+function pushOffence(command, base) {
   let why = null;
-  eachGitCommand(command, (subcommand, args, dir) => {
+  eachGitCommand(command, base, (subcommand, args, dir) => {
     if (subcommand === "push" && !why) why = pushRefuse(args, dir);
   });
   return why;
@@ -375,8 +379,11 @@ function eachGhApi(command, visit) {
   }
 }
 
-const REPO_ENDPOINT = /^\/?repos\/[^/\s]+\/[^/\s]+\/?$/;
-const HEADS_ENDPOINT = /^\/?repos\/[^/\s]+\/[^/\s]+\/git\/refs\/heads\/(.+)$/;
+const API_ORIGIN = String.raw`(?:https://api\.github\.com)?`;
+const REPO_ENDPOINT = new RegExp(String.raw`^${API_ORIGIN}/?repos/[^/\s]+/[^/\s]+/?$`);
+const HEADS_ENDPOINT = new RegExp(
+  String.raw`^${API_ORIGIN}/?repos/[^/\s]+/[^/\s]+/git/refs/heads/(.+)$`
+);
 const FORCE_FIELD = /(?:^|[=:])force=true$/i;
 
 /** Why this `gh api` call is repository deletion or a forced update of a trunk ref, or null. */
@@ -418,21 +425,39 @@ function subject(event) {
   return null;
 }
 
+/**
+ * The directory the call runs in. bash runs in the session's cwd, which `ctx.cwd` carries and
+ * which differs from the omp launch directory for an isolated owner in a worktree, and a call
+ * can pass its own `cwd`. A `cd x && git push` inside the command line is not tracked.
+ */
+const baseDirectory = (event, ctx) =>
+  resolve(ctx.cwd, typeof event.input?.cwd === "string" ? event.input.cwd : "");
+
+const STOP = "Stop here and return this step to the operator, saying what is blocked.";
+
 export default function pstackpolicy(pi) {
-  pi.on("tool_call", async (event) => {
+  pi.on("tool_call", async (event, ctx) => {
     const command = subject(event);
     if (!command) return;
 
-    const why = pushOffence(command) ?? repoDeletion(command) ?? apiOffence(command);
-    if (why) {
+    const why =
+      pushOffence(command, baseDirectory(event, ctx)) ?? repoDeletion(command) ?? apiOffence(command);
+    if (!why) return;
+    if (why === REASON_SHELL_NAMED) {
       return {
         block: true,
         reason:
-          `pstackpolicy: refused ${why}. pstack's pause list says to always pause for ` +
-          `irreversible writes, and a force-push to the default branch and repository deletion ` +
-          `are two of them. Stop here and return this step to the operator, saying what is ` +
-          `blocked. Do not look for another way to run it.`,
+          `pstackpolicy: refused ${why}. The command does not show which branch it forces. ` +
+          `If the branch is not the default branch, write its name out literally and retry. ` +
+          `If it is the default branch, pstack's pause list says to always pause for that. ${STOP}`,
       };
     }
+    return {
+      block: true,
+      reason:
+        `pstackpolicy: refused ${why}. pstack's pause list says to always pause for ` +
+        `irreversible writes, and a force-push to the default branch and repository deletion ` +
+        `are two of them. ${STOP} Do not look for another way to run it.`,
+    };
   });
 }

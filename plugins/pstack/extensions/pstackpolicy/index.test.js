@@ -16,8 +16,12 @@ const handlers = new Map();
 policy({ on: (event, fn) => handlers.set(event, fn) });
 const toolCall = handlers.get("tool_call");
 
-const run = (command) => toolCall({ toolName: "bash", input: { command } });
-const evalCell = (code) => toolCall({ toolName: "eval", input: { language: "py", code } });
+// The handler resolves git's directory from `ctx.cwd` and the call's own `cwd`, never from the
+// directory the runner was launched in. `root` holds no checkout, so a case that reads a branch
+// names its checkout with `-C`, a `cwd` input, or a `ctx` of its own.
+const callIn = (toolName, input, cwd) => toolCall({ toolName, input }, { cwd });
+const run = (command, cwd = root, input = {}) => callIn("bash", { command, ...input }, cwd);
+const evalCell = (code) => callIn("eval", { language: "py", code }, root);
 
 // Checkouts the refusal reads. A command without `-C` would read whatever branch the test runner
 // sits on, so every case that depends on a checkout names one. They exist before the case tables
@@ -95,6 +99,12 @@ const MUST_BLOCK = [
   ['git push --force origin "$(git branch --show-current)"', "shell names at run time"],
   ["git push origin +${branch}", "shell names at run time"],
   ["git push --force-with-lease origin `git branch --show-current`", "shell names at run time"],
+  ['git push --force-with-lease="$BRANCH:$SHA" origin "$BRANCH"', "shell names at run time"],
+  // A quote never splits a word, so quoting part of a refspec hides nothing.
+  ['git push -f origin "HEAD":main', "default or trunk"],
+  ["git push -f origin 'HEAD':refs/heads/main", "default or trunk"],
+  ['git push -f origin "ma"in', "default or trunk"],
+  ['git push -f origin m""ain', "default or trunk"],
   // A backtick substitution runs the command inside it, the same as `$(...)`.
   ["echo `git push -f origin main`", "default or trunk"],
   // A comment ends at its newline whatever quotes it holds, and `$#` is a parameter, not a comment.
@@ -109,6 +119,9 @@ const MUST_BLOCK = [
   ["gh --repo o/r repo delete --yes", "deleting the repository"],
   ['gh "repo" delete o/r --yes', "deleting the repository"],
   ["gh repo -R o/r delete --yes", "deleting the repository"],
+  ["gh \\\n  repo delete o/r --yes", "deleting the repository"],
+  ["gh api -X DELETE https://api.github.com/repos/o/r", "deleting the repository through the API"],
+  ["gh api https://api.github.com/repos/o/r/ --method DELETE", "deleting the repository through the API"],
   ["gh api -X DELETE repos/o/r", "deleting the repository through the API"],
   ["gh api --method DELETE /repos/o/r", "deleting the repository through the API"],
   ["gh api repos/o/r -X DELETE", "deleting the repository through the API"],
@@ -242,6 +255,72 @@ describe("pstackpolicy", () => {
     const result = await run("git push --force origin main");
     expect(result?.reason).toContain("pause list");
     expect(result?.reason).toContain("Stop here and return this step to the operator");
+    expect(result?.reason).not.toContain("write its name out literally");
+  });
+
+  test("a shell-named forced destination is told to write the branch out, and the literal passes", async () => {
+    const named = await run('git push --force-with-lease="$BRANCH:$SHA" origin "$BRANCH"');
+    expect(named?.block).toBe(true);
+    expect(named?.reason).toContain("If the branch is not the default branch, write its name out literally and retry");
+    expect(named?.reason).toContain("Stop here and return this step to the operator");
+    expect(named?.reason).not.toContain("Do not look for another way");
+    expect(await run('git push --force-with-lease="feature/x:$SHA" origin "feature/x"')).toBeUndefined();
+    expect(await run("git push --force-with-lease=feature/x:abc123 origin feature/x")).toBeUndefined();
+  });
+
+  // bash runs in the session cwd, which is not the directory omp was launched from when an
+  // isolated owner works in a worktree, and a call can pass its own cwd.
+  describe("the directory git runs in", () => {
+    const from = async (launch, fn) => {
+      const before = process.cwd();
+      process.chdir(launch);
+      try {
+        return await fn();
+      } finally {
+        process.chdir(before);
+      }
+    };
+    const BARE = "git push --force-with-lease";
+
+    test("ctx.cwd on a feature branch allows a bare push when omp was launched on trunk", async () => {
+      await from(trunk, async () => {
+        expect(await run(BARE, feature)).toBeUndefined();
+        expect(await run("git push -f origin HEAD", feature)).toBeUndefined();
+      });
+    });
+
+    test("ctx.cwd on trunk refuses a bare push when omp was launched on a feature branch", async () => {
+      await from(feature, async () => {
+        for (const command of [BARE, "git push -f origin HEAD"]) {
+          const result = await run(command, trunk);
+          expect(result?.block).toBe(true);
+          expect(result?.reason).toContain("trunk");
+        }
+      });
+    });
+
+    test("an input cwd on a trunk checkout refuses, relative or absolute", async () => {
+      await from(feature, async () => {
+        const absolute = await run(BARE, feature, { cwd: trunk });
+        expect(absolute?.block).toBe(true);
+        expect(absolute?.reason).toContain("checked-out branch");
+        const relative = await run(BARE, root, { cwd: "trunk" });
+        expect(relative?.block).toBe(true);
+      });
+    });
+
+    test("an input cwd on a feature checkout allows when ctx.cwd is trunk", async () => {
+      expect(await run(BARE, trunk, { cwd: feature })).toBeUndefined();
+    });
+
+    test("-C moves from the call's directory", async () => {
+      expect((await run("git -C ../trunk push -f", feature))?.block).toBe(true);
+      expect(await run("git -C ../feature push -f", trunk)).toBeUndefined();
+    });
+
+    test("a cd inside the command line is not tracked", async () => {
+      expect(await run(`cd ${trunk} && ${BARE}`, feature)).toBeUndefined();
+    });
   });
 
   // omp://approval-mode.md: eval declares the exec tier and can spawn a shell, so a rule that

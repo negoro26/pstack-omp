@@ -42,9 +42,13 @@ show.
 - A force-push to the repository's default branch, or to `main`, `master`, or `trunk`. A push is
   forced by `--force`, `--force-with-lease`, `-f` (also inside a flag cluster such as `-fu`), a `+`
   on the refspec, or `--mirror`. `HEAD` or a missing refspec pushes the checked-out branch, which the
-  extension reads from the checkout. The default branch is whatever the remote's `HEAD` names. A
-  `gh api` update of a trunk ref that sends `force=true` counts too. A force-push to any other
-  branch stays allowed, because that is the port's own rebase flow.
+  extension reads from the directory the tool call runs in: the session cwd, or the `cwd` the call
+  passes, moved by each `git -C`. A `cd x && git push` inside the command line is not tracked. The
+  default branch is whatever the remote's `HEAD` names. A `gh api` update of a trunk ref that sends
+  `force=true` counts too. A force-push to any other branch stays allowed, because that is the
+  port's own rebase flow, except where the shell names the destination, as in
+  `git push --force-with-lease origin "$BRANCH"`. The command cannot show that value is not trunk, so
+  it is refused with the instruction to write the branch name out literally and retry.
 - Deleting the repository, with `gh repo delete` or `gh api -X DELETE repos/<owner>/<repo>` and no
   further path.
 

@@ -574,4 +574,11 @@ pushes. Deploys, data deletion and customer messages have no command shape to re
 with the prose. The extension does not enforce the playbooks. It is a backstop for two irreversible
 actions, not a sandbox, and it reads only `bash` and `eval` calls.
 
-A force push to a **feature** branch stays allowed: that is the port's own rebase flow.
+A force push to a **feature** branch stays allowed: that is the port's own rebase flow. The one
+exception is a forced destination the shell fills in, such as `$BRANCH` or
+`$(git branch --show-current)`. The command cannot show it is not trunk, so the refusal tells the
+agent to write the branch name out literally and retry, where a real trunk force-push is told to
+stop and return to the operator. The branch the checked-out rules read comes from `ctx.cwd`, the
+session's directory, moved by the call's own `cwd` and each `git -C`. omp's launch directory is not
+that directory for an isolated owner in a worktree. A `cd x && git push` inside the command line is
+not tracked.

@@ -108,16 +108,16 @@ extract_upstream() {
 	[ -d "$work/skills" ] && [ -d "$work/agents" ]
 }
 
-# The name of every skill the tree at <tree> ships, one per line, that rules.sed rewrites a bare
-# /name to /skill:<name> for. The directories under <tree>/skills are the build's own skills and the
-# owned paths are the port's. poteto-mode is left out because the port's potetomode extension
-# registers /poteto-mode as a real command. A directory name outside [a-z0-9-] is no command a
-# sentence can name, and left in it would change what the ERE means, so it is not listed.
+extension_commands() {
+	grep -rhoE 'registerCommand\("[a-z0-9-]+"' "$REPO_ROOT/plugins/pstack/extensions" --include=index.js |
+		sed -E 's/^registerCommand\("(.*)"$/\1/'
+}
+
 skill_command_names() {
 	{
 		find "$1/skills" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
 		owned_paths | sed -n 's#^skills/\([^/]*\)$#\1#p'
-	} | grep -E '^[a-z0-9][a-z0-9-]*$' | grep -vx poteto-mode | LC_ALL=C sort -u
+	} | grep -E '^[a-z0-9][a-z0-9-]*$' | grep -vxF -f <(extension_commands) | LC_ALL=C sort -u
 }
 
 # The same names as one ERE alternation for the @skill-names@ token in rules.sed.
@@ -140,7 +140,6 @@ expand_rules() {
 # Step 2, the substitution table. Binary files are skipped rather than corrupted, which is what
 # grep -I reports when the empty pattern does not match. One sed takes a batch of files, and -i
 # implies -s, so each file is still its own stream and a range address ends with its file. The
-# skill names come from the tree being rewritten, so a skill upstream adds needs no rule.
 apply_rules() {
 	local work="$1" rules="$2" expanded st=0
 	expanded=$(mktemp) || return 1

@@ -389,17 +389,7 @@ s#\.\./setup-pstack/SKILL\.md#../omp-mechanics/SKILL.md\#choose-models#g
 s#`/setup-pstack`#the Choose models section of `skill://omp-mechanics`#g
 # omp registers one slash command per skill as /skill:<name>; a bare /how is not a command on this
 # harness, and with `disable-model-invocation: true` the skill is hidden from the index, so the
-# model cannot recover it either. The build replaces @skill-names@ with the name of every skill
-# directory in the tree it is building, owned skills included and poteto-mode left out, so a skill
-# upstream adds is covered the day it lands. poteto-mode is a real extension command, registered
-# by the port's own potetomode extension, and its bare form stays.
-#
-# A name is rewritten when it follows the start of a line, a space, `(`, a backtick, or `"`, and
-# nothing that can continue a name, a path, or a longer name follows it: not a letter, digit, `_`,
-# `/`, or `-`. So skills/how/, ../how/SKILL.md, skill://how, /how-to, and /reframed stay as they
-# are. The rule consumes the one character after the name, which means two names a single space
-# apart rewrite only the first; the `skill command form` check fails such a line rather than
-# letting it ship.
+# model cannot recover it either.
 s#(^|[ (`"])/(@skill-names@)([^A-Za-z0-9_/-]|$)#\1/skill:\2\3#g
 # One verdict vocabulary. pstack-omp and swarm both name PASS/ISSUES/BLOCKED; shipping named a
 # different three, and its landing rule tested for a different set, so a verifier told by one file

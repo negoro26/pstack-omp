@@ -172,27 +172,19 @@ mutate_bare_skill_command() {
 	printf '\nRun `/how` first, then `/skill:how`.\n' >>"$FIXTURE/skills/no-comments/SKILL.md"
 }
 
-# The span form the old check missed: a name with arguments inside the backticks.
 mutate_bare_skill_args() {
 	printf '\n- `/sharpen <your prompt>`\n' >>"$FIXTURE/skills/poteto-help/references/recipes.md"
 }
 
-# The prose form: poteto-help's own description once told users to type /poteto-help.
 mutate_bare_skill_prose() {
 	printf '\nType /how with a question.\n' >>"$FIXTURE/skills/poteto-help/SKILL.md"
 }
 
-# None of these is a bare skill command: a path, a URL, the skill:// scheme, a longer name, the
-# real extension command, and a command already in its registered form.
 mutate_not_a_skill_command() {
 	printf '\nSee skills/how/SKILL.md, ../how/SKILL.md, skill://how, https://example.com/how, `/how-to`, /reframed, `/poteto-mode`, and `/skill:how`.\n' \
 		>>"$FIXTURE/skills/poteto-help/SKILL.md"
 }
 
-# An upstream commit that adds a skill and links it from poteto-help the way upstream links every
-# skill, `/name` in a link label and in prose, on top of the pin. The case builds that commit with
-# the port's own rules and installs the result over the fixture, so the gate judges what a sync of
-# it would ship. Nobody edits a rule or a list for the new name.
 make_fake_canon() {
 	FAKE_CANON="$WORK/fake-canon"
 	mkdir -p "$FAKE_CANON"

@@ -1,13 +1,15 @@
 #!/usr/bin/env bun
 // Loads the plugin tree into a real omp once per install shape and checks what only omp can answer:
 // every skill directory registers as a command, the pin extension records and reloads its state, a
-// pinned turn's system prompt carries the poteto-mode reminder, and pstackpolicy refuses a bash
-// `gh pr merge` before gh runs. Turns go to a scripted model on loopback, so no credential is used.
+// pinned turn's system prompt carries the poteto-mode reminder, pstackpolicy refuses a bash
+// force-push to main before git runs, and `gh pr merge` still reaches gh. Turns go to a scripted
+// model on loopback, so no credential is used.
 //
 //   bun omp-port/smoke-plugin.mjs [checkout]     checkout defaults to this repository
 //
 // No omp on PATH prints SKIPPED and exits 0, unless OMP_SMOKE_REQUIRED=1 makes that a failure.
 import assert from "node:assert";
+import { existsSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -40,6 +42,9 @@ const skills = (await readdir(join(plugin, "skills"), { withFileTypes: true }))
   .sort();
 
 const MERGE = "gh pr merge 1 --repo pstack-verify/no-such-repo --squash";
+const FORCE_PUSH = "git push --force origin main";
+const PLAIN_PUSH = "git push origin HEAD:main";
+const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
 
 // --plugin-dir adds the tree to skill discovery but does not load package.json omp.extensions, so
 // the -e shape passes the directory twice. --no-extensions also drops a linked plugin's skills and
@@ -62,6 +67,7 @@ async function leg(shape) {
   const home = await mkdtemp(join(tmpdir(), "pstack-smoke-"));
   const bin = join(home, "bin");
   const ghCalls = join(home, "gh-calls.log");
+  const pushCalls = join(home, "push-calls.log");
   const model = scriptedModel();
   let child;
   let exited;
@@ -86,6 +92,13 @@ async function leg(shape) {
     await writeFile(join(bin, "gh"), `#!/bin/sh\nprintf '%s\\n' "$*" >>'${ghCalls}'\necho "gh-shim: $*"\n`, {
       mode: 0o755,
     });
+    // Only a push is intercepted, so omp's own git calls and pstackpolicy's branch reads still run
+    // the real git.
+    await writeFile(
+      join(bin, "git"),
+      `#!/bin/sh\nfor a in "$@"; do\n  if [ "$a" = push ]; then printf '%s\\n' "$*" >>'${pushCalls}'; echo "git-shim: $*"; exit 0; fi\ndone\nexec '${realGit}' "$@"\n`,
+      { mode: 0o755 },
+    );
     // As under env -i, nothing from the operator's environment reaches omp. That keeps out every
     // credential, every variable that moves omp's roots past the scratch HOME, and the real gh.
     const env = { HOME: home, PATH: `${bin}:/usr/local/bin:/usr/bin:/bin` };
@@ -95,7 +108,7 @@ async function leg(shape) {
       assert(ran.status === 0, `omp ${argv.join(" ")} exited ${ran.status}: ${ran.stderr.trim()}`);
     }
 
-    // Under yolo only pstackpolicy's tool_call veto stands between bash and gh. That is its case.
+    // Under yolo only pstackpolicy's tool_call veto stands between bash and git or gh. That is its case.
     child = spawn(
       omp,
       [
@@ -190,10 +203,16 @@ async function leg(shape) {
     assert(systemPrompt(pinned).includes("skill://poteto-mode"), "the pinned turn's system prompt lacks the poteto-mode reminder");
 
     assert((await bash("gh --version")).includes("gh-shim: --version"), "bash did not resolve gh to the logging shim");
-    const merged = await bash(MERGE);
-    assert(merged.includes("pstackpolicy: refused"), `the model got ${JSON.stringify(merged.slice(0, 200))} back for ${MERGE}`);
+    const forced = await bash(FORCE_PUSH);
+    assert(forced.includes("pstackpolicy: refused"), `the model got ${JSON.stringify(forced.slice(0, 200))} back for ${FORCE_PUSH}`);
+    assert(forced.includes("return this step to the operator"), "the refusal does not hand the step back to the operator");
+    assert(!existsSync(pushCalls), "git push ran for the refused force-push");
+    assert((await bash(MERGE)).includes("gh-shim: pr merge 1"), "gh pr merge did not reach the gh shim");
+    assert((await bash(PLAIN_PUSH)).includes("git-shim: push origin HEAD:main"), "a plain push did not reach the git shim");
     const calls = (await readFile(ghCalls, "utf8")).trim().split("\n");
-    assert.deepStrictEqual(calls, ["--version"], `gh ran for: ${calls.join(" | ")}`);
+    assert.deepStrictEqual(calls, ["--version", MERGE.slice(3)], `gh ran for: ${calls.join(" | ")}`);
+    const pushes = (await readFile(pushCalls, "utf8")).trim().split("\n");
+    assert.deepStrictEqual(pushes, ["push origin HEAD:main"], `git push ran for: ${pushes.join(" | ")}`);
 
     await command("/poteto-mode off");
     assert((await pinEntry()) === false, "/poteto-mode off did not record pinned: false");
@@ -224,7 +243,7 @@ for (const shape of shapes) {
     console.log(
       `smoke-plugin: PASS  ${version.stdout.trim()} via ${shape.name}: ${skills.length}/${skills.length} skills ` +
         "registered; /poteto-mode on/off recorded; pinned system prompt names skill://poteto-mode; " +
-        "pstackpolicy refused the merge and gh never ran; pin reloaded on new_session",
+        "pstackpolicy refused the force-push to main and git never pushed; gh pr merge reached gh; pin reloaded on new_session",
     );
   } catch (error) {
     console.error(`smoke-plugin: FAIL  ${version.stdout.trim()} via ${shape.name}: ${error.message}`);

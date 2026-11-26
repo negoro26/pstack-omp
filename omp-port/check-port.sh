@@ -682,8 +682,8 @@ for ext in potetomode pstackpolicy; do
 	[ -f "extensions/$ext/index.js" ] ||
 		unreg="${unreg}extensions/$ext/index.js is missing"$'\n'
 done
-grep -qF 'PSTACK_LANDING_GRANT' extensions/pstackpolicy/index.js 2>/dev/null ||
-	unreg="${unreg}extensions/pstackpolicy no longer names PSTACK_LANDING_GRANT"$'\n'
+grep -qF 'Stop here and return this step to the operator' extensions/pstackpolicy/index.js 2>/dev/null ||
+	unreg="${unreg}extensions/pstackpolicy refusal no longer returns the step to the operator"$'\n'
 if [ -n "$unreg" ]; then
 	report "extensions" "FAIL"
 	while read -r u; do [ -n "$u" ] && violate "$u"; done <<<"$unreg"

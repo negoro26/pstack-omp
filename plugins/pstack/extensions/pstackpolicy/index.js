@@ -267,8 +267,9 @@ const REASON_TRUNK = "force-pushing a default or trunk branch";
  * Why this `git push` is a force-push to the default branch or to main, master, or trunk, or
  * null. A push is forced by `--force`, `--force-with-lease`, `-f`, or a `+` on the refspec, and
  * `--mirror` always is. Where the destination is `HEAD` or absent, git pushes the checked-out
- * branch, so that branch is read; a destination only the shell can fill in is not a fact the
- * command shows, so it passes. A delete refspec is not a force-push.
+ * branch, so that branch is read. A forced destination the shell fills in, such as `$BRANCH` or
+ * `$(git branch --show-current)`, can be trunk and the command cannot show it is not, so it is
+ * refused; writing the branch name out lets it through. A delete refspec is not a force-push.
  */
 function pushRefuse(argv, dir) {
   const args = argv.filter(
@@ -301,6 +302,7 @@ function pushRefuse(argv, dir) {
       .slice(token.lastIndexOf(":") + 1)
       .replace(/^\+/, "")
       .replace(/^refs\/heads\//, "");
+    if (dest.startsWith("$")) return `${REASON_TRUNK} that the shell names at run time`;
     if (dest === "*") return "force-pushing every branch, including the default branch";
     if (dest === "HEAD") {
       if (onTrunk(currentBranch(dir), remote)) return `${REASON_TRUNK} through HEAD`;

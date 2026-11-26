@@ -90,6 +90,11 @@ const MUST_BLOCK = [
   ["(git push -f origin $(echo feature; echo main))", "default or trunk"],
   ["cd /tmp && git push --force origin main", "default or trunk"],
   ['if [ -z "$x" ]; then git push -f origin main; fi', "default or trunk"],
+  // A forced destination the shell fills in may be trunk, so the command cannot clear it.
+  ["git push -f origin $BRANCH", "shell names at run time"],
+  ['git push --force origin "$(git branch --show-current)"', "shell names at run time"],
+  ["git push origin +${branch}", "shell names at run time"],
+  ["git push --force-with-lease origin `git branch --show-current`", "shell names at run time"],
   // A backtick substitution runs the command inside it, the same as `$(...)`.
   ["echo `git push -f origin main`", "default or trunk"],
   // A comment ends at its newline whatever quotes it holds, and `$#` is a parameter, not a comment.
@@ -172,8 +177,8 @@ const MUST_PASS = [
   `git -C ${feature} push -f`,
   `git -C ${feature} push --force-with-lease origin`,
   `git -C ${develop} push -f origin feature/x`,
-  "git push -f origin $BRANCH",
-  "git push --force origin \"$(git branch --show-current)\"",
+  "git push origin $BRANCH",
+  'git push -u origin "$(git branch --show-current)"',
   "git push -f origin 'refs/heads/feature/*:refs/heads/feature/*'",
   "git push --force-with-lease origin feature/x:feature/x",
   // The global-option tolerance must not cost the feature-branch push.

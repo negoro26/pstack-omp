@@ -1,6 +1,6 @@
 ---
 name: poteto-help
-description: Guides users through pstack setup, /poteto-mode, and picking the skill, playbook, or principle for a task. Type /poteto-help with a question.
+description: Guides users through pstack setup, /poteto-mode, and picking the skill, playbook, or principle for a task. Type /skill:poteto-help with a question.
 disable-model-invocation: true
 ---
 
@@ -17,7 +17,7 @@ This file maps questions to the skills and guide pages that hold the answers. Th
 Infer the need from the message and the conversation. A named situation, such as "which skill reviews a PR?", goes straight to its section. If the need is still unclear, ask one multiple-choice question with these options, then answer only the section they pick:
 
 - Get set up
-- Start a task with `/skill:poteto-mode`
+- Start a task with `/poteto-mode`
 - Pick a skill for a situation
 - Fix a run that went wrong
 - Make pstack my own
@@ -37,19 +37,19 @@ When required role overrides are missing and model selection matters, ask whethe
 
 1. Install with `/marketplace add negoro26/pstack-omp`, then `/marketplace install pstack@pstack-omp`.
 2. Models need no configuration. Each agent runs on its frontmatter model, then on the chat model. To pick models per agent, follow [Choose models](../omp-mechanics/SKILL.md#choose-models). Offer once each to generate a verification skill with `/skill:create-verification-skill` and a formal verification skill with `/skill:create-formal-verification-skill`, unless the project already has one.
-3. Start a real task with `/skill:poteto-mode`, a goal, and a check that can pass or fail.
+3. Start a real task with `/poteto-mode`, a goal, and a check that can pass or fail.
 
 Skills run when invoked or routed. The installed extension also provides the session pin commands. The [README](../../README.md) and [guide page 1](https://github.com/cursor/plugins/blob/main/pstack/docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
 
-If cost is the worry, explain that extra workers and review panels spend more tokens. To spend fewer, pick a lower effort or cheaper available models per [Choose models](../omp-mechanics/SKILL.md#choose-models). An agent without a model override uses its frontmatter or inherits the chat model. Never write `auto` or `inherit-parent` as an OMP model selector. Save `/skill:poteto-mode` for work that needs rigor.
+If cost is the worry, explain that extra workers and review panels spend more tokens. To spend fewer, pick a lower effort or cheaper available models per [Choose models](../omp-mechanics/SKILL.md#choose-models). An agent without a model override uses its frontmatter or inherits the chat model. Never write `auto` or `inherit-parent` as an OMP model selector. Save `/poteto-mode` for work that needs rigor.
 
 pstack installs in omp with `/marketplace add negoro26/pstack-omp`, then `/marketplace install pstack@pstack-omp`. Invoke skills as `/skill:<name>`, such as `/skill:poteto-mode`. Read `skill://pstack-omp` for the live task and runtime contract and `skill://omp-mechanics` for pstack-specific OMP differences.
 
 The engineering workflows come from upstream. `skill://pstack-omp` maps worker execution and lifecycle to OMP, `skill://omp-mechanics` says how to choose models, and the mode extension preserves the session pin.
 
-## Start a task with `/skill:poteto-mode`
+## Start a task with `/poteto-mode`
 
-`/skill:poteto-mode` matches the task to a playbook, copies the playbook's steps into the todo list, and runs the other skills as the steps need them. A good prompt states the goal and how to tell it's done. It doesn't list skills, because a hand-written sequence tends to drop or reorder steps the playbook would keep. Read [`references/prompting.md`](references/prompting.md) before you help word one. [Guide page 2](https://github.com/cursor/plugins/blob/main/pstack/docs/guide/02-poteto-mode.md) has examples.
+`/poteto-mode` matches the task to a playbook, copies the playbook's steps into the todo list, and runs the other skills as the steps need them. A good prompt states the goal and how to tell it's done. It doesn't list skills, because a hand-written sequence tends to drop or reorder steps the playbook would keep. Read [`references/prompting.md`](references/prompting.md) before you help word one. [Guide page 2](https://github.com/cursor/plugins/blob/main/pstack/docs/guide/02-poteto-mode.md) has examples.
 
 Choose whether to invoke the router once or pin it for the session:
 
@@ -61,11 +61,11 @@ Link the installed [OMP README](../../README.md) for pin commands and [runtime m
 
 ## Pick a skill
 
-The default answer is `/skill:poteto-mode`, which runs most of the others when its steps need them. Name a skill directly when the user wants more or less of something than the playbook gives. Read the skill before you recommend it, and give one example prompt.
+The default answer is `/poteto-mode`, which runs most of the others when its steps need them. Name a skill directly when the user wants more or less of something than the playbook gives. Read the skill before you recommend it, and give one example prompt.
 
 | The user wants to | Skill |
 |---|---|
-| Do any non-trivial task with rigor | [`/skill:poteto-mode`](../poteto-mode/SKILL.md) |
+| Do any non-trivial task with rigor | [`/poteto-mode`](../poteto-mode/SKILL.md) |
 | Check that the agent understood their goal and the problem before it starts | [`/skill:in-your-own-words`](../in-your-own-words/SKILL.md) |
 | Get a prompt rewritten deeper, not bigger, before sending it: what a top professional would add, their raw material and methods, and an outside check. It returns the prompt and doesn't do the task | [`/skill:sharpen`](../sharpen/SKILL.md) |
 | Learn the expert words for what they're building, including words borrowed from neighboring fields, with every cited source checked, and get their description rewritten with them | [`/skill:reframe`](../reframe/SKILL.md) |
@@ -119,7 +119,7 @@ Not in pstack:
 
 ## Playbooks and principles
 
-Playbooks are step lists inside `/skill:poteto-mode`, not skills, so they have no slash command. Inside `/skill:poteto-mode`, describing the task picks one, and these phrases name one directly:
+Playbooks are step lists inside `/poteto-mode`, not skills, so they have no slash command. Inside `/poteto-mode`, describing the task picks one, and these phrases name one directly:
 
 - "babysit this pr" or "check on pr 123" runs Babysit. It drives the PR to merge-ready and stops there. It doesn't merge unless the user asks to merge, land, or ship.
 - "land the stack" runs Shipping.
@@ -128,11 +128,11 @@ Playbooks are step lists inside `/skill:poteto-mode`, not skills, so they have n
 - "full autopilot on this queue" runs Autopilot-full. "autopilot, don't merge" runs Autopilot-stack.
 - "run the eval playbook" runs Eval.
 
-Without `/skill:poteto-mode`, the runtime may route a phrase using other enabled skills. Invoke the router explicitly to select pstack's playbook. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook. [Guide page 6](https://github.com/cursor/plugins/blob/main/pstack/docs/guide/06-verify-and-ship.md) gives upstream workflow examples, not OMP runtime commands.
+Without `/poteto-mode`, the runtime may route a phrase using other enabled skills. Invoke the router explicitly to select pstack's playbook. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook. [Guide page 6](https://github.com/cursor/plugins/blob/main/pstack/docs/guide/06-verify-and-ship.md) gives upstream workflow examples, not OMP runtime commands.
 
-pstack has no planning skill. For work that spans phases or stacked PRs, asking `/skill:poteto-mode` for a plan runs the [Multi-phase plan playbook](../poteto-mode/playbooks/multi-phase-plan.md), which writes the plan and doesn't implement it. For a design question, the Prototype playbook or `/skill:architect` settles it in code first.
+pstack has no planning skill. For work that spans phases or stacked PRs, asking `/poteto-mode` for a plan runs the [Multi-phase plan playbook](../poteto-mode/playbooks/multi-phase-plan.md), which writes the plan and doesn't implement it. For a design question, the Prototype playbook or `/skill:architect` settles it in code first.
 
-Principles are one-rule skills that `/skill:poteto-mode` reads and cites in its replies. The user rarely invokes one. They steer with the names instead, as in "apply prove it works. show me the real output." Typing `/skill:principle-<name>` loads one on demand. [Guide page 8](https://github.com/cursor/plugins/blob/main/pstack/docs/guide/08-principles.md) lists them.
+Principles are one-rule skills that `/poteto-mode` reads and cites in its replies. The user rarely invokes one. They steer with the names instead, as in "apply prove it works. show me the real output." Typing `/skill:principle-<name>` loads one on demand. [Guide page 8](https://github.com/cursor/plugins/blob/main/pstack/docs/guide/08-principles.md) lists them.
 
 ## Fix a run that went wrong
 
@@ -151,7 +151,7 @@ For a run that drifts, [`references/prompting.md`](references/prompting.md) has 
 
 ## Make pstack my own
 
-- [`/skill:automate-me`](../automate-me/SKILL.md) drafts a personal mode skill from the user's own history, to use alongside `/skill:poteto-mode`.
+- [`/skill:automate-me`](../automate-me/SKILL.md) drafts a personal mode skill from the user's own history, to use alongside `/poteto-mode`.
 - [`/skill:reflect`](../reflect/SKILL.md) after a session turns its lessons into skill edits the user approves.
 - `/poteto-mode write a skill for <workflow>` runs the authoring playbook. The eval playbook tests a skill change blind.
 - Fix a misbehaving skill in its own PR, not inside the feature work where it went wrong.

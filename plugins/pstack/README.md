@@ -1,8 +1,8 @@
 # pstack for oh-my-pi
 
-Lauren Tan's pstack methodology, ported to omp. 60 skills, 22 playbooks, 24 principle
-leaves, the `poteto-mode` pin, and the `poteto-agent` and `comment-sicko` agents.
-58 skills are built from upstream. `omp-mechanics` and `pstack-omp` are port-owned.
+Lauren Tan's pstack methodology, ported to omp. The full pstack skill set with its playbooks and
+principle leaves, the `poteto-mode` pin, and the `poteto-agent` and `comment-sicko` agents.
+Every skill but `omp-mechanics` and `pstack-omp` is built from upstream. Those two are port-owned.
 
 ## Install
 
@@ -11,7 +11,7 @@ leaves, the `poteto-mode` pin, and the `poteto-agent` and `comment-sicko` agents
 /marketplace install pstack@pstack-omp
 ```
 
-That loads the 60 skills and both extensions, `potetomode` and `pstackpolicy`. The two agents are optional.
+That loads every skill and both extensions, `potetomode` and `pstackpolicy`. The two agents are optional.
 On omp 18.1.13 a marketplace plugin's `agents/` directory is scanned only through the
 `claude-plugins` discovery provider, and enabling that provider also loads every Claude Code
 plugin cached under `~/.claude/plugins`. Link the agents into omp's native root instead:

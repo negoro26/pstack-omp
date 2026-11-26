@@ -11,7 +11,7 @@ This directory is the maintained source for verifying what users of pstack-omp c
 
 ## Driving conventions
 
-- Type prompts that name a forge mutation with `$C type-file`, never inline. The driver's own pstackpolicy refuses an inline one.
+- Type prompts that name a force-push to trunk or a repository delete with `$C type-file`, never inline. The driver's own pstackpolicy refuses an inline one.
 - Wait on visible text with `$C wait`, not on a fixed sleep. The pane strings each recipe names are stable output of the plugin or omp.
 - Assert on model requests whose `tools` list is non-empty. Requests with an empty list are background skill-description compression.
 - Run anything that rewrites `plugins/pstack` inside `$C clone <run>`, never in the checkout.
@@ -20,9 +20,9 @@ This directory is the maintained source for verifying what users of pstack-omp c
 ## Proof and skip reporting
 
 - Capture the user action and the resulting state with `$C capture <run> <name>`, not only the final screen.
-- A refusal proof pairs an empty `<name>.gh-calls.log` with a control capture in which the same launch reaches the `gh` shim.
+- A refusal proof pairs an empty `<name>.git-calls.log` or `<name>.gh-calls.log` with a control capture in which the same launch reaches the `gh` or `git` shim.
 - Port proof includes the command, stdout and stderr, the exit code, and `git status --porcelain` before and after.
-- Record the feature file and sub-feature ID in the capture name, for example `landing-gate.gate-refuse-bash`.
+- Record the feature file and sub-feature ID in the capture name, for example `irreversible-action-gate.gate-refuse-force-push`.
 - Report an unreachable path with the attempted command and the unmet precondition.
 - Do not report a skipped entry point as verified through a different path.
 
@@ -41,6 +41,6 @@ Keep implementation details out of the map. Name only user paths, stable handles
 
 - [Skill commands](./skill-commands.md) covers registration of every skill directory, `/skill:` autocomplete, and invoking a skill.
 - [poteto-mode pin](./poteto-mode-pin.md) covers `/poteto-mode`, the status pill, the per-turn reminder, the `--poteto` flag, the shortcut, and `/new`.
-- [Landing gate](./landing-gate.md) covers pstackpolicy refusing forge mutations from model-issued `bash` and `eval` calls, the allowed control, the grant, and the user's own `!` commands.
+- [Irreversible-action gate](./irreversible-action-gate.md) covers pstackpolicy refusing a force-push to the default branch and repository deletion from model-issued `bash` and `eval` calls, the allowed merge and feature-push controls, and the user's own `!` commands.
 - [Port gate](./port-gate.md) covers `omp-port/check-port.sh` at the pin and against another upstream sha.
 - [Upstream sync](./upstream-sync.md) covers `omp-port/sync-upstream.sh check`, `rebuild`, and a sync to a target sha.

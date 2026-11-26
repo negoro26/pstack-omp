@@ -1,0 +1,1 @@
+tool:bash {"command":"git -C . push --force origin main","i":"Force-pushing the default branch"}

@@ -1,0 +1,1 @@
+tool:bash {"command":"git -C . push --force-with-lease origin feature/verify","i":"Force-pushing a feature branch"}

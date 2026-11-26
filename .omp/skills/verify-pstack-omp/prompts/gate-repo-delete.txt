@@ -1,0 +1,1 @@
+tool:bash {"command":"gh api -X DELETE repos/pstack-verify/no-such-repo","i":"Deleting the verification repository"}

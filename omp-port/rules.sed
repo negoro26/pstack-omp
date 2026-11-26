@@ -388,14 +388,19 @@ s#\[`/setup-pstack`\]#[Choose models]#g
 s#\.\./setup-pstack/SKILL\.md#../omp-mechanics/SKILL.md\#choose-models#g
 s#`/setup-pstack`#the Choose models section of `skill://omp-mechanics`#g
 # omp registers one slash command per skill as /skill:<name>; a bare /how is not a command on this
-# harness. `/poteto-mode` is in the alternation only because the gate scans for it like any other
-# name; the port's own extension registers that command, so the rewrite is a no-op in practice.
+# harness, and with `disable-model-invocation: true` the skill is hidden from the index, so the
+# model cannot recover it either. The build replaces @skill-names@ with the name of every skill
+# directory in the tree it is building, owned skills included and poteto-mode left out, so a skill
+# upstream adds is covered the day it lands. poteto-mode is a real extension command, registered
+# by the port's own potetomode extension, and its bare form stays.
 #
-# One rule covers every name rather than one rule per skill. The per-skill form was a list that
-# forgot: upstream added eighteen skills after it was written and every one of them shipped a bare
-# /name the gate could not accept. Adding a skill upstream now means adding its name to the
-# alternation, once.
-s#`/(teach|recall|reflect|reframe|tdd|swarm|arena|interrogate|correct|automate-me|figure-it-out|show-me-your-work|benchmark-checklist|blast-radius|ketchup-video|ketchup|bro|make-bot-ui|poteto-help|no-comments|unslop|create-verification-skill|maintain-verification-skill|create-formal-verification-skill|maintain-formal-verification-skill|statechart|architect|why|how|technical-writing|sharpen|in-your-own-words|typescript-best-practices|poteto-mode|principle-[a-z-]+)`#`/skill:\1`#g
+# A name is rewritten when it follows the start of a line, a space, `(`, a backtick, or `"`, and
+# nothing that can continue a name, a path, or a longer name follows it: not a letter, digit, `_`,
+# `/`, or `-`. So skills/how/, ../how/SKILL.md, skill://how, /how-to, and /reframed stay as they
+# are. The rule consumes the one character after the name, which means two names a single space
+# apart rewrite only the first; the `skill command form` check fails such a line rather than
+# letting it ship.
+s#(^|[ (`"])/(@skill-names@)([^A-Za-z0-9_/-]|$)#\1/skill:\2\3#g
 # One verdict vocabulary. pstack-omp and swarm both name PASS/ISSUES/BLOCKED; shipping named a
 # different three, and its landing rule tested for a different set, so a verifier told by one file
 # and checked by another could not satisfy both.
@@ -465,15 +470,6 @@ s#- Workers never rebase and never run `gt`\.#- Workers never rebase and never t
 ## rewrite and is wrong on omp. They cluster into two classes worth remembering: a document
 ## rewritten on one side of a page and not the other, and a paraphrase of a harness rule that
 ## dropped half of it. Both are invisible to a diff that only looks for Cursor vocabulary.
-
-# Bare `/<name>` is not an omp command. Skills register as `/skill:<name>`; unhandled slash input
-# falls through as literal prompt text, and with `disable-model-invocation: true` the skill is
-# hidden from the index, so the model cannot recover it either. The gate only greps the backticked
-# form, which is why the description form survived. A per-name list here missed ketchup, sharpen,
-# correct, and then ketchup-video, the same miss the alternation above records. One rule now
-# covers every `Use for /<name>`.
-s#Use for /([a-z][a-z0-9-]*)([ ,.])#Use for /skill:\1\2#
-s#like /ketchup,#like /skill:ketchup,#
 
 # `cursor location` is a Cursor composer affordance: the editor injects the caret position. omp is
 # a terminal harness with no editor-state primitive, so an agent following the hint looks for a

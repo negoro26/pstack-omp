@@ -108,13 +108,50 @@ extract_upstream() {
 	[ -d "$work/skills" ] && [ -d "$work/agents" ]
 }
 
+# The name of every skill the tree at <tree> ships, one per line, that rules.sed rewrites a bare
+# /name to /skill:<name> for. The directories under <tree>/skills are the build's own skills and the
+# owned paths are the port's. poteto-mode is left out because the port's potetomode extension
+# registers /poteto-mode as a real command. A directory name outside [a-z0-9-] is no command a
+# sentence can name, and left in it would change what the ERE means, so it is not listed.
+skill_command_names() {
+	{
+		find "$1/skills" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
+		owned_paths | sed -n 's#^skills/\([^/]*\)$#\1#p'
+	} | grep -E '^[a-z0-9][a-z0-9-]*$' | grep -vx poteto-mode | LC_ALL=C sort -u
+}
+
+# The same names as one ERE alternation for the @skill-names@ token in rules.sed.
+skill_names_alt() {
+	local list
+	list=$(skill_command_names "$1") && [ -n "$list" ] || {
+		printf 'no skill directories under %s/skills\n' "$1" >&2
+		return 1
+	}
+	paste -sd'|' - <<<"$list"
+}
+
+# <rules> with the @skill-names@ token replaced by the names of the skills in <tree>.
+expand_rules() {
+	local alt
+	alt=$(skill_names_alt "$1") || return 1
+	sed "s#@skill-names@#$alt#g" "$2"
+}
+
 # Step 2, the substitution table. Binary files are skipped rather than corrupted, which is what
 # grep -I reports when the empty pattern does not match. One sed takes a batch of files, and -i
-# implies -s, so each file is still its own stream and a range address ends with its file.
+# implies -s, so each file is still its own stream and a range address ends with its file. The
+# skill names come from the tree being rewritten, so a skill upstream adds needs no rule.
 apply_rules() {
-	local work="$1" rules="$2"
-	grep -rIlZ '' "$work" |
-		xargs -0 -r -n 64 -P "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)" sed -E -i -f "$rules"
+	local work="$1" rules="$2" expanded st=0
+	expanded=$(mktemp) || return 1
+	if expand_rules "$work" "$rules" >"$expanded"; then
+		grep -rIlZ '' "$work" |
+			xargs -0 -r -n 64 -P "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)" sed -E -i -f "$expanded" || st=$?
+	else
+		st=1
+	fi
+	rm -f "$expanded"
+	return "$st"
 }
 
 # Step 3, the port's own code. A patch that no longer applies is a hard stop, because the
@@ -428,7 +465,7 @@ dead_rules() {
 # Exits 1, printing nothing, when the extract or any rule fails to parse, so a caller cannot read
 # an empty result as "nothing is stale".
 dead_rule_causes() {
-	local sha="$1" dead="$2" work catchall n rule prog by span st=0
+	local sha="$1" dead="$2" work catchall n rule prog by span alt st=0
 	[ -n "$dead" ] || return 0
 	work=$(mktemp -d)
 	if ! mkdir "$work/up" || ! extract_upstream "$sha" "$work/up"; then
@@ -436,12 +473,17 @@ dead_rule_causes() {
 		return 1
 	fi
 	text_blob "$work/up" >"$work/blob"
-	mark_rules >"$work/marked"
+	if ! alt=$(skill_names_alt "$work/up"); then
+		rm -rf "$work"
+		return 1
+	fi
+	mark_rules | sed "s#@skill-names@#$alt#g" >"$work/marked"
 	catchall=$(grep -nF "$CATCHALL_REPL" "$RULES" | head -n1 | cut -d: -f1)
 	declare -A progs
-	while IFS=$'\t' read -r n _ _ _ _ prog _; do progs[$n]=$prog; done < <(rule_table)
+	while IFS=$'\t' read -r n _ _ _ _ prog _; do progs[$n]=${prog//@skill-names@/$alt}; done < <(rule_table)
 	while IFS=$'\t' read -r n rule; do
 		[ -n "$n" ] || continue
+		rule=${rule//@skill-names@/$alt}
 		printf '%s\n' "${rule//$RULE_NL/$'\n'}" >"$work/rule.sed"
 		if ! sed -E -f "$work/rule.sed" "$work/blob" >"$work/out" 2>/dev/null; then
 			st=1
@@ -458,7 +500,7 @@ dead_rule_causes() {
 		prog=${progs[$n]:--}
 		if [ "$prog" != - ]; then
 			sed -nE "$prog" "$work/blob" | spans_of | LC_ALL=C sort -u >"$work/spans"
-			head -n "$((n - 1))" "$RULES" >"$work/prefix.sed"
+			head -n "$((n - 1))" "$RULES" | sed "s#@skill-names@#$alt#g" >"$work/prefix.sed"
 			sed -E -f "$work/prefix.sed" "$work/spans" >"$work/after"
 			if ! cmp -s "$work/spans" "$work/after"; then
 				head -n "$((n - 1))" "$work/marked" >"$work/prefix.sed"

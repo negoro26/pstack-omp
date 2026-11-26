@@ -323,6 +323,25 @@ unified diffs applied after the rules, which is where a change no substitution c
 and runtime contract. `omp-mechanics` keeps only pstack-specific OMP deltas. Upstream syncs preserve
 these paths without rewriting them.
 
+### Skill commands are derived, not listed
+
+omp registers each skill only as `/skill:<name>`. A bare `/how` reaches the model as literal text and
+never loads the skill, so every `/name` upstream writes has to become `/skill:name`. One rule in
+`rules.sed` does it, and its left side carries the token `@skill-names@` instead of a list of
+skills. `apply_rules` replaces the token with every directory under the tree's `skills/`, plus the
+owned skills in `owned.txt`, minus `poteto-mode`, so a skill upstream adds is covered by the build
+that brings it in and nobody edits a rule or a README. `poteto-mode` is a real extension command
+that the port registers itself, so its bare form stays as upstream wrote it. The probes that read
+`rules.sed` as data expand the token the same way.
+
+A name is rewritten after the start of a line, a space, `(`, a backtick, or `"`, when the next
+character cannot continue a name, a path, or a longer name (a letter, digit, `_`, `/`, or `-`).
+Paths, URLs, `skill://name`, `/how-to`, and `/reframed` are left alone. The rule consumes the one
+character after the name, so two names a single space apart rewrite only the first. The
+`skill command form` check uses the same boundaries with lookaround, so that line fails the gate
+instead of shipping. The READMEs carry no skill, playbook, or principle counts for the same reason.
+`marketplace.json` carries them, written by the build, and `counts` holds it to the live tree.
+
 `omp-port/excluded.txt` names upstream paths the port does not ship, one per line. `extract_upstream`
 deletes each one right after the export, so no rule, patch, or probe sees that text, and a rule that
 only an excluded file matched reads as stale. The `excluded paths` check fails when an excluded path

@@ -172,6 +172,61 @@ mutate_bare_skill_command() {
 	printf '\nRun `/how` first, then `/skill:how`.\n' >>"$FIXTURE/skills/no-comments/SKILL.md"
 }
 
+# The span form the old check missed: a name with arguments inside the backticks.
+mutate_bare_skill_args() {
+	printf '\n- `/sharpen <your prompt>`\n' >>"$FIXTURE/skills/poteto-help/references/recipes.md"
+}
+
+# The prose form: poteto-help's own description once told users to type /poteto-help.
+mutate_bare_skill_prose() {
+	printf '\nType /how with a question.\n' >>"$FIXTURE/skills/poteto-help/SKILL.md"
+}
+
+# None of these is a bare skill command: a path, a URL, the skill:// scheme, a longer name, the
+# real extension command, and a command already in its registered form.
+mutate_not_a_skill_command() {
+	printf '\nSee skills/how/SKILL.md, ../how/SKILL.md, skill://how, https://example.com/how, `/how-to`, /reframed, `/poteto-mode`, and `/skill:how`.\n' \
+		>>"$FIXTURE/skills/poteto-help/SKILL.md"
+}
+
+# An upstream commit that adds a skill and links it from poteto-help the way upstream links every
+# skill, `/name` in a link label and in prose, on top of the pin. The case builds that commit with
+# the port's own rules and installs the result over the fixture, so the gate judges what a sync of
+# it would ship. Nobody edits a rule or a list for the new name.
+make_fake_canon() {
+	FAKE_CANON="$WORK/fake-canon"
+	mkdir -p "$FAKE_CANON"
+	git -C "$CANON" archive "$PIN" pstack/skills pstack/agents | tar -x -C "$FAKE_CANON"
+	fake_git() {
+		git -C "$FAKE_CANON" -c init.defaultBranch=main -c user.name=gate -c user.email=gate@localhost \
+			-c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
+	}
+	fake_git init -q && fake_git add -A && fake_git commit -qm pin
+	mkdir -p "$FAKE_CANON/pstack/skills/fakenewskill"
+	printf -- '---\nname: fakenewskill\ndescription: A skill upstream added after this port was written. Use for /fakenewskill.\n---\n\n# Fake new skill\n' \
+		>"$FAKE_CANON/pstack/skills/fakenewskill/SKILL.md"
+	sed -i '/\[`\/tdd`\](\.\.\/tdd\/SKILL\.md)/a | Try the new thing | [`/fakenewskill`](../fakenewskill/SKILL.md) |' "$FAKE_CANON/pstack/skills/poteto-help/SKILL.md"
+	printf '\nType /fakenewskill with a question, or run `/fakenewskill <args>`.\n' >>"$FAKE_CANON/pstack/skills/poteto-help/SKILL.md"
+	fake_git add -A && fake_git commit -qm 'add fakenewskill'
+	FAKE_SHA=$(fake_git rev-parse HEAD)
+}
+
+mutate_new_upstream_skill() {
+	local build p
+	build=$(mktemp -d)
+	(CANON="$FAKE_CANON" build_tree "$FAKE_SHA" "$build") >"$build.log" 2>&1 || {
+		cat "$build.log"
+		return 1
+	}
+	rm -rf "$FIXTURE/skills" "$FIXTURE/agents"
+	mv "$build/skills" "$build/agents" "$FIXTURE/"
+	while IFS= read -r p; do
+		rm -rf "${FIXTURE:?}/$p"
+		cp -a "$PORT_DIR/../plugins/pstack/$p" "$FIXTURE/$p"
+	done < <(owned_paths)
+	rm -rf "$build" "$build.log"
+}
+
 mutate_required_item_field() {
 	sed -i 's/solutionSpace/spaceField/g' "$FIXTURE/skills/pstack-omp/SKILL.md"
 }
@@ -378,6 +433,9 @@ start_case 'guide prototype playbook' 'guide claims' '' contracts mutate_guide_p
 start_case 'guide feature map' 'guide claims' 'feature map' contracts mutate_guide_feature_map
 start_case 'readonly after another' 'readonly posture' 'another readonly' contracts mutate_readonly_another
 start_case 'bare skill command' 'skill command form' '`/how`' contracts mutate_bare_skill_command
+start_case 'bare skill command with arguments' 'skill command form' '`/sharpen <your prompt>`' contracts mutate_bare_skill_args
+start_case 'bare skill command in prose' 'skill command form' 'Type /how with' contracts mutate_bare_skill_prose
+start_case 'paths, longer names, and poteto-mode' '' '' contracts mutate_not_a_skill_command
 start_case 'required item field' 'runtime contract fields' 'solutionSpace' contracts mutate_required_item_field
 # The README half only: PORTING.md lives outside the plugin root, so no fixture reaches it.
 start_case 'external veto provenance' 'external capability provenance' '' contracts mutate_veto_provenance
@@ -397,6 +455,8 @@ start_case 'shipped change at a higher version' '' '' contracts mutate_shipped_b
 # these cases run the whole gate and need the clone. The clone is fetched here, one sha at a time,
 # before any case starts: the cases run in parallel and two fetches into one clone collide.
 if ensure_canon "$PIN" "$OLD_TARGET" >/dev/null 2>&1; then
+	make_fake_canon
+	start_case 'new upstream skill linked in poteto-help' '' '' contracts mutate_new_upstream_skill
 	start_case 'rule matching no upstream text' 'rule staleness' 'a sentence upstream has never contained' full mutate_unmatched_rule
 	start_case 'delete rule matching no line' 'rule staleness' 'a line upstream has never contained' full mutate_unmatched_delete
 	start_case 'exemption on a live rule' 'rule staleness' 'which matches upstream text' full mutate_exemption_on_live_rule

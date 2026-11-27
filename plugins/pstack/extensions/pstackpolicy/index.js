@@ -434,6 +434,8 @@ const baseDirectory = (event, ctx) =>
   resolve(ctx.cwd, typeof event.input?.cwd === "string" ? event.input.cwd : "");
 
 const STOP = "Stop here and return this step to the operator, saying what is blocked.";
+const HANDOFF =
+  "Ask them to confirm it and run it themselves. A retry in another form is refused the same way.";
 
 export default function pstackpolicy(pi) {
   pi.on("tool_call", async (event, ctx) => {
@@ -457,7 +459,7 @@ export default function pstackpolicy(pi) {
       reason:
         `pstackpolicy: refused ${why}. pstack's pause list says to always pause for ` +
         `irreversible writes, and a force-push to the default branch and repository deletion ` +
-        `are two of them. ${STOP} Do not look for another way to run it.`,
+        `are two of them. ${STOP} ${HANDOFF}`,
     };
   });
 }

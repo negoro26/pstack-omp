@@ -255,7 +255,13 @@ describe("pstackpolicy", () => {
     const result = await run("git push --force origin main");
     expect(result?.reason).toContain("pause list");
     expect(result?.reason).toContain("Stop here and return this step to the operator");
+    expect(result?.reason).toContain("Ask them to confirm it and run it themselves");
     expect(result?.reason).not.toContain("write its name out literally");
+  });
+
+  test("a repository delete is handed back to the operator", async () => {
+    const result = await run("gh repo delete o/r --yes");
+    expect(result?.reason).toContain("Ask them to confirm it and run it themselves");
   });
 
   test("a shell-named forced destination is told to write the branch out, and the literal passes", async () => {
@@ -263,7 +269,7 @@ describe("pstackpolicy", () => {
     expect(named?.block).toBe(true);
     expect(named?.reason).toContain("If the branch is not the default branch, write its name out literally and retry");
     expect(named?.reason).toContain("Stop here and return this step to the operator");
-    expect(named?.reason).not.toContain("Do not look for another way");
+    expect(named?.reason).not.toContain("run it themselves");
     expect(await run('git push --force-with-lease="feature/x:$SHA" origin "feature/x"')).toBeUndefined();
     expect(await run("git push --force-with-lease=feature/x:abc123 origin feature/x")).toBeUndefined();
   });

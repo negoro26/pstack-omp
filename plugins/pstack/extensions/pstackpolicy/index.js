@@ -435,7 +435,8 @@ const baseDirectory = (event, ctx) =>
 
 const STOP = "Stop here and return this step to the operator, saying what is blocked.";
 const HANDOFF =
-  "Ask them to confirm it and run it themselves. A retry in another form is refused the same way.";
+  "Ask them to confirm it and run it themselves. A different command for the same push or delete " +
+  "is the same blocked action.";
 
 export default function pstackpolicy(pi) {
   pi.on("tool_call", async (event, ctx) => {

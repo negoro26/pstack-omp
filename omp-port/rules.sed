@@ -410,10 +410,6 @@ s#\*\*You own the merge frontier\. Declare a mode, clear one PR at a time, stop 
 ## contradicted another sentence in the same tree. None is a Cursor residue; they are the port's
 ## own claims about itself, which is the class nothing upstream can fix for us.
 
-# `trash` is macOS, so the step could not be followed on this host, and the sentence forbade the one
-# fallback that would work. Handled in zz-live-runtime-routing.patch instead, because that line is
-# the patch's own output and a sed rule cannot see it.
-
 ## 12. Graphite. Four playbooks say "Never require Graphite (`gt`)", so no sentence may make `gt`
 ## mandatory or authoritative.
 
